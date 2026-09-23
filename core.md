@@ -708,7 +708,7 @@ This specification is not (yet) under IANA administration; the registries below 
 | `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion` | Core set changes by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest class until reviewed (§1.5.3). |
 | `taskScope` namespaces | 17 reserved core namespaces (§1.5.3) | Same policy as categories; non-reserved namespaces are org-custom. |
 | Capability tokens | `namespace:action` grammar (AIP §4.1) | Namespaces are reserved in AIP §4.2; `capabilityJustification` keys MUST be a subset of the granted set (§1.5.2). |
-| Transparency-log entry types | issuance, revocation, build attestation (§6) | ATP-SPEC revision. |
+| Transparency-log entry types | Registered in ATP Section 5.1.1 ([`registries/transparency-entry-types.json`](https://github.com/opena2a-standards/agent-trust-protocol/blob/main/registries/transparency-entry-types.json)); ATX logs its entries (§6) under those types and defines none of its own | ATP-SPEC revision. |
 
 If ATP enters IETF process (§2), these registries are the candidates for genuine IANA sections; their change policies are written so that transition is a renaming, not a redesign.
 
