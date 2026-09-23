@@ -41,6 +41,11 @@ identifier registered in `core.md` §14.
   field is assigned by the log after signing and sits outside both signing forms, so the
   credential's canonical bytes and its signature are identical to the v1.1 baseline's. Section 12's
   fixture enumeration names it; no normative text changes.
+- Section 14's transparency-log entry-type row cites its home instead of restating it: the entry
+  types are registered in ATP section 5.1.1 (`registries/transparency-entry-types.json`), and ATX
+  logs its issuance, revocation and attestation entries under those types. The row previously
+  named its own three types, which are not the names the ATP registry uses. No governed set
+  changes; this corrects where the set is defined.
 - Section 14's capability-token row cites its home instead of restating it: the grammar is
   `namespace:action` per AIP section 4.1, and namespaces are reserved in AIP section 4.2. The row
   previously used a different second term for the grammar and named a product repository as the
