@@ -34,6 +34,10 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The reference implementation is named OpenA2A AIM (Agent Identity Management) at its first use in
+  `README.md`, `CONTRIBUTING.md` and `sovereign-federation.md`, and `core.md` defines the name in its
+  "Conventions and terminology" section. The README summary line no longer says ATX 1.1 is what
+  production issuance emits. No normative text changes.
 - The stated conformance-suite count follows the suite to **23** fixtures. atx-conformance added
   `fixtures/v1_1-no-transparency-log-index.json`, a MUST-PASS credential omitting the optional
   `transparencyLogIndex`. Every other fixture carries the field, so until now nothing in the suite

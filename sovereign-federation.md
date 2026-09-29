@@ -208,7 +208,7 @@ Every byte of credential metadata has a defined residency. The architecture is e
 * **Build attestations.** The full attestation body, including commit hashes, builder identity, and CI run metadata.
 * **Scan results.** Detailed HMA, Secretless, CryptoServe scan outputs.
 * **Behavioral profiles.** L1 baseline data, behavioral twin checksums, anomaly events.
-* **Agent identity records.** Full AIM keypair history, capability grants, trust factor breakdowns.
+* **Agent identity records.** Full OpenA2A AIM (Agent Identity Management) keypair history, capability grants, trust factor breakdowns.
 * **Transparency log entries.** The sovereign's own log, which references but does not duplicate other sovereigns' logs.
 * **CRL entries.** All revocations issued by the sovereign.
 

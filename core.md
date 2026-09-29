@@ -17,6 +17,8 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 Normative requirements in this document are concentrated in §1 (credential format, canonical signing forms, verification algorithm) and §12–§14 (conformance, security, registries). Sections 0 and 2–11 are architectural: they explain the system the requirements produce and constrain implementations only where they use BCP 14 key words.
 
+OpenA2A AIM (Agent Identity Management) is the OpenA2A platform that registers agents, grants them capabilities, and verifies requests signed with an agent's key (`github.com/opena2a-org/agent-identity-management`). This document calls it AIM.
+
 ---
 
 ## 0. The reframe

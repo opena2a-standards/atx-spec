@@ -20,7 +20,7 @@ This specification is early and authored in the open. We are looking for co-auth
 
 ## Status
 
-Architecture specifications, document version 1.1.0-final (July 2026; first published May 2026). The normative credential wire format is **ATX 1.1** (JCS canonical signing form, [`core.md`](core.md) §1.3a.2) — this is what production issuance emits; ATX 1.0 is frozen legacy with a documented transition rule (§1.3a.5). Reference implementation tracked in [`opena2a-org/agent-identity-management`](https://github.com/opena2a-org/agent-identity-management) (AIM). Changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
+Architecture specifications, document version 1.1.0-final (July 2026; first published May 2026). The normative credential wire format is **ATX 1.1** (JCS canonical signing form, [`core.md`](core.md) §1.3a.2); ATX 1.0 is frozen legacy with a documented transition rule (§1.3a.5). Reference implementation: OpenA2A AIM (Agent Identity Management), tracked in [`opena2a-org/agent-identity-management`](https://github.com/opena2a-org/agent-identity-management). Changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ATX/ATP/AIP cross-reference: see [`opena2a-org/agent-trust-protocol`](https://github.com/opena2a-org/agent-trust-protocol) for the ATP wire protocol spec and [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol) for the AIP identity spec.
 
