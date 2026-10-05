@@ -34,6 +34,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The name OpenA2A AIM (Agent Identity Management) is written in full where `README.md`,
+  `CONTRIBUTING.md`, `core.md` and `sovereign-federation.md` first use it in running text. `core.md`
+  gains an informative paragraph at the end of "Conventions and terminology" that says what AIM is
+  and that the document calls it AIM. No normative text changes.
+- `README.md` and `CONTRIBUTING.md` say who issues ATX and who verifies it: OpenA2A's issuing node
+  is the OpenA2A Registry service, and AIM verifies ATX and does not issue it. Both files previously
+  named AIM as a reference implementation. `CONTRIBUTING.md` also names the TypeScript verifier
+  package, `@opena2a/atx-verify`. No normative text changes.
+- `README.md` no longer says second-party implementations are tracked on a2aproject/A2A#1876, which
+  is closed. It asks implementers to open an issue on this repository instead.
 - The stated conformance-suite count follows the suite to **23** fixtures. atx-conformance added
   `fixtures/v1_1-no-transparency-log-index.json`, a MUST-PASS credential omitting the optional
   `transparencyLogIndex`. Every other fixture carries the field, so until now nothing in the suite
@@ -152,6 +162,11 @@ identifier registered in `core.md` §14.
 - `core.md` §2 and §14: the `did:opena2a` type-prefix set now matches the
   did-method registry — `registry` added; `a2a_agent` documented as a deprecated
   legacy alias of `agent`, not a registered type.
+
+### Removed
+
+- `coordination/a2a-sibling-issue-draft.md`, a draft of the coordination issue filed on the A2A
+  project as a2aproject/A2A#1885, which is closed.
 
 ## [1.1.0] - 2026-07-03
 
