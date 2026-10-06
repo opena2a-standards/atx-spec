@@ -415,7 +415,7 @@ The architecture operates across five planes. Each has a clear owner. Each can b
 | Verification | Any verifier, locally | Signature check, expiry check, CRL check. All local. Issuing node never queried during verification. Sub 5ms. |
 | Revocation | Issuing node plus federation | Federated CRL published and pushed to all nodes within 60 seconds. Verifiers cache locally, refresh every 5 minutes. |
 | Transparency | Issuing node plus monitors | Append only RFC 6962 Merkle tree. STH published every 5 minutes. Independent monitors verify consistency. Anyone can run a monitor. |
-| Intelligence | ARIA plus NanoMind | Semantic anomaly detection, behavioral twin aggregation, NanoMind routing for natural language queries, UNAUTHORIZED_CHANGE detection. Async. Never on any critical path. |
+| Intelligence | OpenA2A threat research plus NanoMind | Semantic anomaly detection, behavioral twin aggregation, NanoMind routing for natural language queries, UNAUTHORIZED_CHANGE detection. Async. Never on any critical path. |
 
 ### 3.1 Issuance flow
 
@@ -614,7 +614,7 @@ Every OpenA2A product gains a specific role in the ATX architecture. Nothing is 
 | AI Browser Guard | User facing ATX verification | Extracts ATX from the Agent-Trust-Credential header. Displays trust level and scan summary to the user. Red warning on revoked or no ATX agents. |
 | CryptoServe | PQC hygiene at issuance | Scan results embedded in ATX. ML-DSA-65 signature on every ATX makes them quantum resistant from day one. CryptoServe census feeds ecosystem level PQC adoption signal. |
 | OASB | Compliance evidence from ATX | OASB compliance level (L1, L2, L3) embedded in ATX. The ATX is the compliance artifact for SOC 2, NIST AI RMF, EU AI Act. Every auditor gets the ATX plus the transparency log inclusion proof. |
-| ARIA | Threat intelligence feeder | New attack patterns discovered by ARIA trigger HMA check additions. New checks gate ATX issuance. Zero day to HMA check to ATX requirement within hours. |
+| OpenA2A threat research | Threat intelligence feeder | New attack patterns discovered by OpenA2A threat research trigger HMA check additions. New checks gate ATX issuance. Zero day to HMA check to ATX requirement within hours. |
 | TrapMyAgent and AgentPwn | Behavioral telemetry source | Real attack signatures feed the L0 rules and L1 baselines that ARP enforces at runtime. The honeypot fleet is the ground truth for what attacks actually look like. |
 
 ---

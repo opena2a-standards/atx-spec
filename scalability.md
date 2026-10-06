@@ -286,7 +286,7 @@ A few operations intentionally do not scale to a billion agents because they do 
 * **Federation node onboarding.** Bilateral agreement, trust list configuration, public key exchange. Hours to days per node. Done once per relationship.
 * **CNA assignment.** Done at sovereign or enterprise level for that population. Not per agent.
 * **Cross border legal agreements.** This is the sovereignty layer, not the architecture layer. The protocol can run faster than the lawyers.
-* **Threat Matrix updates.** Done by humans plus ARIA. Not per credential. Updates flow through transparency log entries that monitor the taxonomy itself.
+* **Threat Matrix updates.** Done by humans plus OpenA2A's automated threat research. Not per credential. Updates flow through transparency log entries that monitor the taxonomy itself.
 
 The architecture is deliberately minimal in what it requires to scale. Anything that does not need to be O(1) is left as O(humans).
 
