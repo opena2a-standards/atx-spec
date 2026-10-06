@@ -455,7 +455,7 @@ Revocation speed is the measure of how quickly a compromised agent stops being t
 **Wire format.** The revocation list that verifiers fetch and cache (§3.2 step 6) is specified in ATP-SPEC v1.0.0-rc1 §8.1, and its machine-readable shape is the schema with `$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. This section describes how a revocation propagates; it does not define that format. A signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work (§2 item 5).
 
 1. Revocation trigger fires. Examples: CONTENT_HASH_VIOLATION, manual revocation, security incident, ATX expiry with failed reissuance.
-2. Issuing node marks ATX as revoked. Adds REVOCATION entry to transparency log. Increments CRL version.
+2. Issuing node marks ATX as revoked. Adds REVOCATION entry to transparency log. Advances the `nextSince` cursor that the ATP-SPEC v1.0.0-rc1 §8.1 revocation response returns.
 3. Issuing node pushes updated CRL delta to all active federation nodes via HTTP POST with HMAC signature. Under 5 seconds.
 4. Federation nodes receive delta, update local CRL, acknowledge. Nodes failing to acknowledge within 30 seconds are flagged offline.
 5. CDN cached CRL endpoint invalidated. Fresh CRL available immediately.
