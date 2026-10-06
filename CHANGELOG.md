@@ -32,10 +32,14 @@ identifier registered in `core.md` §14.
   under `errata/`: the public text says what the specification requires, and the
   conformance suite reports who passes.
 - `scripts/check_naming.py` + `scripts/test_naming.sh`: every Markdown file in the repository
-  must introduce OpenA2A AIM (Agent Identity Management) by that full name at its first use, so
-  a reader never meets a bare AIM before the expansion, and no file may use an internal project
-  name as a component name. Failures are reported as file and line. The check needs only python3
-  and is not yet run by CI.
+  must write OpenA2A AIM (Agent Identity Management) in full ahead of any bare AIM. Only text a
+  reader sees counts as that expansion: the name inside an HTML comment or a link title, or split
+  by a paragraph break, does not. No Markdown file may use either term in the check's `BANNED`
+  list: one internal project name (WAI-ARIA, the W3C accessibility specification, is a different
+  name and is allowed) and one two-word phrase naming an internal trust component, which fails in
+  a descriptive use as well. Failures are reported as file and line, at most 20 per file followed
+  by a count of the rest, and a file that is not UTF-8 is reported as a failure. The check exits 1
+  on a failure and 2 on a usage error, needs only python3 and is not yet run by CI.
 - `scripts/check_pointers.py` + `scripts/test_pointers.sh`: a section that describes a format
   specified elsewhere must name where it is specified in the section itself, since a reader who
   follows a link to the section does not read the document header. It covers `core.md` section 2
