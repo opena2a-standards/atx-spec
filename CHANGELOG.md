@@ -31,6 +31,11 @@ identifier registered in `core.md` §14.
   additionally fails any implementation name or implementation status appearing
   under `errata/`: the public text says what the specification requires, and the
   conformance suite reports who passes.
+- `scripts/check_naming.py` + `scripts/test_naming.sh`: every Markdown file in the repository
+  must introduce OpenA2A AIM (Agent Identity Management) by that full name at its first use, so
+  a reader never meets a bare AIM before the expansion, and no file may use an internal project
+  name as a component name. Failures are reported as file and line. The check needs only python3
+  and is not yet run by CI.
 
 ### Changed
 
@@ -38,6 +43,10 @@ identifier registered in `core.md` §14.
   `CONTRIBUTING.md`, `core.md` and `sovereign-federation.md` first use it in running text. `core.md`
   gains an informative paragraph at the end of "Conventions and terminology" that says what AIM is
   and that the document calls it AIM. No normative text changes.
+- `README.md`'s navigation bar links AIM under its full name, because that link is the first
+  place the file uses AIM. `core.md` sections 3 and 8 and `scalability.md` section 11 name the
+  threat intelligence component by what it does, OpenA2A threat research, rather than by an
+  internal project name. No normative text changes.
 - `README.md` and `CONTRIBUTING.md` say who issues ATX and who verifies it: OpenA2A's issuing node
   is the OpenA2A Registry service, and AIM verifies ATX and does not issue it. Both files previously
   named AIM as a reference implementation. `CONTRIBUTING.md` also names the TypeScript verifier
