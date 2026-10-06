@@ -70,6 +70,21 @@ expect_pass() {  # expect_pass <leaf name> <root>
     fi
 }
 
+expect_pass_within() {  # expect_pass_within <leaf name> <root> <seconds>
+    local name="$1" root="$2" limit="$3" started elapsed rc
+    started=$(date +%s)
+    run_check "$root"
+    rc=$?
+    elapsed=$(( $(date +%s) - started ))
+    if [ "$rc" -ne 0 ]; then
+        not_ok "$name" "expected exit 0, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+    elif [ "$elapsed" -gt "$limit" ]; then
+        not_ok "$name" "took ${elapsed} s"
+    else
+        ok "$name (took ${elapsed} s)"
+    fi
+}
+
 # --- the delivered tree -----------------------------------------------------
 
 expect_pass "the repository's own Markdown passes" "$REPO"
@@ -248,6 +263,23 @@ else
     not_ok "failures past the first 20 in a file are counted, not listed" \
         "$(grep -c '\[product-name\]' "$OUT") listed; $(tail -c 200 "$OUT" | tr '\n' ' ')"
 fi
+
+# A long run of spaces where a phrase or a link title could continue is read once,
+# not split every possible way when the next word or the title does not follow.
+T="$(new_tree spaces-after-trust)"
+python3 -B -c "open('$T/doc.md', 'w').write('trust' + ' ' * 200000 + 'x\n')"
+expect_pass_within "200000 spaces after trust, with no layer following, are checked in under 10 s" \
+    "$T" 10
+
+T="$(new_tree spaces-after-openaa)"
+python3 -B -c "open('$T/doc.md', 'w').write('OpenA2A' + ' ' * 200000 + 'x. $PHRASE verifies.\n')"
+expect_pass_within "200000 spaces after OpenA2A ahead of the expansion are checked in under 10 s" \
+    "$T" 10
+
+T="$(new_tree spaces-after-link-paren)"
+python3 -B -c "open('$T/doc.md', 'w').write('$PHRASE verifies. See [a](' + ' ' * 200000)"
+expect_pass_within "200000 spaces after a link's opening parenthesis are checked in under 10 s" \
+    "$T" 10
 
 run_check "$REPO" --bogus
 RC=$?

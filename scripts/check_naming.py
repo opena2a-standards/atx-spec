@@ -46,7 +46,9 @@ MAX_REPORTED = 20
 
 # Whitespace between two words of a phrase: spaces and tabs with at most one
 # line break, which Markdown renders as a space. Two line breaks end a paragraph.
-GAP = r"(?=\s)[ \t]*(?:\r?\n)?[ \t]*"
+# No two quantifiers share a run of spaces, so a long run is read once instead of
+# being split every possible way when the next word does not follow.
+GAP = r"(?:[ \t]+(?:\r?\n[ \t]*)?|\r?\n[ \t]*)"
 
 PHRASE = "OpenA2A AIM (Agent Identity Management)"
 PHRASE_RE = re.compile(
@@ -74,8 +76,12 @@ TITLE = (
     rf"|'(?:[^'\\\n]|\\.|{_LINE})*'"
     rf"|\((?:[^()\\\n]|\\.|{_LINE})*\))"
 )
+# The whitespace after "(" is read once: ahead of a destination, which starts at
+# a character that is not whitespace, or ahead of the title when there is none.
 INLINE_TITLE_RE = re.compile(
-    r"\]\(\s*(?:<[^<>\n]*>|[^\s()<>]*(?:\([^\s()]*\)[^\s()<>]*)*)\s+" + TITLE + r"\s*\)",
+    r"\]\((?:\s*(?=\S)(?:<[^<>\n]*>|[^\s()<>]*(?:\([^\s()]*\)[^\s()<>]*)*))?\s+"
+    + TITLE
+    + r"\s*\)",
     re.DOTALL,
 )
 REFERENCE_TITLE_RE = re.compile(
