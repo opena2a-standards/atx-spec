@@ -397,7 +397,7 @@ ATP defines five things:
 2. **The DID method `did:opena2a`.** How publishers, agents, and authorities are named. How keys are bound to identities. How key rotation works without breaking existing credentials. Type prefixes registered: `registry`, `authority`, `publisher`, `agent`, `mcp_server`, `ai_tool`, `llm`, `skill` (`a2a_agent` is a deprecated legacy alias of `agent`, not a registered type). Shared with AIP (Agent Identity Protocol) and ATP-SPEC v1.0.0-rc1.
 3. **The transparency log format.** RFC 6962 binary Merkle tree. Signed Tree Head schema. Inclusion and consistency proof formats.
 4. **The federation protocol.** How nodes register with each other, exchange public keys, cosign credentials, propagate revocations, and maintain trust lists.
-5. **The revocation list format.** ATP-SPEC v1.0.0-rc1 §8.1 defines the since-timestamp revocation response, its schema, and the client refresh cadence. That response body is **not signed** in ATP 1.0 — authenticity rides on the transport and on each entry's transparency-log index — and §8.1 records signing it as an open question for a future revision; a signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work, not ATP 1.0 guarantees.
+5. **The revocation list format.** ATP-SPEC v1.0.0-rc1 §8.1 defines the since-timestamp revocation response, its schema (`$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`), and the client refresh cadence. That response body is **not signed** in ATP 1.0 — authenticity rides on the transport and on each entry's transparency-log index — and §8.1 records signing it as an open question for a future revision; a signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work, not ATP 1.0 guarantees.
 
 ATP is the standards play. ATX is the wedge. We push ATP into A2A spec as the trust binding A2A is missing today (PR 1496 already in flight). We push ATP into IETF as a Working Group draft. We push the transparency log conformance criteria into the same model the WebPKI uses for CA acceptance.
 
@@ -452,8 +452,10 @@ This flow has zero issuing node involvement. It runs thousands of times per seco
 
 Revocation speed is the measure of how quickly a compromised agent stops being trusted. Target: under 60 seconds from revocation event to rejection at all subscribed verifiers. Hard upper bound: 5 minutes for any verifier still on its cached CRL.
 
+**Wire format.** The revocation list that verifiers fetch and cache (§3.2 step 6) is specified in ATP-SPEC v1.0.0-rc1 §8.1, and its machine-readable shape is the schema with `$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. This section describes how a revocation propagates; it does not define that format. A signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work (§2 item 5).
+
 1. Revocation trigger fires. Examples: CONTENT_HASH_VIOLATION, manual revocation, security incident, ATX expiry with failed reissuance.
-2. Issuing node marks ATX as revoked. Adds REVOCATION entry to transparency log. Increments CRL version.
+2. Issuing node marks ATX as revoked. Adds REVOCATION entry to transparency log. Advances the `nextSince` cursor that the ATP-SPEC v1.0.0-rc1 §8.1 revocation response returns.
 3. Issuing node pushes updated CRL delta to all active federation nodes via HTTP POST with HMAC signature. Under 5 seconds.
 4. Federation nodes receive delta, update local CRL, acknowledge. Nodes failing to acknowledge within 30 seconds are flagged offline.
 5. CDN cached CRL endpoint invalidated. Fresh CRL available immediately.

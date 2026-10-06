@@ -36,9 +36,31 @@ identifier registered in `core.md` §14.
   a reader never meets a bare AIM before the expansion, and no file may use an internal project
   name as a component name. Failures are reported as file and line. The check needs only python3
   and is not yet run by CI.
+- `scripts/check_pointers.py` + `scripts/test_pointers.sh`: a section that describes a format
+  specified elsewhere must name where it is specified in the section itself, since a reader who
+  follows a link to the section does not read the document header. It covers `core.md` section 2
+  item 5 and section 3.3, which must both cite ATP-SPEC v1.0.0-rc1 §8.1 and the revocation-list
+  schema `$id`. A missing section fails rather than passing vacuously. The check needs only
+  python3 and is not yet run by CI.
+- `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
+  outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
+  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
+  reported as file and line. The check needs only python3 and is not yet run by CI.
 
 ### Changed
 
+- Section 3.3, the revocation flow, says where the revocation list format is specified: ATP-SPEC
+  v1.0.0-rc1 §8.1, with the schema `$id`
+  `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. It also states that
+  the section describes propagation and does not define the format. Section 2 item 5 names
+  the same `$id` for the schema it already cited. Before this change, a reader of section 3.3
+  alone could conclude the format was unspecified. No format or signature change.
+- Section 3.3, revocation step 2, now says the issuing node advances the `nextSince` cursor that
+  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response returns. It previously had the node increment
+  a version number for the revocation list, which a conforming implementation cannot carry: the
+  §8.1 response holds only `revocations` and `nextSince`, and both levels set
+  `additionalProperties: false`. ATP §8.1 stays the normative definition of the response. No
+  normative text changes.
 - The name OpenA2A AIM (Agent Identity Management) is written in full where `README.md`,
   `CONTRIBUTING.md`, `core.md` and `sovereign-federation.md` first use it in running text. `core.md`
   gains an informative paragraph at the end of "Conventions and terminology" that says what AIM is
