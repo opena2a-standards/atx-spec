@@ -16,7 +16,6 @@
 set -u
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BASE_COMMIT=f68d2cb  # core.md before this task; the diff shape is asserted against it
 WORKFLOW="$REPO/.github/workflows/conformance-counts.yml"
 
 TMP="$(mktemp -d)"
@@ -24,6 +23,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 COUNT=0
 FAILED=0
+SKIPPED=0
 
 ok() {  # ok <leaf test name>
     COUNT=$((COUNT + 1))
@@ -39,6 +39,7 @@ not_ok() {  # not_ok <leaf test name> <why>
 
 skip() {  # skip <leaf test name> <why>
     COUNT=$((COUNT + 1))
+    SKIPPED=$((SKIPPED + 1))
     printf 'ok %d - %s # SKIP %s\n' "$COUNT" "$1" "$2"
 }
 
@@ -221,21 +222,21 @@ assert "ATXS-01.AC1 the Errata line sits inside core.md's header block" \
     $? "the **Errata:** line is outside the **Document version:** header block"
 
 # "core.md gains one line and nothing else" is a statement about the commit that
-# introduces the errata object, not a standing invariant: core.md is allowed to
-# change again afterwards. So this runs only while HEAD is still that commit (or
-# its parent, before it is made) and skips once the document has moved on, rather
-# than turning red on the next legitimate edit.
-DIFF_NAME="ATXS-01.AC1 core.md against the base commit is one added Errata line and nothing else"
-BASE_SHA=$(git -C "$REPO" rev-parse --verify --quiet "$BASE_COMMIT^{commit}" 2>/dev/null)
-HEAD_SHA=$(git -C "$REPO" rev-parse --verify --quiet HEAD 2>/dev/null)
-PARENT_SHA=$(git -C "$REPO" rev-parse --verify --quiet "HEAD^{commit}~1" 2>/dev/null)
-if [ -z "$BASE_SHA" ]; then
-    skip "$DIFF_NAME" "base commit $BASE_COMMIT is not in this checkout"
-elif [ "$HEAD_SHA" != "$BASE_SHA" ] && [ "$PARENT_SHA" != "$BASE_SHA" ]; then
-    skip "$DIFF_NAME" "HEAD is no longer the commit that adds the errata object"
+# introduces the errata object, not about the current text: core.md is allowed to
+# change again afterwards. So the commit is found in history, as the earliest one
+# that adds the **Errata:** line, and its own change to core.md is asserted. A
+# checkout without that history (a shallow CI clone, an exported tarball) skips.
+DIFF_NAME="ATXS-01.AC1 the commit that adds the Errata line changes core.md by that one line and nothing else"
+ADD_SHA=$(git -C "$REPO" log --reverse --format=%H -S'**Errata:**' -- core.md 2>/dev/null | head -n 1)
+if [ "$(git -C "$REPO" rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+    skip "$DIFF_NAME" "this checkout is a shallow clone, whose history may not reach the commit that adds the Errata line"
+elif [ -z "$ADD_SHA" ]; then
+    skip "$DIFF_NAME" "no commit in this checkout's history adds the Errata line to core.md"
+elif ! git -C "$REPO" rev-parse --verify --quiet "$ADD_SHA^1^{commit}" > /dev/null 2>&1; then
+    skip "$DIFF_NAME" "${ADD_SHA:0:7}, the commit that adds the Errata line, has no parent to compare against"
 else
     DIFF="$TMP/core-diff.txt"
-    git -C "$REPO" diff "$BASE_COMMIT" -- core.md > "$DIFF" 2>/dev/null
+    git -C "$REPO" diff "$ADD_SHA^1" "$ADD_SHA" -- core.md > "$DIFF" 2>/dev/null
     ADDED=$(grep -c '^+[^+]' "$DIFF")
     REMOVED=$(grep -c '^-[^-]' "$DIFF")
     if [ "$ADDED" -eq 1 ] && [ "$REMOVED" -eq 0 ] && grep -q '^+\*\*Errata:\*\*' "$DIFF"; then
@@ -542,7 +543,7 @@ expect_fail "ATXS-01.AC3 an index naming an implementation exits 1 naming implem
 
 printf '1..%d\n' "$COUNT"
 if [ "$FAILED" -ne 0 ]; then
-    printf '# %d of %d test(s) failed\n' "$FAILED" "$COUNT"
+    printf '# %d of %d test(s) failed, %d skipped\n' "$FAILED" "$COUNT" "$SKIPPED"
     exit 1
 fi
-printf '# %d test(s) passed\n' "$COUNT"
+printf '# %d test(s) passed, %d skipped\n' "$((COUNT - SKIPPED))" "$SKIPPED"
