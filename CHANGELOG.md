@@ -30,15 +30,20 @@ identifier registered in `core.md` §14.
   just written down. The guard also fails an accepted erratum missing from this
   changelog, a stale index, a frontmatter key that is not in the contract, a
   duplicate or misnamed id, and a `security` erratum still `proposed` under a
-  header that already claims it as incorporated. Per Binding Decision 10 it
-  additionally fails a file under `errata/` that names an implementation on the
-  roster `scripts/check_errata.py` commits: OpenA2A AIM (Agent Identity
-  Management), matched case-sensitively as the whole word `AIM` or the phrase
-  `Agent Identity Management`, and `@opena2a/atx-verify`, `atx-conformance Go`,
-  `atx-conformance Python`, `AIM Java` and `Registry Go` in any case. A name that
-  is not on the roster passes, so the roster grows with the implementations. The
-  public text says what the specification requires, and the conformance suite
-  reports who passes.
+  header that already claims it as incorporated. Public errata text names no
+  implementation and no pass state, so the guard also fails a file under
+  `errata/` that names an implementation on the roster `scripts/check_errata.py`
+  commits: OpenA2A AIM (Agent Identity Management), matched case-sensitively as
+  the whole word `AIM` or the phrase `Agent Identity Management`, and
+  `@opena2a/atx-verify`, `atx-conformance Go`, `atx-conformance Python`,
+  `AIM Java` and `Registry Go` in any case. The phrase may wrap across one line
+  break but not across a blank line, and the IETF's Agent Identity Management
+  System or Systems is a different name and passes. Each name is reported once
+  per file, at its file and line, so `AIM Java` is not reported again as `AIM`,
+  and a file under `errata/` that is not UTF-8 is reported as a failure rather
+  than skipped. A name that is not on the roster passes, so the roster grows
+  with the implementations. The public text says what the specification
+  requires, and the conformance suite reports who passes.
 - `scripts/check_naming.py` + `scripts/test_naming.sh`: every Markdown file in the repository
   must write OpenA2A AIM (Agent Identity Management) in full ahead of any bare AIM. Only text a
   reader sees counts as that expansion: the name inside an HTML comment or a link title, or split
