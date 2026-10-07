@@ -8,6 +8,11 @@ the wire format, and which conformance fixtures pin the corrected behaviour.
 Errata are how this document is corrected between releases; acceptance of an
 erratum is a document PATCH on the `MAJOR.MINOR.PATCH-{draft|rcN|final}` ladder.
 
+A correction to informative text that adds or removes no BCP 14 statement is a
+CHANGELOG.md entry, not an erratum. A BCP 14 statement is one that uses the key
+words listed in core.md's "Conventions and terminology" (MUST, SHOULD, MAY and
+the others).
+
 Each erratum is one file, `ATX-E-NNNN.md`, whose frontmatter carries `id`,
 `status`, `class`, `affectsDocument`, `affectsWire`, `sections`, `oldText`,
 `newText`, `fixtures`, `filed` and `accepted` — and no other key.

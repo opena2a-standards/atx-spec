@@ -171,6 +171,25 @@ python3 "$REPO/scripts/gen_errata_index.py" --errata-dir "$REPO/errata" --check 
 assert "ATXS-01.AC1 the committed errata/README.md is what the generator produces" \
     $? "errata/README.md is stale; run python3 scripts/gen_errata_index.py"
 
+states_scope() {  # states_scope <index file>: the scope sentence, line wraps ignored
+    python3 - "$1" <<'PY'
+import re, sys
+text = re.sub(r"\s+", " ", open(sys.argv[1], encoding="utf-8").read())
+sys.exit(
+    0
+    if "A correction to informative text that adds or removes no BCP 14 statement "
+    "is a CHANGELOG.md entry, not an erratum." in text
+    else 1
+)
+PY
+}
+states_scope "$REPO/errata/README.md"
+assert "ATXS-01.AC1 the committed index says an informative correction adding or removing no BCP 14 statement is a CHANGELOG entry" \
+    $? "errata/README.md does not state the errata scope"
+states_scope "$T/errata/README.md"
+assert "ATXS-01.AC1 an index generated with errata in it states the same scope" \
+    $? "the generated index with errata does not state the errata scope"
+
 T="$(new_tree ac1-stale-index)"
 erratum "$T" ATX-E-0001.md ATX-E-0001 proposed editorial '[]' ''
 regen "$T"
@@ -538,6 +557,38 @@ T="$(new_tree ac3-implementation-name-index)"
 printf '\nThe suite is atx-conformance Go.\n' >> "$T/errata/README.md"
 expect_fail "ATXS-01.AC3 an index naming an implementation exits 1 naming implementation-name" \
     "$T" implementation-name "errata/README.md"
+
+# The AIM forms on the roster: whole words, case-sensitive.
+aim_tree() {  # aim_tree <name> <text appended to a proposed erratum> -> tree path
+    local t
+    t="$(new_tree "$1")"
+    erratum "$t" ATX-E-0001.md ATX-E-0001 proposed editorial '[]' ''
+    printf '\n%b\n' "$2" >> "$t/errata/ATX-E-0001.md"
+    regen "$t"
+    printf '%s' "$t"
+}
+
+T="$(aim_tree ac3-aim-bare 'Verified against AIM before filing.')"
+expect_fail "ATXS-01.AC3 an erratum naming AIM exits 1 naming implementation-name" \
+    "$T" implementation-name "ATX-E-0001.md:"
+
+T="$(aim_tree ac3-aim-opena2a 'Verified against OpenA2A AIM before filing.')"
+expect_fail "ATXS-01.AC3 an erratum naming OpenA2A AIM exits 1 naming implementation-name" \
+    "$T" implementation-name "ATX-E-0001.md:"
+
+T="$(aim_tree ac3-aim-expansion 'Verified against Agent Identity\nManagement before filing.')"
+expect_fail "ATXS-01.AC3 an erratum naming Agent Identity Management, wrapped across a line, exits 1" \
+    "$T" implementation-name "'Agent Identity Management'"
+
+T="$(aim_tree ac3-aim-other-words 'We aim to claim nothing; the aimed-at reader reads Agent Identity Management System (AIMS), not agent identity management.')"
+expect_pass "ATXS-01.AC3 aim inside another word, lowercase aim, AIMS and the IETF AIMS name pass" "$T"
+
+FOUND=0
+for word in 'AIM' 'Agent Identity Management'; do
+    if grep -r -q -w -F -- "$word" "$REPO/errata"; then FOUND=1; fi
+done
+assert "ATXS-01.AC3 no AIM form occurs as a whole word under errata/" \
+    "$FOUND" "AIM or Agent Identity Management appears under errata/"
 
 # --- summary ----------------------------------------------------------------
 

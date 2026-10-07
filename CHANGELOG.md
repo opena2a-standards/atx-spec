@@ -16,9 +16,12 @@ identifier registered in `core.md` §14.
   `sections`, `oldText`, `newText`, `fixtures`, `filed` and `accepted` — the
   published text and its replacement verbatim, so a reader can apply the
   correction without judgement. Acceptance of an erratum is a document PATCH on
-  the version ladder. `errata/README.md` is generated from those files by
-  `scripts/gen_errata_index.py` and `core.md`'s header names it and the highest
-  incorporated erratum. No erratum has been filed yet; this is the mechanism.
+  the version ladder. A correction to informative text that adds or removes no
+  BCP 14 statement is an entry in this changelog, not an erratum.
+  `errata/README.md` is generated from those files by
+  `scripts/gen_errata_index.py`, states that scope, and is named in `core.md`'s
+  header together with the highest incorporated erratum. No erratum has been
+  filed yet; this is the mechanism.
 - `scripts/check_errata.py` + `scripts/test_errata.sh`, wired into
   `.github/workflows/conformance-counts.yml` after the count check and against
   the same atx-conformance checkout: an erratum whose class is not `editorial`
@@ -28,9 +31,14 @@ identifier registered in `core.md` §14.
   changelog, a stale index, a frontmatter key that is not in the contract, a
   duplicate or misnamed id, and a `security` erratum still `proposed` under a
   header that already claims it as incorporated. Per Binding Decision 10 it
-  additionally fails any implementation name or implementation status appearing
-  under `errata/`: the public text says what the specification requires, and the
-  conformance suite reports who passes.
+  additionally fails a file under `errata/` that names an implementation on the
+  roster `scripts/check_errata.py` commits: OpenA2A AIM (Agent Identity
+  Management), matched case-sensitively as the whole word `AIM` or the phrase
+  `Agent Identity Management`, and `@opena2a/atx-verify`, `atx-conformance Go`,
+  `atx-conformance Python`, `AIM Java` and `Registry Go` in any case. A name that
+  is not on the roster passes, so the roster grows with the implementations. The
+  public text says what the specification requires, and the conformance suite
+  reports who passes.
 - `scripts/check_naming.py` + `scripts/test_naming.sh`: every Markdown file in the repository
   must write OpenA2A AIM (Agent Identity Management) in full ahead of any bare AIM. Only text a
   reader sees counts as that expansion: the name inside an HTML comment or a link title, or split
