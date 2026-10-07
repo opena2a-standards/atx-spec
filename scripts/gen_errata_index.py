@@ -21,8 +21,8 @@ template uses -- scalars, booleans, `- ` lists, `[]` flow lists and `|` block
 scalars -- and rejects anything else, so an erratum cannot smuggle structure past
 the validator. Every accepted document is also valid YAML.
 
-Public text rule (Binding Decision 10): nothing under errata/ names an
-implementation or its status. That rule is enforced by check_errata.py, which
+Public text rule: nothing under errata/ names an implementation or its status,
+because the errata say what the specification requires, not who passes. That rule is enforced by check_errata.py, which
 holds the list; this generator copies only frontmatter values and erratum titles
 into the index, so it cannot introduce one on its own.
 """

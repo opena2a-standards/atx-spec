@@ -16,10 +16,12 @@ errata process is made of rather than leaving them to review:
   - an accepted or incorporated erratum appears in CHANGELOG.md;
   - a security-class erratum is not still `proposed` in a tree whose core.md
     header already claims it as incorporated;
-  - no file under errata/ names an implementation on the roster below (Binding
-    Decision 10): the public text says what the spec requires, never who passes.
+  - no file under errata/ names an implementation on the roster below: public
+    errata text names no implementation and no pass state, because the text
+    says what the spec requires and the conformance suite reports who passes.
     A name that is not on the roster passes, so the roster grows with the
-    implementations.
+    implementations. A file under errata/ that is not UTF-8 cannot be read for
+    names, so it fails too.
 
 This repository does not contain the conformance fixtures, so the suite is
 supplied by the caller, exactly as scripts/check_conformance_counts.py takes it:
@@ -72,10 +74,10 @@ HEADER_RE = re.compile(
     r"^\*\*Errata:\*\* errata/README\.md, incorporated through (ATX-E-\d{4}|none)$"
 )
 
-# Binding Decision 10: public spec text names no implementation and no
-# implementation status. This list is the roster from the CA ruling and is
-# committed here on purpose -- the guard is only as good as the names in it.
-# Matching is case-insensitive, which is stricter than the written rule.
+# Public errata text names no implementation and no implementation status. This
+# list is the roster of implementations and is committed here on purpose -- the
+# guard is only as good as the names in it. Matching is case-insensitive, which
+# is stricter than the written rule.
 BANNED_STRINGS = (
     "@opena2a/atx-verify",
     "atx-conformance Go",
@@ -88,12 +90,20 @@ BANNED_STRINGS = (
 # matched as whole words and case-sensitively, as scripts/check_naming.py reads
 # AIM: a case-insensitive substring would fail "claim" and "aimed". The whole
 # word AIM also covers "OpenA2A AIM" and "AIM-issued". AIMS, and the IETF's
-# "Agent Identity Management System", are different names and pass.
+# "Agent Identity Management System" or "Systems", are different names and pass.
+#
+# Whitespace between two words of the phrase is read as check_naming.py reads
+# it: spaces and tabs with at most one line break, which Markdown renders as a
+# space. A blank line is a paragraph break, so it ends the phrase, and a
+# "System" that opens the next paragraph does not make it the IETF name.
+GAP = r"(?:[ \t]+(?:\n[ \t]*)?|\n[ \t]*)"
 BANNED_WORDS = (
     ("AIM", re.compile(r"\bAIM\b")),
     (
         "Agent Identity Management",
-        re.compile(r"\bAgent\s+Identity\s+Management\b(?!\s+System\b)"),
+        re.compile(
+            rf"\bAgent{GAP}Identity{GAP}Management\b(?!{GAP}Systems?\b)"
+        ),
     ),
 )
 
@@ -245,30 +255,87 @@ def check_fixtures(where, data, suite, failures):
             )
 
 
+def roster_string_spans(text):
+    """Every case-insensitive match of a BANNED_STRINGS name: (name, start, end).
+
+    The search runs over the text lowered character by character, and lower()
+    can change a string's length ("İ" lowers to two characters), so each match
+    is mapped back to the span of text it was found in.
+    """
+    lowered = []
+    origin = []  # origin[i] is the offset in text of lowered character i
+    for offset, char in enumerate(text):
+        low = char.lower()
+        lowered.append(low)
+        origin.extend([offset] * len(low))
+    lowered = "".join(lowered)
+    spans = []
+    for banned in BANNED_STRINGS:
+        needle = banned.lower()
+        start = lowered.find(needle)
+        while start >= 0:
+            end = start + len(needle)
+            spans.append((banned, origin[start], origin[end - 1] + 1))
+            start = lowered.find(needle, end)
+    return spans
+
+
+def implementation_names(text):
+    """(name, offset in text) of the first use of each roster name in text.
+
+    A whole-word form inside a roster-string match is part of that name, not a
+    second one: "AIM Java" is reported once, as `AIM Java`, and not again as
+    `AIM`. A later `AIM` outside it is still found.
+    """
+    spans = roster_string_spans(text)
+    found = []
+    for banned in BANNED_STRINGS:
+        starts = [start for name, start, _ in spans if name == banned]
+        if starts:
+            found.append((banned, min(starts)))
+    for banned, pattern in BANNED_WORDS:
+        for m in pattern.finditer(text):
+            inside = any(s <= m.start() and m.end() <= e for _, s, e in spans)
+            if not inside:
+                found.append((banned, m.start()))
+                break
+    return found
+
+
 def check_no_implementation_names(errata_dir, root, failures):
-    """Binding Decision 10 over every file under errata/, index included."""
+    """No roster name in any file under errata/, index included."""
     if not errata_dir.is_dir():
         return
     for path in sorted(p for p in errata_dir.rglob("*") if p.is_file()):
+        where = rel(path, root)
         try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        lowered = text.lower()
-        # (name, the text it was found in, offset). lower() can change a
-        # string's length, so a line is counted in the text that was searched.
-        found = []
-        for banned in BANNED_STRINGS:
-            if banned.lower() in lowered:
-                found.append((banned, lowered, lowered.index(banned.lower())))
-        for banned, pattern in BANNED_WORDS:
-            m = pattern.search(text)
-            if m:
-                found.append((banned, text, m.start()))
-        for banned, searched, offset in found:
-            line = searched[:offset].count("\n") + 1
+            data = path.read_bytes()
+        except OSError as exc:
             failures.add(
-                f"{rel(path, root)}:{line}",
+                f"{where}:1",
+                "unreadable",
+                f"cannot be read ({exc.strerror or exc}), so it cannot be checked "
+                f"for implementation names",
+            )
+            continue
+        try:
+            # Line endings read as read_text() reads them, so a CRLF file
+            # counts its lines the same way as an LF one.
+            text = data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        except UnicodeDecodeError as exc:
+            line = data.count(b"\n", 0, exc.start) + 1
+            failures.add(
+                f"{where}:{line}",
+                "encoding",
+                f"byte {data[exc.start]:#04x} at offset {exc.start} is not UTF-8, "
+                f"so the file cannot be checked for implementation names; save "
+                f"it as UTF-8",
+            )
+            continue
+        for banned, offset in implementation_names(text):
+            line = text[:offset].count("\n") + 1
+            failures.add(
+                f"{where}:{line}",
                 "implementation-name",
                 f"public errata text names an implementation or its status "
                 f"({banned!r}); the roster and its pass state stay out of the "
