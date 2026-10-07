@@ -16,8 +16,10 @@ errata process is made of rather than leaving them to review:
   - an accepted or incorporated erratum appears in CHANGELOG.md;
   - a security-class erratum is not still `proposed` in a tree whose core.md
     header already claims it as incorporated;
-  - no file under errata/ names an implementation or its status (Binding
+  - no file under errata/ names an implementation on the roster below (Binding
     Decision 10): the public text says what the spec requires, never who passes.
+    A name that is not on the roster passes, so the roster grows with the
+    implementations.
 
 This repository does not contain the conformance fixtures, so the suite is
 supplied by the caller, exactly as scripts/check_conformance_counts.py takes it:
@@ -80,6 +82,19 @@ BANNED_STRINGS = (
     "atx-conformance Python",
     "AIM Java",
     "Registry Go",
+)
+
+# The same roster's OpenA2A AIM (Agent Identity Management) forms. These are
+# matched as whole words and case-sensitively, as scripts/check_naming.py reads
+# AIM: a case-insensitive substring would fail "claim" and "aimed". The whole
+# word AIM also covers "OpenA2A AIM" and "AIM-issued". AIMS, and the IETF's
+# "Agent Identity Management System", are different names and pass.
+BANNED_WORDS = (
+    ("AIM", re.compile(r"\bAIM\b")),
+    (
+        "Agent Identity Management",
+        re.compile(r"\bAgent\s+Identity\s+Management\b(?!\s+System\b)"),
+    ),
 )
 
 # A status past `proposed`: agreed text, so the fixture and CHANGELOG rules bite.
@@ -240,16 +255,25 @@ def check_no_implementation_names(errata_dir, root, failures):
         except (UnicodeDecodeError, OSError):
             continue
         lowered = text.lower()
+        # (name, the text it was found in, offset). lower() can change a
+        # string's length, so a line is counted in the text that was searched.
+        found = []
         for banned in BANNED_STRINGS:
             if banned.lower() in lowered:
-                line = lowered[: lowered.index(banned.lower())].count("\n") + 1
-                failures.add(
-                    f"{rel(path, root)}:{line}",
-                    "implementation-name",
-                    f"public errata text names an implementation or its status "
-                    f"({banned!r}); the roster and its pass state stay out of the "
-                    f"published spec",
-                )
+                found.append((banned, lowered, lowered.index(banned.lower())))
+        for banned, pattern in BANNED_WORDS:
+            m = pattern.search(text)
+            if m:
+                found.append((banned, text, m.start()))
+        for banned, searched, offset in found:
+            line = searched[:offset].count("\n") + 1
+            failures.add(
+                f"{rel(path, root)}:{line}",
+                "implementation-name",
+                f"public errata text names an implementation or its status "
+                f"({banned!r}); the roster and its pass state stay out of the "
+                f"published spec",
+            )
 
 
 def check_header(core_text, errata, failures):
