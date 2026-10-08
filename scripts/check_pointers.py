@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Assert that sections describing a format specified elsewhere name where it is.
+"""Assert that sections describing something specified elsewhere name where it is.
 
 A reader who follows a link to a section reads that section, not the document
-header. So a section that describes a format this repository does not define
-carries its own reference to the specification that does. Each entry in
-POINTERS names a document, the line that opens the section (a heading or a
-numbered list item), and the references the section has to contain.
+header. So a section that describes a format or a decision this repository does
+not define carries its own reference to the specification that does. Each entry
+in POINTERS names a document, the line that opens the section (a heading or a
+list item), and the references the section has to contain.
+
+The revocation list format is specified in ATP. Whether an agent may touch a
+resource is decided under AAP, so every section that says where that decision
+is made names AAP, and README.md and core.md name the same layer.
 
 A heading's section runs to the next heading at the same or a higher level; a
-list item runs to the next blank line or the next numbered item. References may
-wrap across lines, since Markdown renders a soft line break as a space. Each
-failure is reported as file:line with its rule in brackets.
+list item runs to the next blank line or the next list item, numbered or not.
+References may wrap across lines, since Markdown renders a soft line break as a
+space. Each failure is reported as file:line with its rule in brackets.
 
     python3 scripts/check_pointers.py [--root <tree>]
 
@@ -28,14 +32,18 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 ATP_REVOCATION = "ATP-SPEC v1.0.0-rc1 §8.1"
 REVOCATION_SCHEMA = "https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json"
+AUTHORIZATION = "AAP"
 
 POINTERS = [
     ("core.md", "5. **The revocation list format.**", (ATP_REVOCATION, REVOCATION_SCHEMA)),
     ("core.md", "### 3.3 Revocation flow", (ATP_REVOCATION, REVOCATION_SCHEMA)),
+    ("core.md", "### 1.5 Declared purpose", (AUTHORIZATION,)),
+    ("core.md", "* **ATX is not a runtime authorization system.**", (AUTHORIZATION,)),
+    ("README.md", "### An auditor asks what each agent was allowed to attempt", (AUTHORIZATION,)),
 ]
 
 HEADING_RE = re.compile(r"^(#+)\s")
-ITEM_RE = re.compile(r"^\d+\.\s")
+ITEM_RE = re.compile(r"^(?:\d+\.|[*+-])\s")
 
 
 def section(lines, start):
@@ -71,7 +79,7 @@ def check(root):
             if ref not in body:
                 failures.append(
                     f"{rel}:{start + 1} [pointer] the section opened by {opening!r} does not "
-                    f"cite {ref!r}; name where the format is specified in the section itself"
+                    f"cite {ref!r}; name where it is specified in the section itself"
                 )
     return failures
 
@@ -84,12 +92,12 @@ def main():
 
     failures = check(root)
     if failures:
-        print("sections do not name where their format is specified:\n", file=sys.stderr)
+        print("sections do not name where what they describe is specified:\n", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print(f"pointers ok: {len(POINTERS)} section(s) name where their format is specified")
+    print(f"pointers ok: {len(POINTERS)} section(s) name where what they describe is specified")
     return 0
 
 

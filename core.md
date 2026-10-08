@@ -137,7 +137,7 @@ Any party verifying an ATX runs this sequence locally. Steps 1 through 5 require
 3. Resolve issuerDid to public key using locally cached DID document. TTL is one hour. Cache miss triggers a single fetch.
 4. Verify the Ed25519 signature against the cached public key. Sub millisecond on any modern CPU.
    - Key eligibility. The key a signature is verified against MUST have been resolved, as in step 3, for an authority the verifier trusts for this credential: the authority named by `issuerDid`, or, under `atcVersion` 1.1 only, an authority that the signed `issuerChain` names and that is a trusted issuer under the verifier's federation trust list (§7). A chain DID that is not a trusted issuer contributes no eligible key: the chain is signed by the very key whose eligibility is in question, so it cannot vouch for that key (§13, Delegation and chain abuse). Under `atcVersion` 1.0 `issuerChain` is unsigned (§1.3a.1) and contributes no eligible key. A signature that verifies only against some other key the verifier holds is a signature failure (`SIGNATURE_INVALID`), not an issuer failure.
-5. Verify every remaining declared signature, the ML-DSA-65 signature included, under the family signature gate (§13, Cryptographic agility; AAP §9.4): a declared signature that does not verify, or whose suite this verifier does not implement, is a signature failure. ML-DSA-65 adds three to five milliseconds.
+5. Verify every remaining declared signature, the ML-DSA-65 signature included, under the family signature gate (§13, Cryptographic agility; AAP §9.4): a declared signature that does not verify, or whose suite this verifier does not implement, is a signature failure. ML-DSA-65 adds about three milliseconds.
 6. Check agentId against locally cached CRL. If listed, reject. If cache is stale beyond 5 minutes, refresh asynchronously but allow this request using the cached version.
 7. Count distinct signer authorities. If trust level 3 or higher is required, the verifier MUST reject the credential unless at least two distinct authorities have each produced a signature that this verifier has itself verified over the credential's canonical signed bytes (the form selected in step 1).
    - The authority behind a signature is the DID its `keyId` names: the `keyId` up to the first `#`, or the whole value if it contains none. A signature counts only after the verifier has resolved that DID as in step 3, confirmed the verifying key is published in the resulting DID document, and confirmed the authority is one it accepts under its federation trust list (§7).
@@ -147,7 +147,7 @@ Any party verifying an ATX runs this sequence locally. Steps 1 through 5 require
 
 A verifier that did not perform the step 7 count MUST NOT present `trustLevel` to downstream consumers as a value it has verified: it has verified the signature over the level, not the multi-authority property the level asserts at 3 and above. Before presenting a `trustLevel` of 3 or higher it MUST either perform the count of step 7, or present the level together with an explicit marker that the multi-authority property was not checked. It MUST NOT lower the level and MUST NOT omit the field: lowering asserts a level no issuer signed, and omitting removes a signed field the consumer may need. A verifier that did not perform the count reports it as not performed and MUST NOT report a count of zero or one in its place; an absent measurement is not a measured result. A consumer that receives a `trustLevel` of 3 or higher with no such marker MAY assume the verifier performed the count.
 
-Total verification time on warm cache is under 2 milliseconds. Cold cache is under 10 milliseconds. The Registry is never on this path.
+Total verification time on a warm cache is under 5 milliseconds, the ML-DSA-65 verification of step 5 included. A cold cache adds the one DID document fetch of step 3, for a total under 50 milliseconds ([scalability.md §2.1](scalability.md#21-what-verification-actually-costs)). The Registry is never on this path.
 
 In step 1 the verifier dispatches on the credential's version field (`atcVersion`
 on the wire): `"1.0"` selects the legacy canonical form of §1.3a.1; `"1.1"`
@@ -298,11 +298,14 @@ pipe string the v1.1 signature never covered, and verification fails closed.
 ### 1.5 Declared purpose (optional)
 
 `declaredPurpose` is the publisher's structured, signed declaration of what an
-agent is *for*. `capabilities` bounds an agent's *reach* — which operations it may
-touch. `declaredPurpose` declares its *objective* — what those operations are
-meant to accomplish. The two are independent axes: capability scope answers "is
-this action permitted?"; declared purpose lets an offline observer ask the
-separate question "does this permitted action serve the declared objective?".
+agent is *for*. `capabilities` describes an agent's *reach* — which operations its
+build is attested to be able to perform. `declaredPurpose` declares its
+*objective* — what those operations are meant to accomplish. The two are
+independent axes: capability scope answers "what was this build attested to be
+able to do?"; declared purpose lets an offline observer ask the separate question
+"does this permitted action serve the declared objective?". Neither is
+permission: whether an agent may touch a given resource is a broker policy
+decision under AAP (§10).
 
 The field is **optional and additive** in ATX 1.1. It is signed as part of the
 v1.1 TBS when present (§1.3a.2, rule 5), which makes a declaration **binding,
@@ -446,7 +449,7 @@ This flow has zero issuing node involvement. It runs thousands of times per seco
 5. If ML-DSA-65 signature is present, verify it too. Under 5ms.
 6. Check agentId against locally cached CRL. TTL 5 minutes. If listed, reject. If cache miss, queue async refresh and allow this request on the cached version. Under 0.1ms.
 7. Optionally verify contentHash against the known artifact for deep verification.
-8. Accept. Warm cache total: under 2ms. Cold cache total: under 10ms with one network fetch for the DID document.
+8. Accept. Warm cache total: under 5ms, the ML-DSA-65 verification of step 5 included. A cold cache adds the one DID document fetch of step 3, for a total under 50ms ([scalability.md §2.1](scalability.md#21-what-verification-actually-costs)). The issuing node is not queried in either case.
 
 ### 3.3 Revocation flow
 
@@ -636,7 +639,7 @@ This is the architectural property that makes ATX scale to a billion agents. It 
 These boundaries are as important as the capabilities.
 
 * **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
-* **ATX is not a runtime authorization system.** ARC is. ATX presents the credential. ARC enforces the policy.
+* **ATX is not a runtime authorization system.** AAP is the authorization layer: whether an agent may touch a given resource is a broker policy decision under AAP. ATX presents the credential. The broker enforces the policy, and can take the credential's verified `capabilities` as one input to it (§1.3a.4).
 * **ATX is not a centralized database.** It is a credential format. The issuing nodes are infrastructure. The credential travels with the agent.
 * **ATX is not proprietary.** ATP is published as an open standard. Any organization can issue ATX credentials using the same format. Compatibility is the goal.
 * **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites can be added via ATP version negotiation.
