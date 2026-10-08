@@ -10,6 +10,15 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
+  `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
+  `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
+  bound counts as a total when its sentence names a warm cache, local verification, a cold cache
+  or a cold start, or when it sits in a table row whose first cell is Verification; a per-step
+  bound is not a total. A range stated for a total may not end above its figure. `core.md` must
+  state both totals and `README.md` the warm one, so rewording them away fails rather than
+  passing vacuously. Failures are reported as file and line, and a file that is not UTF-8 is
+  reported as a failure. The check needs only python3 and is not yet run by CI.
 - `errata/`: published ATX text is now corrected through numbered errata rather
   than silent edits. An erratum is one file, `errata/ATX-E-NNNN.md`, whose
   frontmatter carries `id`, `status`, `class`, `affectsDocument`, `affectsWire`,
@@ -66,6 +75,15 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
+  states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
+  signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one
+  DID document fetch. Both said under 2 ms warm and under 10 ms cold, which contradicted the
+  section 3 plane table and `README.md` (under 5 ms) and `scalability.md` §2.1, whose step by step
+  breakdown puts the ML-DSA-65 verification alone at 3 ms and a cold start under 50 ms. Section
+  1.3 step 5 says ML-DSA-65 adds about three milliseconds, as §2.1 does, rather than three to
+  five, which a 5 ms total could not hold. Section 3.2 step 8 also says the issuing node is not
+  queried in either case, as the plane table does. No normative text changes.
 - Section 3.3, the revocation flow, says where the revocation list format is specified: ATP-SPEC
   v1.0.0-rc1 §8.1, with the schema `$id`
   `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. It also states that
