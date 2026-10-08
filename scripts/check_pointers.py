@@ -9,7 +9,9 @@ list item), and the references the section has to contain.
 
 The revocation list format is specified in ATP. Whether an agent may touch a
 resource is decided under AAP, so every section that says where that decision
-is made names AAP, and README.md and core.md name the same layer.
+is made names AAP, and README.md and core.md name the same layer. Such a section
+also calls nothing permitted in a sentence that does not name AAP, so it cannot
+give the decision to a credential's capabilities a sentence later.
 
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not.
@@ -43,6 +45,8 @@ POINTERS = [
 ]
 
 HEADING_RE = re.compile(r"^(#+)\s")
+SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+PERMITTED_RE = re.compile(r"\bpermitted\b", re.IGNORECASE)
 ITEM_RE = re.compile(r"^(?:\d+\.|[*+-])\s")
 
 
@@ -80,6 +84,15 @@ def check(root):
                 failures.append(
                     f"{rel}:{start + 1} [pointer] the section opened by {opening!r} does not "
                     f"cite {ref!r}; name where it is specified in the section itself"
+                )
+        if AUTHORIZATION not in references:
+            continue
+        for sentence in SENTENCE_END_RE.split(body):
+            if PERMITTED_RE.search(sentence) and AUTHORIZATION not in sentence:
+                failures.append(
+                    f"{rel}:{start + 1} [permission] the section opened by {opening!r} calls "
+                    f"something permitted without naming {AUTHORIZATION}: {sentence[:100]!r}; "
+                    f"say what the credential attests, or that {AUTHORIZATION} decides it"
                 )
     return failures
 
