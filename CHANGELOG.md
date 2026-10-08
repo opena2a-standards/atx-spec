@@ -62,12 +62,15 @@ identifier registered in `core.md` §14.
   a descriptive use as well. Failures are reported as file and line, at most 20 per file followed
   by a count of the rest, and a file that is not UTF-8 is reported as a failure. The check exits 1
   on a failure and 2 on a usage error, needs only python3 and is not yet run by CI.
-- `scripts/check_pointers.py` + `scripts/test_pointers.sh`: a section that describes a format
-  specified elsewhere must name where it is specified in the section itself, since a reader who
-  follows a link to the section does not read the document header. It covers `core.md` section 2
-  item 5 and section 3.3, which must both cite ATP-SPEC v1.0.0-rc1 §8.1 and the revocation-list
-  schema `$id`. A missing section fails rather than passing vacuously. The check needs only
-  python3 and is not yet run by CI.
+- `scripts/check_pointers.py` + `scripts/test_pointers.sh`: a section that describes a format or
+  a decision specified elsewhere must name where it is specified in the section itself, since a
+  reader who follows a link to the section does not read the document header. It covers `core.md`
+  section 2 item 5 and section 3.3, which must both cite ATP-SPEC v1.0.0-rc1 §8.1 and the
+  revocation-list schema `$id`, and `core.md` section 1.5, the section 10 bullet on runtime
+  authorization and `README.md`'s third use case, which must each name AAP as the layer that
+  decides whether an agent may touch a resource. A bulleted list item ends at the next bullet, so
+  AAP named in a neighbouring bullet does not count. A missing document or section fails rather
+  than passing vacuously. The check needs only python3 and is not yet run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
@@ -84,6 +87,13 @@ identifier registered in `core.md` §14.
   1.3 step 5 says ML-DSA-65 adds about three milliseconds, as §2.1 does, rather than three to
   five, which a 5 ms total could not hold. Section 3.2 step 8 also says the issuing node is not
   queried in either case, as the plane table does. No normative text changes.
+- Sections 1.5 and 10 name the same authorization layer as `README.md`: whether an agent may
+  touch a given resource is a broker policy decision under AAP, and the broker can take the
+  credential's verified `capabilities` as one input (§1.3a.4). Section 10 previously gave that
+  role to a layer named nowhere else in this repository, and section 1.5 said capability scope
+  decides whether an action is permitted, while `README.md` says capabilities are not permission.
+  Section 1.5 now says `capabilities` describes which operations the build is attested to be able
+  to perform. No normative text changes.
 - Section 3.3, the revocation flow, says where the revocation list format is specified: ATP-SPEC
   v1.0.0-rc1 §8.1, with the schema `$id`
   `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. It also states that

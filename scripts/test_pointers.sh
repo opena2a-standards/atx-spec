@@ -71,7 +71,13 @@ expect_pass() {  # expect_pass <leaf name> <root>
 }
 
 # write_core <root> <item 5 references> <section 3.3 references>
+#            [<section 1.5 text>] [<section 10 authorization bullet text>]
+# Sections 1.5 and 10 follow section 4 so the line numbers above them stay put;
+# the check finds a section by its opening line, wherever it sits. A tree with
+# no README.md also gets the default one from write_readme.
 write_core() {
+    local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
+    local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
     cat > "$1/core.md" <<EOF
 ## 2. The Agent Trust Protocol (ATP)
 
@@ -93,12 +99,45 @@ $3
 ## 4. Developer reported trust
 
 $ATP and $SCHEMA, cited outside both sections.
+
+### 1.5 Declared purpose (optional)
+
+$purpose
+
+## 10. What ATX is not
+
+* **ATX is not an identity system.** AIM is.
+* **ATX is not a runtime authorization system.** $authz
+* **ATX is not a centralized database.** AAP is named in this bullet, not the one above.
+EOF
+    [ -e "$1/README.md" ] || write_readme "$1"
+}
+
+# write_readme <root> [<use case 3 "where it stops" text>]
+write_readme() {
+    local stops="${2-They are not permission. That is a broker policy decision under AAP.}"
+    cat > "$1/README.md" <<EOF
+# atx-spec
+
+## Use cases
+
+### A stranger's agent calls you and you cannot phone home on every request
+
+AAP is named here, before use case 3.
+
+### An auditor asks what each agent was allowed to attempt, and what scanned it
+
+Where it stops today: $stops
+
+## Contributing
+
+AAP is named here too, after use case 3.
 EOF
 }
 
 # --- the delivered tree -----------------------------------------------------
 
-expect_pass "the repository's own core.md passes" "$REPO"
+expect_pass "the repository's own core.md and README.md pass" "$REPO"
 
 # --- pointer ----------------------------------------------------------------
 
@@ -126,6 +165,33 @@ write_core "$T" "Specified in ATP-SPEC
    v1.0.0-rc1 §8.1, schema \`$SCHEMA\`." "Wire format: ATP-SPEC v1.0.0-rc1
 §8.1; schema \`$SCHEMA\`."
 expect_pass "a reference may wrap across a soft line break" "$T"
+
+# --- authorization layer ----------------------------------------------------
+
+T="$(new_tree authz-other-layer)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`." \
+    "Neither is permission: that is a broker policy decision under AAP." \
+    "ARC is. ATX presents the credential. ARC enforces the policy."
+expect_fail "a section 10 authorization bullet naming another layer fails, even when the next bullet names AAP" \
+    "$T" pointer "core.md:29"
+
+T="$(new_tree purpose-no-layer)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`." \
+    "Capability scope answers \"is this action permitted?\"."
+expect_fail "section 1.5 not naming AAP fails, even when section 10 does" \
+    "$T" pointer "core.md:22"
+
+T="$(new_tree readme-no-layer)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_readme "$T" "They are not permission."
+expect_fail "README use case 3 not naming AAP fails, even when the sections around it do" \
+    "$T" pointer "README.md:9"
+
+T="$(new_tree no-readme)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+rm "$T/README.md"
+expect_fail "a tree with no README.md fails instead of passing vacuously" \
+    "$T" pointer "README.md"
 
 # --- vacuous pass -----------------------------------------------------------
 

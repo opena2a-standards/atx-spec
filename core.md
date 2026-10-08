@@ -298,11 +298,14 @@ pipe string the v1.1 signature never covered, and verification fails closed.
 ### 1.5 Declared purpose (optional)
 
 `declaredPurpose` is the publisher's structured, signed declaration of what an
-agent is *for*. `capabilities` bounds an agent's *reach* — which operations it may
-touch. `declaredPurpose` declares its *objective* — what those operations are
-meant to accomplish. The two are independent axes: capability scope answers "is
-this action permitted?"; declared purpose lets an offline observer ask the
-separate question "does this permitted action serve the declared objective?".
+agent is *for*. `capabilities` describes an agent's *reach* — which operations its
+build is attested to be able to perform. `declaredPurpose` declares its
+*objective* — what those operations are meant to accomplish. The two are
+independent axes: capability scope answers "what was this build attested to be
+able to do?"; declared purpose lets an offline observer ask the separate question
+"does this permitted action serve the declared objective?". Neither is
+permission: whether an agent may touch a given resource is a broker policy
+decision under AAP (§10).
 
 The field is **optional and additive** in ATX 1.1. It is signed as part of the
 v1.1 TBS when present (§1.3a.2, rule 5), which makes a declaration **binding,
@@ -636,7 +639,7 @@ This is the architectural property that makes ATX scale to a billion agents. It 
 These boundaries are as important as the capabilities.
 
 * **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
-* **ATX is not a runtime authorization system.** ARC is. ATX presents the credential. ARC enforces the policy.
+* **ATX is not a runtime authorization system.** AAP is the authorization layer: whether an agent may touch a given resource is a broker policy decision under AAP. ATX presents the credential. The broker enforces the policy, and can take the credential's verified `capabilities` as one input to it (§1.3a.4).
 * **ATX is not a centralized database.** It is a credential format. The issuing nodes are infrastructure. The credential travels with the agent.
 * **ATX is not proprietary.** ATP is published as an open standard. Any organization can issue ATX credentials using the same format. Compatibility is the goal.
 * **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites can be added via ATP version negotiation.
