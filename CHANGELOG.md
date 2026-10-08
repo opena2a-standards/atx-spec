@@ -15,10 +15,12 @@ identifier registered in `core.md` §14.
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
   bound counts as a total when its sentence names a warm cache, local verification, a cold cache
   or a cold start, or when it sits in a table row whose first cell is Verification; a per-step
-  bound is not a total. A range stated for a total may not end above its figure. `core.md` must
-  state both totals and `README.md` the warm one, so rewording them away fails rather than
-  passing vacuously. Failures are reported as file and line, and a file that is not UTF-8 is
-  reported as a failure. The check needs only python3 and is not yet run by CI.
+  bound is not a total. A range stated for a total may not end above its figure. In a numbered
+  list that states a warm cache total, each per-step bound stays below that total, since the
+  steps add up to it. `core.md` must state both totals and `README.md` the warm one, so rewording
+  them away fails rather than passing vacuously. Failures are reported as file and line, and a
+  file that is not UTF-8 is reported as a failure. The check runs in time linear in the size of
+  a paragraph. It needs only python3 and is not yet run by CI.
 - `errata/`: published ATX text is now corrected through numbered errata rather
   than silent edits. An erratum is one file, `errata/ATX-E-NNNN.md`, whose
   frontmatter carries `id`, `status`, `class`, `affectsDocument`, `affectsWire`,
@@ -68,9 +70,10 @@ identifier registered in `core.md` §14.
   section 2 item 5 and section 3.3, which must both cite ATP-SPEC v1.0.0-rc1 §8.1 and the
   revocation-list schema `$id`, and `core.md` section 1.5, the section 10 bullet on runtime
   authorization and `README.md`'s third use case, which must each name AAP as the layer that
-  decides whether an agent may touch a resource. A bulleted list item ends at the next bullet, so
-  AAP named in a neighbouring bullet does not count. A missing document or section fails rather
-  than passing vacuously. The check needs only python3 and is not yet run by CI.
+  decides whether an agent may touch a resource. Those three also call nothing permitted in a
+  sentence that does not name AAP. A bulleted list item ends at the next bullet, so AAP named in a
+  neighbouring bullet does not count. A missing document or section fails rather than passing
+  vacuously. The check needs only python3 and is not yet run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
@@ -85,15 +88,18 @@ identifier registered in `core.md` §14.
   section 3 plane table and `README.md` (under 5 ms) and `scalability.md` §2.1, whose step by step
   breakdown puts the ML-DSA-65 verification alone at 3 ms and a cold start under 50 ms. Section
   1.3 step 5 says ML-DSA-65 adds about three milliseconds, as §2.1 does, rather than three to
-  five, which a 5 ms total could not hold. Section 3.2 step 8 also says the issuing node is not
-  queried in either case, as the plane table does. No normative text changes.
+  five, which a 5 ms total could not hold, and section 3.2 step 5 says about 3 ms where it said
+  under 5 ms, a bound that left nothing of the total for the other steps. Section 3.2 step 8 also
+  says the issuing node is not queried in either case, as the plane table does. No normative
+  text changes.
 - Sections 1.5 and 10 name the same authorization layer as `README.md`: whether an agent may
   touch a given resource is a broker policy decision under AAP, and the broker can take the
   credential's verified `capabilities` as one input (§1.3a.4). Section 10 previously gave that
   role to a layer named nowhere else in this repository, and section 1.5 said capability scope
   decides whether an action is permitted, while `README.md` says capabilities are not permission.
   Section 1.5 now says `capabilities` describes which operations the build is attested to be able
-  to perform. No normative text changes.
+  to perform, and its question for an offline observer asks whether an attested operation, not a
+  permitted action, serves the declared objective. No normative text changes.
 - Section 3.3, the revocation flow, says where the revocation list format is specified: ATP-SPEC
   v1.0.0-rc1 §8.1, with the schema `$id`
   `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. It also states that

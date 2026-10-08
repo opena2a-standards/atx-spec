@@ -17,12 +17,15 @@ sentence, else to the first one named after it: "warm cache" or "local
 verification" is warm, "cold cache" or "cold start" is cold. In a table row
 whose first cell names a kind, or is exactly "Verification", a bound with no
 kind in its own sentence takes the row's kind. A bound that belongs to no kind
-is a per-step figure and is not checked.
+is a per-step figure.
 
 Rules, each failure reported as file:line with its rule in brackets:
 
   latency   an "under" bound for a kind states that kind's figure, and a range
             for a kind does not end above it.
+  step      in a numbered list that states a warm cache total, a per-step bound
+            stays below that total: the steps add up to it, so no one step
+            can take all of it.
   missing   core.md states both totals and README.md states the warm one, so
             rewording them away cannot pass vacuously.
 
@@ -59,6 +62,7 @@ BOUND_RE = re.compile(
 )
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:#+\s|\d+\.\s|[-*+]\s|\|)")
+LIST_ITEM_RE = re.compile(r"^\s*\d+\.\s")
 
 
 def markdown_files(root):
@@ -129,27 +133,67 @@ def row_kind(text):
 
 
 def statements(text):
-    """(offset, kind, match) for every bound in a block that belongs to a kind."""
+    """(offset, kind, match) for every bound in a block, in offset order.
+
+    kind is None for a per-step bound. Kinds and bounds are both found in
+    sentence order, so one pass over each places every bound.
+    """
     row = row_kind(text)
     parts = text.split("|") if row is not None else [text]
     offset = 0
     for part in parts:
         for start, sentence in sentences(part):
             kinds = [(m.start(), kind_of(m)) for m in KIND_RE.finditer(sentence)]
+            passed = 0
             for bound in BOUND_RE.finditer(sentence):
-                before = [k for at, k in kinds if at < bound.start()]
-                after = [k for at, k in kinds if at > bound.start()]
-                kind = before[-1] if before else after[0] if after else row
-                if kind:
-                    yield offset + start + bound.start(), kind, bound
+                while passed < len(kinds) and kinds[passed][0] < bound.start():
+                    passed += 1
+                if passed:
+                    kind = kinds[passed - 1][1]
+                elif kinds:
+                    kind = kinds[0][1]
+                else:
+                    kind = row
+                yield offset + start + bound.start(), kind, bound
         offset += len(part) + 1
+
+
+def upper_ms(bound):
+    """The largest figure a bound allows: its "under" number or the end of its range."""
+    return float(bound.group("bound") if bound.group("bound") is not None else bound.group("high"))
+
+
+def step_failures(rel, numbered):
+    """[step] failures for one numbered list, given (line, kind, match) per bound in it."""
+    if not any(kind == "warm" for _, kind, _ in numbered):
+        return []
+    figure = FIGURES_MS["warm"]
+    return [
+        f"{rel}:{line} [step] {' '.join(bound.group(0).split())!r} for one step of a list "
+        f"whose warm cache total is under {figure} ms; the steps add up to the total, "
+        f"so each one is below it"
+        for line, kind, bound in numbered
+        if kind is None and upper_ms(bound) >= figure
+    ]
 
 
 def check_file(rel, text, seen):
     failures = []
-    for first, block in blocks(text.splitlines()):
+    numbered = []  # (line, kind, match) per bound in the numbered list being read
+    for first, block in blocks(text.splitlines()) + [(None, "")]:
+        in_list = bool(LIST_ITEM_RE.match(block))
+        if not in_list:
+            failures.extend(step_failures(rel, numbered))
+            numbered = []
+        line, counted = first, 0
         for offset, kind, bound in statements(block):
-            line = first + block.count("\n", 0, offset)
+            # Offsets only grow, so each newline is counted once per block.
+            line += block.count("\n", counted, offset)
+            counted = offset
+            if in_list:
+                numbered.append((line, kind, bound))
+            if kind is None:
+                continue
             seen.add((rel, kind))
             figure = FIGURES_MS[kind]
             stated = " ".join(bound.group(0).split())

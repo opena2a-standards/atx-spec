@@ -303,7 +303,7 @@ build is attested to be able to perform. `declaredPurpose` declares its
 *objective* — what those operations are meant to accomplish. The two are
 independent axes: capability scope answers "what was this build attested to be
 able to do?"; declared purpose lets an offline observer ask the separate question
-"does this permitted action serve the declared objective?". Neither is
+"does this attested operation serve the declared objective?". Neither is
 permission: whether an agent may touch a given resource is a broker policy
 decision under AAP (§10).
 
@@ -446,7 +446,7 @@ This flow has zero issuing node involvement. It runs thousands of times per seco
 2. Parse ATX. Check atxVersion is supported. Check expiresAt is in the future. Under 0.1ms.
 3. Look up issuerDid in local DID document cache. TTL one hour. Cache hit proceeds. Cache miss does a single fetch and caches the result. Under 1ms on hit.
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
-5. If ML-DSA-65 signature is present, verify it too. Under 5ms.
+5. If ML-DSA-65 signature is present, verify it too. About 3ms.
 6. Check agentId against locally cached CRL. TTL 5 minutes. If listed, reject. If cache miss, queue async refresh and allow this request on the cached version. Under 0.1ms.
 7. Optionally verify contentHash against the known artifact for deep verification.
 8. Accept. Warm cache total: under 5ms, the ML-DSA-65 verification of step 5 included. A cold cache adds the one DID document fetch of step 3, for a total under 50ms ([scalability.md §2.1](scalability.md#21-what-verification-actually-costs)). The issuing node is not queried in either case.

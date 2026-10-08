@@ -181,6 +181,17 @@ write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; sch
 expect_fail "section 1.5 not naming AAP fails, even when section 10 does" \
     "$T" pointer "core.md:22"
 
+T="$(new_tree purpose-permitted)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`." \
+    "Neither is permission: that is a broker policy decision under AAP. An observer asks \"does this permitted action serve the declared objective?\"."
+expect_fail "section 1.5 calling an action permitted in a sentence that does not name AAP fails, even when it names AAP elsewhere" \
+    "$T" permission "core.md:22"
+
+T="$(new_tree purpose-permitted-by-aap)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`." \
+    "Neither is permission: whether an action is permitted is a broker policy decision under AAP."
+expect_pass "section 1.5 calling an action permitted in the sentence that names AAP passes" "$T"
+
 T="$(new_tree readme-no-layer)"
 write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
 write_readme "$T" "They are not permission."

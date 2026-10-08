@@ -37,6 +37,18 @@ run_check() {  # run_check <root>
     python3 -B "$REPO/scripts/check_latency.py" --root "$1" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_latency.py" "$2" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root], timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
 new_tree() {  # new_tree <name> -> path to a scratch tree holding a passing README.md
     mkdir -p "$TMP/$1"
     printf '# atx-spec\n\nLocal verification under 5ms.\n' > "$TMP/$1/README.md"
@@ -69,8 +81,10 @@ expect_pass() {  # expect_pass <leaf name> <root>
     fi
 }
 
-# write_core <root> <step 8 text>: line 7 holds the step 8 text
+# write_core <root> <step 8 text> [<step 5 text>]: line 7 holds the step 8 text
+# and line 10 the step 5 text, both items of one numbered list
 write_core() {
+    local step5="${3-5. If ML-DSA-65 signature is present, verify it too. About 3ms.}"
     cat > "$1/core.md" <<EOF
 ## 3. The five planes
 
@@ -81,7 +95,7 @@ write_core() {
 $2
 
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
-5. If ML-DSA-65 signature is present, verify it too. Under 5ms.
+$step5
 EOF
 }
 
@@ -146,6 +160,46 @@ T="$(new_tree not-utf8)"
 write_core "$T" "$GOOD"
 printf 'Warm cache total: under 2ms. \377\n' > "$T/latin.md"
 expect_fail "a Markdown file that is not UTF-8 fails rather than being skipped" "$T" latency "latin.md"
+
+T="$(new_tree large)"
+write_core "$T" "$GOOD"
+python3 -B - "$T/large.md" <<'PYEOF'
+import sys
+lines = "Warm cache verification is under 5 ms.\n" * 60000
+sentence = "warm cache under 5 ms, " * 60000
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Large\n\n" + lines + "\n" + sentence + "\n")
+PYEOF
+run_check_within 20 "$T"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    ok "two paragraphs of about 1.4 MB each, one of many lines and one a single sentence, are checked in time"
+else
+    not_ok "two paragraphs of about 1.4 MB each, one of many lines and one a single sentence, are checked in time" \
+        "expected exit 0 within 20 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
+# --- step -------------------------------------------------------------------
+
+T="$(new_tree step-whole)"
+write_core "$T" "$GOOD" '5. If ML-DSA-65 signature is present, verify it too. Under 5ms.'
+expect_fail "one step bounded by the whole warm total of its list fails" "$T" step "core.md:10"
+
+T="$(new_tree step-range)"
+write_core "$T" "$GOOD" '5. If ML-DSA-65 signature is present, verify it too. 2 to 6 ms.'
+expect_fail "one step whose range ends above the warm total of its list fails" "$T" step "core.md:10"
+
+T="$(new_tree step-under)"
+write_core "$T" "$GOOD" '5. If ML-DSA-65 signature is present, verify it too. Under 4ms.'
+expect_pass "one step bounded below the warm total of its list passes" "$T"
+
+T="$(new_tree step-other-list)"
+write_core "$T" "$GOOD" '
+The steps below are not part of verification.
+
+1. Fetch the DID document over the network. Under 40ms.'
+printf '\nThe cosignature is one Ed25519 signature plus one DID document lookup. Sub 5 ms.\n' >> "$T/core.md"
+expect_pass "a per-step bound in a list or paragraph that states no warm total is not checked" "$T"
 
 # --- missing ----------------------------------------------------------------
 
