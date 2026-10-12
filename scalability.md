@@ -236,7 +236,7 @@ Scalability includes how the system behaves when components fail. Zero Failures 
 ### 9.1 Issuing node down
 
 * **Verification:** unaffected. Verifiers use cached DID documents and CRLs. Verification continues at full throughput.
-* **Issuance:** new builds queue locally. The build plugin uses a 30 day delegated signing certificate to mint ATX locally during outage. The local ATX uploads to the issuing node when it recovers. Asynchronous reconciliation.
+* **Issuance:** new builds queue locally and are issued when the issuing node recovers. Issuance is the one flow that needs the issuing node synchronously ([core.md §3.1](core.md#31-issuance-flow)), and core.md defines no delegated signing that would let the build plugin mint an ATX itself. ATX already issued continue to verify until they expire.
 * **Revocation:** new revocations queue. Existing CRL continues to serve from CDN. New CRL deltas publish when the issuing node recovers.
 * **Transparency log:** new entries queue locally. Hash chain integrity is preserved on reconciliation. Monitors flag the gap but the gap is signed and explainable.
 
@@ -248,9 +248,9 @@ Scalability includes how the system behaves when components fail. Zero Failures 
 
 ### 9.3 Transparency log degraded
 
-* Issuance can continue at reduced trust level if the log cannot accept new entries. Issued ATX is marked as "log pending" and upgrades to fully attested once the log recovers.
+* Issuance pauses while the log cannot accept new entries: every issuance is logged before it takes effect ([core.md §11](core.md#11-architectural-commitments) commitment 3), and the credential has no member that would mark it as issued without a log entry. ATX already issued continue to verify.
 * Monitors alert on log unavailability. The protocol forces transparency: if the log is down, every participant knows.
-* No silent degradation. The credential includes the transparency log index. A missing index is detectable.
+* No silent degradation. `transparencyLogIndex` is optional and outside the signature ([core.md §1.1](core.md#11-atx-schema)), so a credential without it is not a detectable fault; a relying party that needs to know a credential was logged checks the log's inclusion proof for it ([core.md §6](core.md#6-transparency-log)).
 
 ### 9.4 Whole region failure
 

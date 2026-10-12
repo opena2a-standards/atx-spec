@@ -10,6 +10,24 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
+  (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
+  results embedded in ATX reference those IDs, but the credential had no member to carry them
+  and the schema's `scanSummary` admitted exactly its six members. The schema adds the member as
+  an array of unique `T-NNNN` strings, and accepts `null` for it, which rule 6 treats as absent,
+  as it accepts a `null` `declaredPurpose`. Section 1.3a.2 rule 6 signs it under 1.1 in the pattern
+  rule 5 set for `declaredPurpose`: an absent, `null` or empty array is omitted from the TBS
+  `scanSummary`, so every credential without it keeps its exact signed bytes and every pinned
+  vector and signature stays valid, and any other present value is signed verbatim in wire
+  order, which a verifier may not sort, deduplicate or drop. Section 1.3a.2 rule 2 says the
+  member is not one of the six it requires. No verdict on an existing credential changes. The
+  conformance fixtures that pin the member's bytes and its injected forms belong in
+  atx-conformance and are not part of this change.
+- `scripts/test_schema.sh`: takes the section 1.1 example, sets one `scanSummary` member, and
+  asserts the schema accepts it or rejects it at the expected JSON path. It covers
+  `scanSummary.techniques` (two IDs, an empty array and `null` accepted; a string, a repeated ID
+  and malformed IDs rejected) and a member the schema does not define. It needs python3 and
+  `jsonschema` and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -76,11 +94,54 @@ identifier registered in `core.md` §14.
   vacuously. The check needs only python3 and is not yet run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
-  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
-  reported as file and line. The check needs only python3 and is not yet run by CI.
+  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
+  name `agentId` and then the CRL or the revocation list, because each entry in that response
+  names the revoked agent by `agentDid` and carries no `agentId`. Failures are reported as file
+  and line. The check needs only python3 and is not yet run by CI.
+- `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
+  asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
+  it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
+  grammars, the keys and values of `capabilityJustification`, an absent, null or empty
+  `declaredPurpose`, and the canonical empties of §1.3a.2 rules 1 and 2. It needs python3 and the
+  `jsonschema` package, as `scripts/validate_examples.py` does, and is not yet run by CI.
 
 ### Changed
 
+- `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
+  disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
+  grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
+  leading digit in the namespace, and uppercase letters, dots and hyphens in the objective, and
+  checked no grammar on `capabilityJustification` at all. `capabilities` tokens and the
+  keys of `capabilityJustification` follow the AIP §4.1 grammar that §14 cites, which admits the
+  organization-prefixed form (`acme.example/billing:refund`) and no wildcard action; the schema
+  rejected the first and accepted `db:Read.*`. `declaredPurpose: null` validates, since §1.3a.2
+  rule 5 treats it as absent, as it does the empty object. `publisherDid`, `buildAttestation` and
+  `scanSummary.oasbLevel` accept the empty string that §1.3a.2 rules 1 and 2 name as their value
+  when unknown, so a credential with an unknown value has a valid wire form. The
+  `capabilityJustification` description no longer says a verifier enforces its subset rule:
+  neither reference verifier reads the member, and the subset relation is a cross-field rule the
+  schema cannot express. Every atx-conformance fixture validates as it did before; the suite's
+  vendored schema copy moves in its own atx-conformance change, as does a fixture and a verifier
+  check for the subset rule. No normative text changes.
+- `scalability.md` and `sovereign-federation.md` describe only credential members and mechanisms
+  that the schema and `core.md` define. `scalability.md` §9.1 said the build plugin mints ATX
+  during an issuing-node outage under a 30 day delegated signing certificate; core.md defines no
+  delegated signing, so builds now queue and are issued when the node recovers. §9.3 said ATX
+  issued while the log is down are marked "log pending", and that a missing log index is
+  detectable; the credential has no such mark and the index is optional, so issuance pauses until
+  the log accepts entries (core.md §11 commitment 3) and logging is established by the log's
+  inclusion proof. `sovereign-federation.md` §7.2 said the ATX includes the Signed Tree Head that
+  contains its log entry; it carries no STH, only the optional index. Section 1.1 no longer says
+  an issuer that recorded no inclusion omits `transparencyLogIndex`, which read as permitting
+  issuance without logging: omitting the field does not exempt the issuance from being logged
+  before it takes effect. No BCP 14 statement is added or removed by these corrections.
+- Section 1.3 step 6 and section 3.2 step 6 check `agentDid` against the cached revocation list,
+  the key each ATP-SPEC v1.0.0-rc1 §8.1 entry carries. Both said `agentId`, which no entry in
+  that list has. Section 1.3 step 6 also says the issuance envelope's `revoked` field is outside
+  the signed bytes and does not stand in for the list check. Section 12, Coverage, and the
+  `README.md` revocation use case say that no conformance fixture yet rejects an agent on list
+  membership alone: the revocation fixture also carries `revoked: true`, so a verifier that never
+  reads the list still rejects it. No BCP 14 statement changes.
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one

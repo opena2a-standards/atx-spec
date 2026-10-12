@@ -285,7 +285,7 @@ The sovereign decides who can mirror. The mirror cannot tamper with the log. The
 
 A verifier can verify a sovereign issued ATX without ever contacting the sovereign or OpenA2A:
 
-1. The ATX includes the transparency log index and STH that contains it.
+1. The ATX may carry `transparencyLogIndex`, the index the sovereign's log assigned to its issuance entry ([core.md §1.1](core.md#11-atx-schema)). It carries no STH, and the index is the lookup key for the inclusion proof, not evidence of inclusion.
 2. The verifier holds the sovereign's published DID document (cached) and a recent STH (cached).
 3. The verifier reconstructs the inclusion proof locally from cached data.
 
