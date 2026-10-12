@@ -476,65 +476,11 @@ identifier registered in `core.md` §14.
   (opena2a-standards/.github#5) added under §1.3, §1.3a.2 and §12 (`opena2a-definition`:
   `atx-verification-steps`, `atx-tbs-exclusions`, `atx-conformance-coverage`); they render
   nothing and change no text.
-- §12 and README conformance-suite counts synced to the 21-fixture suite: atx-conformance
-  #22 added `v1_1-untrusted-chain-authority.json`, the MUST-REJECT fixture for the §1.3 step 4
-  key-eligibility sentence (#19), and both fixture descriptions here now name it.
-
-- §12 and README conformance-suite counts corrected to the 20-fixture suite, and
-  their fixture descriptions extended to name the strict-parse family that was
-  never documented here: duplicate object members rejected at any depth
-  (RFC 8259 §4) and case-variant members that a last-wins JSON decoder would
-  collapse rejected as `PARSE_ERROR`. Those two fixtures landed in
-  atx-conformance on 2026-07-05 and 2026-07-06, after the previous sync to 18,
-  so both the count and the description had been understating the suite.
-- `scripts/check_conformance_counts.py` + `.github/workflows/conformance-counts.yml`:
-  the stated counts are now recomputed from a checkout of atx-conformance@main
-  on every push and pull request instead of being maintained by hand. The suite
-  is not pinned, because the drift being caught is precisely "the suite moved and
-  this repository did not". The guard also fails when a document states no count
-  at all, so it cannot pass vacuously.
-
-- §12 and README conformance-suite counts synced to the 18-fixture suite
-  (atx-conformance#14 added the three rule-5 degenerate declaredPurpose
-  fixtures).
-
-- §1.3a.2 rule 5 pins the degenerate `declaredPurpose` inputs the reference
-  verifiers disagreed on (atx-conformance#11): emptiness is a JSON-parse-level
-  property (whitespace variants of `{}` are the empty object), and any other
-  present value — including non-object values — MUST enter the TBS verbatim,
-  so unsigned injected purpose content breaks the signature instead of being
-  silently normalized away.
-- `schemas/atx-credential-v1.1.schema.json`: `declaredPurpose` now also
-  accepts the empty object (wire-tolerated, treated as absent), matching
-  rule 5.
 - core.md §2 item 5 previously promised signed CRL endpoints, delta CRLs and a push
   notification format; it now states what ATP-SPEC v1.0.0-rc1 §8.1 actually defines — the
   since-timestamp revocation response, its schema and the client refresh cadence — with the
   §8.1 revocation response body left unsigned in ATP 1.0 and a signed revocation list named
   as ATP 1.1 work.
-
-### Added
-
-- `schemas/atx-credential-v1.1.schema.json`: machine-readable JSON Schema
-  (draft 2020-12) for the ATX credential wire form, derived from §1.1/§1.3a/§1.5
-  with the atx-conformance fixtures as ground truth. All 15 fixtures validate as
-  intended (14 shape-valid; `malformed-schema` fails on exactly the `atcVersion`
-  registry enum).
-- `scripts/validate_examples.py` + `schemas/examples-map.json` + CI workflow:
-  every schema is metaschema-checked and the §1.1 example is validated against
-  the schema on every push and PR.
-
-### Changed
-
-- `core.md` §1.1: the credential illustration is now wire-shape-accurate and
-  schema-valid — field name `atcVersion` (previously shown under the `atxVersion`
-  alias), bare-hex `contentHash`, provenance-URI `buildAttestation`,
-  `scanSummary` with `highFindings` and the wire spellings `cryptoServe` /
-  `no-weak-crypto`, `trustScore` on the wire's 0-100 scale, full-DID `keyId`
-  values, and the issuance envelope fields `id` / `revoked` / `createdAt`.
-- `core.md` §2 and §14: the `did:opena2a` type-prefix set now matches the
-  did-method registry — `registry` added; `a2a_agent` documented as a deprecated
-  legacy alias of `agent`, not a registered type.
 
 ### Removed
 
@@ -571,6 +517,65 @@ identifier registered in `core.md` §14.
   production issuance; conformance section updated from the stale 8-fixture
   description to the current 15-fixture suite with the `v1_1-*` family and the
   `jcs-vectors` gate.
+
+The `v1.1.0` tag, on commit `b2775b4` of 2026-09-08, also carries these changes, made after the 2026-07-03 text described above:
+
+#### Changed
+
+- §12 and README conformance-suite counts synced to the 21-fixture suite: atx-conformance
+  #22 added `v1_1-untrusted-chain-authority.json`, the MUST-REJECT fixture for the §1.3 step 4
+  key-eligibility sentence (#19), and both fixture descriptions here now name it.
+
+- §12 and README conformance-suite counts corrected to the 20-fixture suite, and
+  their fixture descriptions extended to name the strict-parse family that was
+  never documented here: duplicate object members rejected at any depth
+  (RFC 8259 §4) and case-variant members that a last-wins JSON decoder would
+  collapse rejected as `PARSE_ERROR`. Those two fixtures landed in
+  atx-conformance on 2026-07-05 and 2026-07-06, after the previous sync to 18,
+  so both the count and the description had been understating the suite.
+- `scripts/check_conformance_counts.py` + `.github/workflows/conformance-counts.yml`:
+  the stated counts are now recomputed from a checkout of atx-conformance@main
+  on every push and pull request instead of being maintained by hand. The suite
+  is not pinned, because the drift being caught is precisely "the suite moved and
+  this repository did not". The guard also fails when a document states no count
+  at all, so it cannot pass vacuously.
+
+- §12 and README conformance-suite counts synced to the 18-fixture suite
+  (atx-conformance#14 added the three rule-5 degenerate declaredPurpose
+  fixtures).
+
+- §1.3a.2 rule 5 pins the degenerate `declaredPurpose` inputs the reference
+  verifiers disagreed on (atx-conformance#11): emptiness is a JSON-parse-level
+  property (whitespace variants of `{}` are the empty object), and any other
+  present value — including non-object values — MUST enter the TBS verbatim,
+  so unsigned injected purpose content breaks the signature instead of being
+  silently normalized away.
+- `schemas/atx-credential-v1.1.schema.json`: `declaredPurpose` now also
+  accepts the empty object (wire-tolerated, treated as absent), matching
+  rule 5.
+
+#### Added
+
+- `schemas/atx-credential-v1.1.schema.json`: machine-readable JSON Schema
+  (draft 2020-12) for the ATX credential wire form, derived from §1.1/§1.3a/§1.5
+  with the atx-conformance fixtures as ground truth. All 15 fixtures validate as
+  intended (14 shape-valid; `malformed-schema` fails on exactly the `atcVersion`
+  registry enum).
+- `scripts/validate_examples.py` + `schemas/examples-map.json` + CI workflow:
+  every schema is metaschema-checked and the §1.1 example is validated against
+  the schema on every push and PR.
+
+#### Changed
+
+- `core.md` §1.1: the credential illustration is now wire-shape-accurate and
+  schema-valid — field name `atcVersion` (previously shown under the `atxVersion`
+  alias), bare-hex `contentHash`, provenance-URI `buildAttestation`,
+  `scanSummary` with `highFindings` and the wire spellings `cryptoServe` /
+  `no-weak-crypto`, `trustScore` on the wire's 0-100 scale, full-DID `keyId`
+  values, and the issuance envelope fields `id` / `revoked` / `createdAt`.
+- `core.md` §2 and §14: the `did:opena2a` type-prefix set now matches the
+  did-method registry — `registry` added; `a2a_agent` documented as a deprecated
+  legacy alias of `agent`, not a registered type.
 
 ## [1.0.2] - 2026-06-08
 

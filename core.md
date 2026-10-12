@@ -2,7 +2,7 @@
 
 **Certificate authority infrastructure for AI agents**
 
-**Document version:** 1.1.0-final (July 2026; first published as "Version 1.0", May 2026)
+**Document version:** 1.2.0-draft (working text; the last final version, 1.1.0-final, is tagged v1.1.0)
 **Credential format status:** ATX 1.1 is the current, normative wire format (§1.3a.2) and is what production issuance emits; ATX 1.0 is frozen legacy (§1.3a.1), accepted per the transition rule in §1.3a.5.
 **Protocol status:** the ATP wire protocol (§2) is normatively specified in [ATP-SPEC v1.0.0-rc1](https://github.com/opena2a-standards/agent-trust-protocol/blob/v1.0.0-rc1/ATP-SPEC.md); this document defines the architecture it implements. Identity (AIP) and authorization (AAP) layers beneath this document carry their own, earlier maturity levels — a claim in this document never upgrades theirs.
 **Errata:** errata/README.md, incorporated through none

@@ -2,7 +2,9 @@
 
 **How the system scales to a billion agents**
 
-Version 1.0. May 2026. This document is the scalability companion to the ATX core architecture. It explains why the credential model scales, where the bottlenecks are, what the failure modes look like, and what is intentionally not scaled.
+**Document version:** 1.2.0-draft (working text; the last final version, 1.1.0-final, is tagged v1.1.0)
+
+This document is the scalability companion to the ATX core architecture. It explains why the credential model scales, where the bottlenecks are, what the failure modes look like, and what is intentionally not scaled.
 
 The credential model is what made TLS work at planetary scale. The same properties carry over to ATX. This document makes those properties explicit and operationally measurable.
 

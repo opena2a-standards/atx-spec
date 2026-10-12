@@ -2,7 +2,9 @@
 
 **How governments and regulated industries stand up their own ATX platform**
 
-Version 1.0. May 2026. This document is the sovereignty companion to the ATX core architecture. It defines how a government, a regulated industry, or any organization with jurisdictional or trust constraints stands up its own ATX issuing node, controls its own trust relationships, and federates selectively with the rest of the ecosystem.
+**Document version:** 1.2.0-draft (working text; the last final version, 1.1.0-final, is tagged v1.1.0)
+
+This document is the sovereignty companion to the ATX core architecture. It defines how a government, a regulated industry, or any organization with jurisdictional or trust constraints stands up its own ATX issuing node, controls its own trust relationships, and federates selectively with the rest of the ecosystem.
 
 The architectural goal: each sovereign decides who it trusts. No central authority can force a relationship. No foreign infrastructure can become the gatekeeper. The system survives any pattern of hostile relationships because federation is opt in at every edge.
 
