@@ -112,6 +112,16 @@ identifier registered in `core.md` §14.
   name `agentId` and then the CRL or the revocation list, because each entry in that response
   names the revoked agent by `agentDid` and carries no `agentId`. Failures are reported as file
   and line. The check needs only python3 and is not yet run by CI.
+- `scripts/check_revocation_list.py` + `scripts/test_revocation_list.sh`: no Markdown file
+  outside `CHANGELOG.md` and `errata/` may say that the revocation list, its response body or its
+  cache is signed, in a sentence that names a CRL or a revocation, unless that sentence names
+  ATP 1.1, since the §8.1 response has no member for a signature. A file signed for transport,
+  such as a CRL published as a signed file, is not that claim and passes. No byte figure stated
+  for a revocation entry may be below 212 bytes, the §8.1 example entry as compact JSON, and no
+  size stated for a number of revocations may be below that number times 212 bytes.
+  `scalability.md` must state both sizes, so rewording them away fails rather than passing
+  vacuously. Failures are reported as file and line, and a file that is not UTF-8 is reported as
+  a failure. The check needs only python3 and is not yet run by CI.
 - `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
   asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
   it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
@@ -120,6 +130,16 @@ identifier registered in `core.md` §14.
   `jsonschema` package, as `scripts/validate_examples.py` does, and is not yet run by CI.
 
 ### Changed
+
+- `scalability.md` §6.2 and §6.3 describe the revocation list ATP-SPEC v1.0.0-rc1 §8.1 defines.
+  §6.3 said the cached CRL is signed so that a stale one cannot be tampered with, but the §8.1
+  response has no member for a signature and allows no additional members, and `core.md` §2
+  item 5 says it is not signed in ATP 1.0. §6.3 now says its authenticity rides on the transport
+  and on each entry's `transparencyLogIndex`, that a server on the path can drop an entry without
+  the list showing it, and that a signed revocation list is ATP 1.1 work. §6.2 put each entry at
+  roughly 40 bytes and a million revocations at 40 MB; each entry has five required members, the
+  §8.1 example entry is 212 bytes as compact JSON, and §6.2 now says roughly 212 bytes per entry
+  and about 212 MB per million revocations before compression. No normative text changes.
 
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2

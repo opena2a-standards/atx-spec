@@ -160,7 +160,7 @@ The 5 minute TTL is the hard upper bound. Verifiers that need faster revocation 
 
 ### 6.2 CRL size
 
-A full CRL listing every revoked agentId is small. Each entry is roughly 40 bytes (agentId plus revocation timestamp plus reason code). One million revocations is 40 MB. Compressed and CDN cached, a single CRL serves the entire ecosystem.
+A full CRL listing every revoked agent is the ATP-SPEC v1.0.0-rc1 §8.1 revocation response asked for from the earliest `since` timestamp. Each entry carries five required members, `agentDid`, `revokedAt`, `reason`, `transparencyLogIndex` and `revokedByKeyId`, and the schema allows no others. The example entry in §8.1 is 212 bytes as compact JSON, so with DIDs and reasons of that length each entry is roughly 212 bytes and one million revocations is about 212 MB before compression. Compressed and CDN cached, a single CRL serves the entire ecosystem, and a verifier that already holds it asks only for the revocations after its `nextSince` cursor.
 
 Delta CRLs are much smaller. A delta from STH N to STH N+1 covers approximately 5 minutes of revocations, typically a few KB.
 
@@ -175,7 +175,7 @@ Issuing node (canonical)
       -> Verifiers (local cache, 5 minute TTL)
 ```
 
-A verifier that loses network access continues using its cached CRL until the cache expires. The cache is signed, so a stale CRL cannot be tampered with. The verifier still rejects revoked credentials that were on the CRL when the cache was last refreshed.
+A verifier that loses network access continues using its cached CRL until the cache expires. The verifier still rejects revoked credentials that were on the CRL when the cache was last refreshed. The CRL itself carries no signature in ATP 1.0: the §8.1 response has no member for one and allows no additional members. Its authenticity rides on the transport, which authenticates whichever server the verifier fetched it from (the issuing node, a CDN edge or a federation mirror), and on each entry's `transparencyLogIndex`, which names the log entry that records the revocation so a verifier can ask for its inclusion proof. A server on that path can still drop an entry without the list showing it; a verifier that needs to rule that out compares the list with the REVOCATION entries in the transparency log. A signed revocation list is ATP 1.1 work (`core.md` §2 item 5).
 
 ---
 
