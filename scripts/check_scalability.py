@@ -46,7 +46,8 @@ Rules, each failure reported as file:line with its rule in brackets:
   log-size      a trillion entries at the entry size, and a month of entries
                 at that rate, are the stated storage.
   credential    a size stated for one credential is not below its signature
-                values and not above the section 1.1 example.
+                values and not more than TOLERANCE above the section 1.1
+                example.
   storage       the active set of a billion credentials and the active set of
                 the section 8.2 node are their counts times the credential.
   reissuance    a data rate in the section 8.2 reissuance item is an issuance
@@ -55,9 +56,16 @@ Rules, each failure reported as file:line with its rule in brackets:
                 size per second, such as "1 KB per second".
   log-mirror    the section 8.2 log mirror is a year of the node's weekly
                 entries at the entry size.
-  capacity      a sentence in section 10 that names conformance says the
-                table is not a conformance criterion: no conformance target
-                states a capacity.
+  capacity      between the section 10 heading and the next "## " heading, a
+                sentence that contains "conformance" also contains the word
+                not, no, neither or nor. Letter case is ignored. The rule is
+                meant to catch a sentence that makes the capacity table a
+                conformance criterion, and it tests no more than the presence
+                of one of those words: a sentence that makes the table a
+                criterion and contains "no" passes. A sentence here ends
+                where whitespace follows . ! ? or : and at the end of its
+                line, and a line whose first character after any indent is |
+                is not read.
   missing       each figure above, and each input, is stated, so rewording it
                 away fails rather than passing vacuously. Three exceptions:
                 one rate statement is enough, so the section 3 or the section

@@ -66,32 +66,10 @@ identifier registered in `core.md` §14.
   untrusted issuer, so rewording that away fails rather than passing vacuously. Failures are
   reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
   needs only python3 and is not yet run by CI.
-- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: the derived figures of
-  `scalability.md` that this entry lists are recomputed from the inputs the document states, and
-  each statement of them that the check reads must agree with the recomputed figure to within
-  5 percent, so a figure may be rounded to two significant digits.
-  The inputs are the §2.1 step costs, the 256 byte log entry, the size of the `core.md` §1.1
-  example credential with full-length Ed25519 and ML-DSA-65 signature values, and the §8.2 node
-  of 100,000 agents; the premises are a billion agents reissued weekly. The derived figures are
-  the warm cache total, verifications per core and per four-core verifier, the verifier count
-  for a billion verifications per second, the issuance rate, the log's size for a trillion
-  entries and for a month, the active set for a billion credentials and for the node, the
-  node's reissuance data rate and its yearly log mirror. The size stated for one credential is
-  bounded rather than recomputed: it may not be below the combined length of the example's
-  signature values or more than 5 percent above the example. The check recomputes no other
-  figure: the §1 summary table, the §3 ratio of verifications to issuances, the §5.1 proof
-  sizes and the §5.2 count of entries between Signed Tree Heads are among the figures it does
-  not read. A sentence in §10 that names conformance must say the capacity table is not a
-  conformance criterion. Rewording one of those figures or inputs away fails rather than passing
-  vacuously, with three exceptions. The issuance rate is read only where it is written as about,
-  approximately or roughly a number of issuances or entries per second, and one such statement
-  is enough, so the §3 or the §5 statement can be reworded away while the other remains. A data
-  rate in the §8.2 reissuance item is read only where it is written as a number of bytes, KB,
-  MB, GB or TB per second, as in `1 KB per second`, and the item need not state one. A §2.1 step
-  the check cannot read as a cost in ms, for example one written in microseconds, is left out of
-  the sum with no failure of its own, so a step small enough that the stated figures still agree
-  to within 5 percent without it goes unnoticed. A file that is not UTF-8 fails. It needs only
-  python3 and is not yet run by CI.
+- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: a check that recomputes some of
+  the figures `scalability.md` states and exits 1 when one of its rules fails. The rules are
+  listed under Rules in the script's docstring, which also names figures the check does not read
+  and three rewordings it does not catch. It needs only python3 and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
