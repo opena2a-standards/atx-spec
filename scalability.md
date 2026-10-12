@@ -191,7 +191,7 @@ In a mature federation:
 * Each sovereign node handles its jurisdiction's agents.
 * The root node (OpenA2A) handles community packages and cross node cosignatures.
 
-The root node's load is bounded by the rate of cross node trust level 4 requests, not the total agent population. If 1 percent of interactions require root cosignature, the root node handles 1 percent of the global verification load. The other 99 percent is fully local.
+The root node's load is bounded by the rate at which credentials that need its cosignature are issued, not by the total agent population or the number of interactions. The root cosigns at issuance, once per credential, and is never on the verification path (core.md §9). Every interaction, cross node ones included, is verified fully locally.
 
 ### 7.2 Why federation improves scalability
 
@@ -202,7 +202,7 @@ Naive intuition says federation adds coordination overhead. The opposite is true
 * **Failures are isolated.** A node going down affects only its own population.
 * **Updates are decoupled.** Each node updates its software on its own cadence.
 
-The cost of federation is the bilateral cosignature for cross node interactions. The cosignature is one Ed25519 signature plus one DID document lookup. Sub 5 ms. Compared to a database query that fans out across the entire ecosystem, federation is cheaper at every meaningful scale.
+The cost of federation is the bilateral cosignature, made once at issuance and checked locally on each cross node interaction. The cosignature is one Ed25519 signature plus one DID document lookup. Sub 5 ms. Compared to a database query that fans out across the entire ecosystem, federation is cheaper at every meaningful scale.
 
 ---
 

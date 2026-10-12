@@ -28,6 +28,16 @@ identifier registered in `core.md` §14.
   `scanSummary.techniques` (two IDs, an empty array and `null` accepted; a string, a repeated ID
   and malformed IDs rejected) and a member the schema does not define. It needs python3 and
   `jsonschema` and is not yet run by CI.
+- `scripts/check_mediation.py` + `scripts/test_mediation.sh`: no Markdown file outside
+  `CHANGELOG.md` and `errata/` has a verifier ask for a cosignature. A sentence that requests,
+  queries, asks for, fetches or obtains a cosignature or countersignature, in a paragraph or list
+  that names a verifier or verification, fails unless it names issuance or the issuing side or
+  negates the verb. An `issuerChain` written out as a list that names the root authority together
+  with other authorities names the root first, as `core.md` §1.3a.2 rule 4 requires, in prose or
+  in JSON. `core.md` and `sovereign-federation.md` must each say what a verifier does with an
+  untrusted issuer, so rewording that away fails rather than passing vacuously. Failures are
+  reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
+  needs only python3 and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -142,6 +152,21 @@ identifier registered in `core.md` §14.
   `README.md` revocation use case say that no conformance fixture yet rejects an agent on list
   membership alone: the revocation fixture also carries `revoked: true`, so a verifier that never
   reads the list still rejects it. No BCP 14 statement changes.
+- A verifier that does not list a credential's issuer rejects it as an untrusted issuer, and
+  asks nobody for a cosignature. `core.md` §7 step 3 and `sovereign-federation.md` §3.2 and §4.2
+  had the verifier query the root node for one, which contradicted `README.md`, `core.md` §9 and
+  §11 commitment 6 (verification never makes a network call to a node) and the reference
+  verifiers, which reject an unlisted issuer and make no call. The mediated path in
+  `sovereign-federation.md` §4.2 now runs ahead of verification: a sovereign that wants to honor
+  the authorities the root recognizes imports the root's published trust list into its own, and
+  an authority it lists as Denied stays denied. A root cosignature, which trust level 4 requires,
+  is made at issuance over the same canonical bytes as the first signature. The old text gave
+  the cosigned credential `issuerChain` = [gov.x, opena2a.org]; under `atcVersion` 1.1 the chain
+  is inside the signed bytes, so extending it after the first signature invalidated that
+  signature, and it put the root last where §1.3a.2 rule 4 puts it first. The chain is now
+  settled, root first, before anyone signs. `scalability.md` §7 bounds the root's load by the rate
+  of issuance that needs its cosignature, not by a share of verifications. No BCP 14 statement is
+  added or removed.
 - `schemas/atx-credential-v1.1.schema.json` refuses an `atcVersion` 1.1 credential whose
   `signatures` array lacks an Ed25519 or an ML-DSA-65 entry, as §1.1 requires. `signatures` sits
   outside the signed bytes, so anyone relaying a credential could delete the post-quantum entry,

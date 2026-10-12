@@ -119,7 +119,7 @@ gov.uk trust list:
 
 A UK verifier checking an ATX issued by gov.us looks up gov.us in the local trust list. Allowed. Cosignature path established. Verification proceeds.
 
-A UK verifier checking an ATX issued by an authority not on the list falls back to the cross org cosigning protocol. The root node (OpenA2A) may be queried for a neutral cosignature. If the UK trust list does not recognize the root node either, verification fails closed.
+A UK verifier checking an ATX issued by an authority not on the list rejects it as coming from an untrusted issuer. It does not query the root node (OpenA2A) or any other authority for a cosignature while it verifies (core.md §9). The UK can still honor the authorities the root recognizes by importing the root's published trust list into its own ahead of time (§4.2). Without that, verification fails closed.
 
 ### 3.3 Bilateral trust agreements
 
@@ -167,16 +167,19 @@ No external arbiter is involved. The two sovereigns have a bilateral agreement. 
 
 ### 4.2 The mediated path
 
-Two sovereigns with no direct bilateral but both recognizing the root:
+Two sovereigns with no direct bilateral but both recognizing the root. The root mediates before verification, never during it: a verifier makes no network call to the root, to the issuing node or to any other authority while it verifies (core.md §9).
 
-1. Agent A in jurisdiction X holds an ATX issued by gov.x.
-2. Agent A calls a service in jurisdiction Y.
-3. Verifier in Y looks up gov.x. Not on local trust list.
-4. Verifier requests a cosignature from the root authority (did:opena2a:authority:opena2a.org).
-5. Root verifies the gov.x signature, checks that gov.x is on the root's trust list, issues a cosignature.
-6. Cosigned ATX has issuerChain = [gov.x, opena2a.org]. Verifier in Y accepts the credential because Y trusts the root.
+1. gov.x is on the root's trust list. The root publishes that list, signed, like any other trust list (§3.4).
+2. Y decides, ahead of time and out of band, to honor the authorities the root recognizes. Y imports the root's published list into its own trust list and refreshes it on the trust list TTL (§3.4). An authority Y lists as Denied stays denied whatever the imported list says (§4.3).
+3. Agent A in jurisdiction X holds an ATX issued by gov.x.
+4. Agent A calls a service in jurisdiction Y.
+5. Verifier in Y looks up gov.x in its local trust list. Listed through the import. Verification proceeds as on the bilateral path, entirely locally.
 
-The root acts as a neutral cosigner. This is exactly the role Verisign plays for cross CA TLS in WebPKI today. The root does not vouch for the agent. It vouches that the issuing authority is a recognized member of the federation.
+If gov.x is not on Y's list, directly or through an imported root list, the verifier in Y rejects the credential as coming from an untrusted issuer (`UNTRUSTED_ISSUER` in the reference verifiers). It does not fall back to asking the root, or anyone else, for a cosignature.
+
+The root acts as a neutral recognizer. This is exactly the role Verisign plays for cross CA TLS in WebPKI today. The root does not vouch for the agent. It vouches, through its published trust list, that the issuing authority is a recognized member of the federation.
+
+A credential can also carry the root's own cosignature, which trust level 4 requires (core.md §7). The root adds it at issuance, not at verification, and the chain is settled before anyone signs: under ATX 1.1 `issuerChain` is inside the signed bytes (core.md §1.3a.2), so an authority appended after the first signature invalidates that signature. The issuing node writes `issuerChain` = [did:opena2a:authority:opena2a.org, did:opena2a:authority:gov.x], root first as core.md §1.3a.2 rule 4 requires, before gov.x signs. The root then verifies the gov.x signature, checks that gov.x is on the root's trust list, and adds its own signature over the same canonical bytes.
 
 ### 4.3 The deny path
 

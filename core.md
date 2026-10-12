@@ -604,16 +604,16 @@ The monitor alert endpoint is public. Any party can subscribe and receive alerts
 
 ## 7. Cross org cosigning
 
-When agent A (issued by enterprise node X) calls agent B (issued by enterprise node Y), the trust decision requires cross node verification.
+When agent A (issued by enterprise node X) calls agent B (issued by enterprise node Y), the trust decision requires cross node verification. B makes that decision locally, from its own federation trust list and the signatures the credential already carries.
 
 The protocol:
 
 1. Agent A presents ATX issued by node X. ATX includes issuerChain field.
 2. Agent B's verifier checks: is node X in B's trusted federation list? If yes, verify signature against X's public key (cached from X's DID document). Accept if valid.
-3. If node X is not in B's trusted list, B queries the root node (OpenA2A) for a cosignature. Root node verifies X's ATX and issues a cross org attestation.
-4. For trust level 4 (Verified), both issuing nodes AND the root node must have cosigned. No single organization can unilaterally grant the highest trust level.
+3. If node X is not in B's trusted list, B rejects the credential as coming from an untrusted issuer (`UNTRUSTED_ISSUER` in the reference verifiers). B does not query the root node (OpenA2A), node X or any other authority for a cosignature: that would put a node on the verification path (§9). B can honor the authorities the root recognizes by importing the root's published trust list into its own ahead of time. That is a trust list decision made out of band, not a call made while verifying ([sovereign-federation.md §4.2](sovereign-federation.md#42-the-mediated-path)).
+4. For trust level 4 (Verified), both issuing nodes AND the root node must have cosigned. No single organization can unilaterally grant the highest trust level. Every cosignature is made at issuance (§3.1 step 9), over the same canonical signed bytes as the first signature. Under `atcVersion` 1.1 `issuerChain` is inside those bytes (§1.3a.2), so the issuing node settles the chain, root first (§1.3a.2 rule 4), before the first authority signs. An authority appended to the chain afterwards invalidates every signature already made.
 
-This is the cryptographic mechanism that lets independent organizations interoperate without either having to be the gatekeeper. The trust list is local. The cosignature is the bridge. The transparency log makes the whole thing auditable.
+This is the cryptographic mechanism that lets independent organizations interoperate without either having to be the gatekeeper. The trust list is local. The cosignature, made at issuance, is the bridge. The transparency log makes the whole thing auditable.
 
 The deeper architectural treatment of multi org and sovereign deployments lives in the ATX sovereign federation architecture doc.
 
