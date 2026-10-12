@@ -13,10 +13,20 @@ is made names AAP, and README.md and core.md name the same layer. Such a section
 also calls nothing permitted in a sentence that does not name AAP, so it cannot
 give the decision to a credential's capabilities a sentence later.
 
+How many checks HackMyAgent ships and how many factors the AIP trust score
+weighs are figures the HackMyAgent README and AIP §6.1 own. The rows of the
+core.md product integration map that describe those projects link to those
+sources and state no count of their own ([figure]): a numeral that is not part
+of a section number, followed within three words by checks, factors, payloads,
+rules or tests. A count restated here
+drifts when the project ships; 209 static checks and an 8 factor trust score
+stood in the map while the sources said 317 and 9.
+
 A heading's section runs to the next heading at the same or a higher level; a
-list item runs to the next blank line or the next list item, numbered or not.
-References may wrap across lines, since Markdown renders a soft line break as a
-space. Each failure is reported as file:line with its rule in brackets.
+list item runs to the next blank line or the next list item, numbered or not; a
+table row is one line. References may wrap across lines, since Markdown renders
+a soft line break as a space. Each failure is reported as file:line with its
+rule in brackets.
 
 The forge lab at specs.opena2a.org/lab/forge signs a simplified object of its
 own, not the JCS(TBS) of core.md §1.3a.2, and that object does not validate
@@ -42,6 +52,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ATP_REVOCATION = "ATP-SPEC v1.0.0-rc1 §8.1"
 REVOCATION_SCHEMA = "https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json"
 AUTHORIZATION = "AAP"
+HMA_README = "https://github.com/opena2a-org/hackmyagent/blob/main/README.md"
+AIP_TRUST = "AIP §6.1"
+AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
+
+HMA_ROW = "| HackMyAgent |"
+AIM_ROW = "| AIM |"
 
 POINTERS = [
     ("core.md", "5. **The revocation list format.**", (ATP_REVOCATION, REVOCATION_SCHEMA)),
@@ -49,6 +65,8 @@ POINTERS = [
     ("core.md", "### 1.5 Declared purpose", (AUTHORIZATION,)),
     ("core.md", "* **ATX is not a runtime authorization system.**", (AUTHORIZATION,)),
     ("README.md", "### An auditor asks what each agent was allowed to attempt", (AUTHORIZATION,)),
+    ("core.md", HMA_ROW, (HMA_README,)),
+    ("core.md", AIM_ROW, (AIP_TRUST, AIP_SPEC)),
 ]
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
@@ -56,14 +74,25 @@ LAB_CAVEAT = "not an ATX credential"
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
+# Sections whose counts belong to the source they cite.
+FIGURES = {("core.md", HMA_ROW), ("core.md", AIM_ROW)}
+
 HEADING_RE = re.compile(r"^(#+)\s")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 PERMITTED_RE = re.compile(r"\bpermitted\b", re.IGNORECASE)
 ITEM_RE = re.compile(r"^(?:\d+\.|[*+-])\s")
+# A section number such as §6.1 is not a count, so a numeral after a dot or a
+# section sign does not open one.
+COUNT_RE = re.compile(
+    r"(?<![\w.§])\d[\d,]*(?:[ -]+[A-Za-z][\w-]*){0,3}?[ -]+(?:checks?|factors?|payloads?|rules?|tests?)\b",
+    re.IGNORECASE,
+)
 
 
 def section(lines, start):
     """The lines of the section opened by lines[start]."""
+    if lines[start].startswith("|"):
+        return lines[start:start + 1]
     heading = HEADING_RE.match(lines[start])
     end = start + 1
     while end < len(lines):
@@ -96,6 +125,13 @@ def check(root):
                 failures.append(
                     f"{rel}:{start + 1} [pointer] the section opened by {opening!r} does not "
                     f"cite {ref!r}; name where it is specified in the section itself"
+                )
+        if (rel, opening) in FIGURES:
+            for count in COUNT_RE.finditer(body):
+                failures.append(
+                    f"{rel}:{start + 1} [figure] the section opened by {opening!r} states the "
+                    f"count {count.group(0)!r}, which {references[0]} owns; link to it and drop "
+                    f"the number"
                 )
         if AUTHORIZATION not in references:
             continue

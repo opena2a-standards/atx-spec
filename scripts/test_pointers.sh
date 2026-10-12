@@ -15,6 +15,10 @@ set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ATP='ATP-SPEC v1.0.0-rc1 §8.1'
 SCHEMA='https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json'
+HMA_README='https://github.com/opena2a-org/hackmyagent/blob/main/README.md'
+AIP_SPEC='https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md'
+HMA_ROW="Its static, semantic and adversarial checks gate trust level; the [HackMyAgent README]($HMA_README) states how many of each it ships."
+AIM_ROW="It computes the trust score specified in [AIP §6.1]($AIP_SPEC), a multi-factor algorithm, which feeds into ATX trust score."
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -72,12 +76,18 @@ expect_pass() {  # expect_pass <leaf name> <root>
 
 # write_core <root> <item 5 references> <section 3.3 references>
 #            [<section 1.5 text>] [<section 10 authorization bullet text>]
-# Sections 1.5 and 10 follow section 4 so the line numbers above them stay put;
-# the check finds a section by its opening line, wherever it sits. A tree with
-# no README.md also gets the default one from write_readme.
+#            [<section 8 HackMyAgent row text>] [<section 8 AIM row text>]
+#            [<section 8 Build plugin row text>]
+# Sections 1.5, 10 and 8 follow section 4 so the line numbers above them stay
+# put; the check finds a section by its opening line, wherever it sits. In the
+# section 8 table the HackMyAgent row is line 36 and the AIM row line 38. A tree
+# with no README.md also gets the default one from write_readme.
 write_core() {
     local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
     local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
+    local hma="${6-$HMA_ROW}"
+    local aim="${7-$AIM_ROW}"
+    local build="${8-Translates every CI build into a build attestation and ATX request.}"
     cat > "$1/core.md" <<EOF
 ## 2. The Agent Trust Protocol (ATP)
 
@@ -109,6 +119,15 @@ $purpose
 * **ATX is not an identity system.** AIM is.
 * **ATX is not a runtime authorization system.** $authz
 * **ATX is not a centralized database.** AAP is named in this bullet, not the one above.
+
+## 8. Product integration map
+
+| Product | Role | What it contributes |
+|---|---|---|
+| HackMyAgent | The scanner at issuance | $hma |
+| Build plugin | The CA interface | $build |
+| AIM | Identity issuance and runtime enforcement | $aim |
+| CryptoServe | PQC hygiene at issuance | ML-DSA-65 signature on every ATX. OASB levels L1, L2, L3. |
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
 }
@@ -255,6 +274,61 @@ expect_pass "CHANGELOG.md and errata/ record history and are not checked" "$T"
 T="$(lab_tree lab-not-utf8 "No mention here.")"
 printf 'The forge lab \377 runs the same checks.\n' > "$T/notes.md"
 expect_fail "a Markdown file that is not UTF-8 fails" "$T" lab "notes.md"
+
+# --- figure -----------------------------------------------------------------
+
+ITEM5="Specified in $ATP, schema \`$SCHEMA\`."
+S33="Wire format: $ATP; schema \`$SCHEMA\`."
+PURPOSE="Neither is permission: that is a broker policy decision under AAP."
+AUTHZ="AAP is the authorization layer. ATX presents the credential."
+
+T="$(new_tree hma-stale-count)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" \
+    "209 static plus 29 semantic plus 164 adversarial checks gate trust level; see the [HackMyAgent README]($HMA_README)."
+expect_fail "a HackMyAgent row restating a check count fails, even beside the README link" \
+    "$T" figure "core.md:36"
+
+T="$(new_tree hma-current-count)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" \
+    "Its 317 static checks gate trust level; see the [HackMyAgent README]($HMA_README)."
+expect_fail "a HackMyAgent row restating the count its README states today still fails" \
+    "$T" figure "core.md:36"
+
+T="$(new_tree hma-no-link)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" \
+    "Its checks gate trust level." "$AIM_ROW" \
+    "Translates every CI build into a request; the [HackMyAgent README]($HMA_README) is linked in this row."
+expect_fail "a HackMyAgent row without the README link fails, even when the next table row has it" \
+    "$T" pointer "core.md:36"
+
+T="$(new_tree aim-stale-count)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" "$HMA_ROW" \
+    "8 factor trust feeds into ATX trust score, per [AIP §6.1]($AIP_SPEC)."
+expect_fail "an AIM row restating a factor count fails, even beside the AIP §6.1 link" \
+    "$T" figure "core.md:38"
+
+T="$(new_tree aim-hyphenated-count)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" "$HMA_ROW" \
+    "The 9-factor trust score of [AIP §6.1]($AIP_SPEC) feeds into ATX trust score."
+expect_fail "an AIM row restating a hyphenated factor count fails" \
+    "$T" figure "core.md:38"
+
+T="$(new_tree aim-no-section)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" "$HMA_ROW" \
+    "Its trust score, specified in [AIP]($AIP_SPEC), feeds into ATX trust score."
+expect_fail "an AIM row linking AIP without naming §6.1 fails" \
+    "$T" pointer "core.md:38"
+
+T="$(new_tree aim-section-number)"
+write_core "$T" "$ITEM5" "$S33" "$PURPOSE" "$AUTHZ" "$HMA_ROW" \
+    "Its AIP §6.1 multi-factor trust score ([spec]($AIP_SPEC)) feeds into ATX trust score."
+expect_pass "a section number ahead of multi-factor in the AIM row is not a count" "$T"
+
+T="$(new_tree no-hma-row)"
+write_core "$T" "$ITEM5" "$S33"
+grep -v '^| HackMyAgent |' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "a map with no HackMyAgent row fails instead of passing vacuously" \
+    "$T" pointer "core.md"
 
 # --- vacuous pass -----------------------------------------------------------
 

@@ -627,9 +627,9 @@ Every OpenA2A product gains a specific role in the ATX architecture. Nothing is 
 | Product | Role | What it contributes |
 |---|---|---|
 | OpenA2A Registry | The root CA node | Issues ATX for community packages. Runs transparency log. Maintains CRL. Operates root federation node. Runs global webhook feeds. |
-| HackMyAgent | The scanner at issuance | Scan results embedded in ATX at build time. HMA's own binary carries an ATX and verifies itself before running. 209 static plus 29 semantic plus 164 adversarial checks gate trust level. |
+| HackMyAgent | The scanner at issuance | Scan results embedded in ATX at build time. HMA's own binary carries an ATX and verifies itself before running. Its static, NanoMind semantic and adversarial checks gate trust level; the [HackMyAgent README](https://github.com/opena2a-org/hackmyagent/blob/main/README.md) states how many of each it ships. |
 | Build plugin | The CA interface | Translates every CI build into a build attestation and ATX request. The developer's voice in the trust system. |
-| AIM | Identity issuance and runtime enforcement | Issues agent keypairs bound to ATX. Enforces capabilities at runtime. 8 factor trust feeds into ATX trust score. Fleet dashboard shows ATX status across all agents. |
+| AIM | Identity issuance and runtime enforcement | Issues agent keypairs bound to ATX. Enforces capabilities at runtime. Its trust score, the multi-factor algorithm specified in [AIP §6.1](https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md), feeds into ATX trust score. Fleet dashboard shows ATX status across all agents. |
 | ARP (part of HMA) | Runtime self attestation and L1 behavioral twin | At agent startup verifies own binary hash matches ATX contentHash. L1 behavioral model learns normal behavior. Anomaly events push to the behavioral gradient endpoint. |
 | Secretless AI | Credential surface elimination | Removes all persistent credentials from CI and runtime. Nothing to steal equals no cascade after an ATX compromise attempt. |
 | NanoMind | ATX intelligence layer | Routes natural language queries to ATX verification, scan results, revocation status. Answers "why is my agent trust level 2" conversationally from ATX data. |

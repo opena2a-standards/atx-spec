@@ -108,12 +108,16 @@ identifier registered in `core.md` §14.
   authorization and `README.md`'s third use case, which must each name AAP as the layer that
   decides whether an agent may touch a resource. Those three also call nothing permitted in a
   sentence that does not name AAP. A bulleted list item ends at the next bullet, so AAP named in a
-  neighbouring bullet does not count. A missing document or section fails rather than passing
-  vacuously. The check also fails a sentence that names the forge lab at
-  specs.opena2a.org/lab/forge, by name or by URL, in any Markdown file outside `CHANGELOG.md` and
-  `errata/`, unless that same sentence says that what the lab signs is not an ATX credential,
-  since the lab does not verify `JCS(TBS)` of a real credential; a file that is not UTF-8 also
-  fails. The check needs only python3 and is not yet run by CI.
+  neighbouring bullet does not count. The HackMyAgent and AIM rows of the section 8 product
+  integration map must link the HackMyAgent README and AIP §6.1, which own the check counts and
+  the trust score factors, and state no count of checks, factors, payloads, rules or tests
+  themselves; a table row ends at its own line, so a link in the next row does not count. A
+  missing document or section fails rather than passing vacuously. The check also fails a
+  sentence that names the forge lab at specs.opena2a.org/lab/forge, by name or by URL, in any
+  Markdown file outside `CHANGELOG.md` and `errata/`, unless that same sentence says that what
+  the lab signs is not an ATX credential, since the lab does not verify `JCS(TBS)` of a real
+  credential; a file that is not UTF-8 also fails. The check needs only python3 and is not yet
+  run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
@@ -169,6 +173,12 @@ identifier registered in `core.md` §14.
   `atxVersion`, which the schema rejects. The `README.md` scope cell for `scalability.md` says it
   covers transparency log scaling and monitor cost and names `core.md` §6.4 for the monitor
   verification cycle. No BCP 14 statement is added or removed.
+- `core.md` section 8, the product integration map, no longer states HackMyAgent's check counts
+  or the number of factors in AIM's trust score. It said 209 static checks and an 8 factor trust
+  score; the HackMyAgent README states 317 static checks and AIP §6.1 specifies a 9-factor
+  algorithm. The HackMyAgent row now links the README for the counts and the AIM row links AIP
+  §6.1, so the map cannot fall behind either source again. The section is informative and no
+  normative text changes.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
