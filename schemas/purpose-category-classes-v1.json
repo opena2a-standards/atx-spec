@@ -1,0 +1,29 @@
+{
+  "title": "ATX declaredPurpose category classes (vocab v1)",
+  "description": "The breadth class and sensitivity class of each core declaredPurpose category, as core.md section 1.5.3 tabulates them. Section 1.5.4 defines how a computed breadth is mapped to a breadth class and how it combines with the category's class. Changing a row is a vocabulary revision with a vocabVersion bump, as changing the set is (core.md section 14).",
+  "vocabVersion": "1",
+  "breadthClasses": [
+    { "class": "narrow", "maxNamespaces": 1 },
+    { "class": "moderate", "maxNamespaces": 2 },
+    { "class": "broad", "maxNamespaces": null }
+  ],
+  "sensitivityClasses": ["standard", "elevated", "critical"],
+  "customCategory": { "breadthClass": "broad", "sensitivityClass": "critical" },
+  "categories": [
+    { "category": "customer-support", "breadthClass": "moderate", "sensitivityClass": "elevated" },
+    { "category": "financial-operations", "breadthClass": "moderate", "sensitivityClass": "critical" },
+    { "category": "data-analysis", "breadthClass": "moderate", "sensitivityClass": "standard" },
+    { "category": "data-engineering", "breadthClass": "broad", "sensitivityClass": "elevated" },
+    { "category": "software-development", "breadthClass": "broad", "sensitivityClass": "elevated" },
+    { "category": "devops-automation", "breadthClass": "broad", "sensitivityClass": "critical" },
+    { "category": "security-operations", "breadthClass": "broad", "sensitivityClass": "critical" },
+    { "category": "content-generation", "breadthClass": "narrow", "sensitivityClass": "standard" },
+    { "category": "research-assistant", "breadthClass": "narrow", "sensitivityClass": "standard" },
+    { "category": "sales-marketing", "breadthClass": "moderate", "sensitivityClass": "elevated" },
+    { "category": "hr-people-ops", "breadthClass": "moderate", "sensitivityClass": "critical" },
+    { "category": "legal-compliance", "breadthClass": "moderate", "sensitivityClass": "elevated" },
+    { "category": "healthcare-clinical", "breadthClass": "moderate", "sensitivityClass": "critical" },
+    { "category": "device-control", "breadthClass": "broad", "sensitivityClass": "critical" },
+    { "category": "agent-orchestration", "breadthClass": "broad", "sensitivityClass": "elevated" }
+  ]
+}

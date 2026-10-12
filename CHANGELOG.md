@@ -18,6 +18,26 @@ identifier registered in `core.md` §14.
   names the wire member `atcVersion`. Failures are reported as file and line, and a file that is
   not UTF-8 is reported as a failure. The check exits 1 on a failure and 2 on a usage error,
   needs only python3 and is not yet run by CI.
+- The breadth class and sensitivity class of each `declaredPurpose` core category. Section
+  1.5.3 said each of the 15 categories has both, and section 1.5.4 compares a computed breadth
+  with the category's class, but no class value was published anywhere, so the measure could
+  not be implemented from the text. Section 1.5.3 now tabulates both classes, and the same table
+  is the registry file `schemas/purpose-category-classes-v1.json`. Breadth classes are `narrow`,
+  `moderate` and `broad`; sensitivity classes are `standard`, `elevated` and `critical`; a custom
+  category stays at `broad` and `critical` until reviewed, and `security-operations` and
+  `device-control` are `broad`. Section 1.5.4 now states the measure in full: a capability's
+  namespace is everything before its colon, a count of 0 or 1 distinct namespaces is `narrow`, 2
+  is `moderate` and 3 or more is `broad`, and the effective class is the broader of that and the
+  category's class. `schemas/purpose-breadth-vectors-v1.json` pins three computed breadths: the
+  section 1.1 example kept at `moderate`, the section 1.5.4 declaration raised to `broad`, and a
+  one-namespace `software-development` declaration not lowered from `broad`. The breadth measure
+  is detection input and never an authorization input (section 1.5.1), so no verification verdict
+  changes. Neither reference verifier in atx-conformance computes breadth yet.
+- `scripts/test_purpose_classes.py`: asserts that the registry file, the section 1.5.3 table and
+  the schema's category enum list the same categories in the same order with the same classes,
+  that the custom default is the broadest and most sensitive class and the two dual-use
+  categories are not narrow, and that each vector's `declaredPurpose` is valid under the schema
+  and computes the breadth it pins. It needs python3 and `jsonschema` and is not yet run by CI.
 - `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
   (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
   results embedded in ATX reference those IDs, but the credential had no member to carry them

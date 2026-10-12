@@ -362,18 +362,39 @@ request, and may be written to the transparency log.
 
 `category` and the `taskScope` namespaces are **governed, versioned vocabularies**
 — closed core plus org-namespaced custom — managed like the capability registry.
-The core `category` values (vocab v1), each with a breadth class and a
-sensitivity class, are: `customer-support`, `financial-operations`,
-`data-analysis`, `data-engineering`, `software-development`, `devops-automation`,
-`security-operations`, `content-generation`, `research-assistant`,
-`sales-marketing`, `hr-people-ops`, `legal-compliance`, `healthcare-clinical`,
-`device-control`, `agent-orchestration`. There is deliberately no catch-all
-category. Custom categories (`<org>.<name>`) default to the broadest, most
-sensitive class until reviewed, so custom is never a cheap way to claim a narrow
-profile. The reserved core `taskScope` namespaces (vocab v1) are: `support`,
-`billing`, `accounting`, `analytics`, `dataops`, `dev`, `ci`, `infra`, `secops`,
-`content`, `research`, `crm`, `people`, `legal`, `clinical`, `device`,
-`orchestrate`. A non-reserved namespace is a custom org taskScope.
+The core `category` values (vocab v1) and the breadth class and sensitivity
+class of each are below. The same table is published as the registry file
+[`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json).
+
+| Category | Breadth class | Sensitivity class |
+|---|---|---|
+| `customer-support` | `moderate` | `elevated` |
+| `financial-operations` | `moderate` | `critical` |
+| `data-analysis` | `moderate` | `standard` |
+| `data-engineering` | `broad` | `elevated` |
+| `software-development` | `broad` | `elevated` |
+| `devops-automation` | `broad` | `critical` |
+| `security-operations` | `broad` | `critical` |
+| `content-generation` | `narrow` | `standard` |
+| `research-assistant` | `narrow` | `standard` |
+| `sales-marketing` | `moderate` | `elevated` |
+| `hr-people-ops` | `moderate` | `critical` |
+| `legal-compliance` | `moderate` | `elevated` |
+| `healthcare-clinical` | `moderate` | `critical` |
+| `device-control` | `broad` | `critical` |
+| `agent-orchestration` | `broad` | `elevated` |
+
+Breadth classes, narrowest first, are `narrow`, `moderate` and `broad`; §1.5.4
+gives the number of capability namespaces each admits. Sensitivity classes,
+least sensitive first, are `standard`, `elevated` and `critical`; the
+sensitivity class does not enter the breadth measure. There is deliberately no
+catch-all category. Custom categories (`<org>.<name>`) default to the broadest,
+most sensitive class (`broad`, `critical`) until reviewed, so custom is never a
+cheap way to claim a narrow profile. The reserved core `taskScope` namespaces
+(vocab v1) are: `support`, `billing`, `accounting`, `analytics`, `dataops`,
+`dev`, `ci`, `infra`, `secops`, `content`, `research`, `crm`, `people`, `legal`,
+`clinical`, `device`, `orchestrate`. A non-reserved namespace is a custom org
+taskScope.
 
 `security-operations` and `device-control` are legitimately dual-use (a security
 agent's behavior resembles an attacker's; device control has physical-world
@@ -388,8 +409,18 @@ taskScope tokens are named (which an adversary could craft to sound narrow). The
 measure is the count of distinct capability *namespaces* across all
 justification entries; a "narrow" declaration that justifies `secrets:read`,
 `network:connect`, and `system:exec` scores broad regardless of its token names.
-A computed breadth above the category's class raises the floor; it never lowers
-it. An over-broad declaration is therefore a visible, scoreable downgrade rather
+A capability's namespace is everything before its colon, an organization's
+domain prefix included (`acme.example/billing:refund` is in namespace
+`acme.example/billing`), and two capabilities in one namespace count once. A
+count of 0 or 1 is `narrow`, 2 is `moderate`, and 3 or more is `broad`. The
+effective breadth class is the broader of that computed class and the
+category's class (§1.5.3): a computed breadth above the category's class raises
+the floor; it never lowers it. The vectors in
+[`schemas/purpose-breadth-vectors-v1.json`](./schemas/purpose-breadth-vectors-v1.json)
+pin the measure for the §1.1 example (kept at `moderate`), for the declaration
+above filed under `customer-support` (raised to `broad`), and for a
+one-namespace `software-development` declaration (not lowered from `broad`).
+An over-broad declaration is therefore a visible, scoreable downgrade rather
 than a free pass — the property that makes a vague "cover everything" purpose
 useless as cover.
 
@@ -729,7 +760,7 @@ This specification is not (yet) under IANA administration; the registries below 
 | ATX version numbers | `1.0` (frozen legacy), `1.1` (current) | Specification revision only. A new version number is REQUIRED whenever the canonical signing form changes (§1.3a); reusing a version for different bytes is forbidden. |
 | Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision via ATP version negotiation (§10). |
 | DID type prefixes (`did:opena2a`) | `registry`, `authority`, `publisher`, `agent`, `mcp_server`, `ai_tool`, `llm`, `skill` (`a2a_agent`: deprecated legacy alias of `agent`) | Registered in the [did:opena2a method specification](https://github.com/opena2a-standards/did-method-opena2a); additions by PR there, mirrored into §2 here. |
-| `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion` | Core set changes by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest class until reviewed (§1.5.3). |
+| `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion`, each with the breadth class and sensitivity class published in [`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json) | Core set and core classes change by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest, most sensitive class until reviewed (§1.5.3). |
 | `taskScope` namespaces | 17 reserved core namespaces (§1.5.3) | Same policy as categories; non-reserved namespaces are org-custom. |
 | Capability tokens | `namespace:action` grammar (AIP §4.1) | Namespaces are reserved in AIP §4.2; `capabilityJustification` keys MUST be a subset of the granted set (§1.5.2). |
 | Transparency-log entry types | Registered in ATP Section 5.1.1 ([`registries/transparency-entry-types.json`](https://github.com/opena2a-standards/agent-trust-protocol/blob/main/registries/transparency-entry-types.json)); ATX logs its entries (§6) under those types and defines none of its own | ATP-SPEC revision. |
