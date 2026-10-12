@@ -16,7 +16,9 @@ Inputs, each read from the document it lives in:
 
   steps        the per-step costs of the scalability.md section 2.1 table, up
                to its "Total warm cache" row. The derived figures use the sum
-               of every step.
+               of every step whose cost reads as a number of ms; a step
+               written otherwise, in microseconds for example, is left out of
+               the sum with no failure of its own.
   entry        the transparency log entry size, from "a trillion entry log at
                N bytes per entry".
   credential   the size of the core.md section 1.1 example credential,
@@ -39,7 +41,8 @@ Rules, each failure reported as file:line with its rule in brackets:
   verifiers     the verifiers needed for a billion verifications per second
                 are a billion over the per-host figure.
   rate          the issuance and log entry rate is a billion over the seconds
-                in a week.
+                in a week. A rate is read only where it is written as about,
+                approximately or roughly N issuances or entries per second.
   log-size      a trillion entries at the entry size, and a month of entries
                 at that rate, are the stated storage.
   credential    a size stated for one credential is not below its signature
@@ -48,14 +51,20 @@ Rules, each failure reported as file:line with its rule in brackets:
                 the section 8.2 node are their counts times the credential.
   reissuance    a data rate in the section 8.2 reissuance item is an issuance
                 rate stated in that item, or the weekly average, times the
-                credential.
+                credential. A data rate is read only where it is written as a
+                size per second, such as "1 KB per second".
   log-mirror    the section 8.2 log mirror is a year of the node's weekly
                 entries at the entry size.
   capacity      a sentence in section 10 that names conformance says the
                 table is not a conformance criterion: no conformance target
                 states a capacity.
   missing       each figure above, and each input, is stated, so rewording it
-                away cannot pass vacuously.
+                away fails rather than passing vacuously. Three exceptions:
+                one rate statement is enough, so the section 3 or the section
+                5 statement can be reworded away while the other remains; the
+                reissuance item need not state a data rate; and a step left
+                out of the sum fails only when a stated figure no longer
+                agrees within TOLERANCE without it.
   encoding      scalability.md and core.md are UTF-8; a file that is not fails
                 rather than being skipped.
 
