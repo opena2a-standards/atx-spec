@@ -250,13 +250,14 @@ credential that verifies across implementations and one that does not:
    between `contentHash` and `expiresAt` in the canonical output.
 6. **`scanSummary.techniques` is presence-based, as rule 5.** The optional
    `techniques` member of `scanSummary` is an array of Threat Matrix technique
-   IDs, each a `T-NNNN` string (§11 commitment 2). An absent `techniques` is
+   IDs, each a `T-NNNN` string (§11 commitment 2), and an issuer MUST NOT list
+   the same ID twice; the schema rejects a repeated ID. An absent `techniques` is
    **omitted from the TBS `scanSummary`**, not emitted as a canonical empty, so a
    credential that carries none produces the exact bytes it produced before
    this member existed. The JSON literal `null` and the empty array `[]` (any
    serialization that parses to it) are both treated as absent and MUST also be
-   omitted. A present value that is anything else, including a non-array value,
-   MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
+   omitted. A present value that is anything else, including a non-array value
+   or an array that repeats an ID, MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
    preserves array order, and a verifier MUST NOT sort, deduplicate or drop it,
    because a value it dropped would ride a valid signature unsigned. When
    present it is the last member of the canonical `scanSummary`, after

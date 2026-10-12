@@ -141,6 +141,18 @@ identifier registered in `core.md` §14.
   §8.1 example entry is 227 bytes as compact JSON, and §6.2 now says roughly 227 bytes per entry
   and about 227 MB per million revocations before compression. No normative text changes.
 
+- Section 1.3a.2 rule 6 says that an issuer MUST NOT list the same technique ID twice in
+  `scanSummary.techniques`. The schema's `uniqueItems` and `scripts/test_schema.sh` already
+  rejected a repeated ID, but rule 6 said only that each item is a `T-NNNN` string and that a
+  verifier does not deduplicate, which read as if a repeated ID could be valid. A verifier still
+  signs a present value verbatim, including one that repeats an ID. This adds one BCP 14
+  statement. The schema's `transparencyLogIndex` description no longer says the field is omitted
+  when the issuer recorded no inclusion, the reading section 1.1 dropped; it says, as section 1.1
+  does, that omitting the field does not exempt the issuance from being logged before it takes
+  effect.
+- `scripts/test_schema.py` writes no `scripts/__pycache__/` when it imports
+  `validate_examples`, so running it leaves the working tree clean, and `scripts/test_schema.sh`
+  asserts that in a scratch copy.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a

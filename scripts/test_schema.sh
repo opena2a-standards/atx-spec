@@ -90,6 +90,25 @@ expect_invalid "a technique ID without its T- prefix is rejected" \
 expect_invalid "a scanSummary member the schema does not define is rejected" \
     findings '["T-4001"]' '$.scanSummary'
 
+# --- scripts/test_schema.py leaves the working tree clean -------------------
+# It imports validate_examples from scripts/. Run it in a scratch copy of the
+# files it reads, without -B and with the bytecode variables unset, and assert
+# that it passes and writes no scripts/__pycache__/ that a broad add would stage.
+
+T="$(mktemp -d)"
+cp -R "$REPO/scripts" "$REPO/schemas" "$REPO/core.md" "$T/"
+rm -rf "$T/scripts/__pycache__"
+if ! env -u PYTHONDONTWRITEBYTECODE -u PYTHONPYCACHEPREFIX \
+        python3 "$T/scripts/test_schema.py" > /dev/null 2>&1; then
+    not_ok "scripts/test_schema.py passes in a scratch copy" "it exited non-zero"
+elif [ -e "$T/scripts/__pycache__" ]; then
+    not_ok "scripts/test_schema.py writes no scripts/__pycache__/" \
+        "found: $(cd "$T" && find scripts/__pycache__ | tr '\n' ' ')"
+else
+    ok "scripts/test_schema.py writes no scripts/__pycache__/"
+fi
+rm -rf "$T"
+
 # --- summary ----------------------------------------------------------------
 
 printf '1..%d\n' "$COUNT"
