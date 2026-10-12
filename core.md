@@ -110,11 +110,13 @@ The ATX travels with the agent. When agent A calls agent B, A presents its ATX i
 
 The illustration is wire-shape-accurate but its hash, signature and log-index values are placeholders — it does not verify. The machine-readable definition of this shape is [`schemas/atx-credential-v1.1.schema.json`](./schemas/atx-credential-v1.1.schema.json); the atx-conformance fixtures are the byte ground truth.
 
-Every field is mandatory unless explicitly marked optional in the ATP spec or in this document. `transparencyLogIndex` is optional: it is the index the issuer's transparency log assigned to this credential's issuance entry (§6), set after signing and outside both signing forms (§1.3a.1, §1.3a.2). An issuer MUST NOT emit it with any value other than the one the log assigned to this credential's entry, and an issuer that recorded no inclusion omits it. Verifiers MUST NOT treat its value as evidence of log inclusion; inclusion is established only by the log's own proofs (§6), for which a present index is the lookup key (ATP verification step 6). The signature block carries at minimum one Ed25519 signature and one ML-DSA-65 signature. Quantum resistance is not deferred. It ships on day one.
+Every field is mandatory unless explicitly marked optional in the ATP spec or in this document. `transparencyLogIndex` is optional: it is the index the issuer's transparency log assigned to this credential's issuance entry (§6), set after signing and outside both signing forms (§1.3a.1, §1.3a.2). An issuer MUST NOT emit it with any value other than the one the log assigned to this credential's entry. Omitting it does not exempt the issuance from being logged before it takes effect (§11 commitment 3, §12): the field is optional, the log entry is not, so a credential without the field is not evidence that its issuance went unlogged. Verifiers MUST NOT treat its value as evidence of log inclusion; inclusion is established only by the log's own proofs (§6), for which a present index is the lookup key (ATP verification step 6). The signature block carries at minimum one Ed25519 signature and one ML-DSA-65 signature. Quantum resistance is not deferred. It ships on day one.
 
 The version field is named `atcVersion` on the wire (earlier revisions of this document illustrated it under the alias `atxVersion`). Its value selects the canonical form the signatures cover: see §1.3a. `"1.0"` is the legacy eleven-field form; `"1.1"` signs the JCS (RFC 8785) canonicalization of a projected to-be-signed object, which brings `capabilities`, `scanSummary`, `issuerChain`, and `publisher` under the signature. `trustScore` rides the wire as a 0-100 JSON number; the v1.1 to-be-signed projection string-encodes it (§1.3a.2 rule 3). The issuance envelope fields `id`, `revoked`, and `createdAt` (plus `revokedAt`/`revocationReason` once revoked) accompany every issued credential and are excluded from the signed bytes (§1.3a.2).
 
 `declaredPurpose` is an **optional** ATX 1.1 field (additive in 1.1; a 1.0 verifier ignores it). It is the publisher's signed, structured declaration of what the agent is *for* — an identity and attestation property, never an authorization input. Its semantics, sub-fields, and vocabulary are defined in §1.5; its treatment under the signature is defined in §1.3a.2.
+
+`scanSummary.techniques` is an **optional** ATX 1.1 member: the Threat Matrix technique IDs (`T-NNNN`) that the summarized scan results reference (§11 commitment 2). Under 1.1 it is signed when present; its treatment under the signature is defined in §1.3a.2 rule 6.
 
 ### 1.2 ATX lifecycle
 
@@ -215,6 +217,7 @@ credential that verifies across implementations and one that does not:
    (`hma`, `criticalFindings`, `highFindings`, `secretless`, `cryptoServe`,
    `oasbLevel`) MUST be present, zero-valued where unknown (`""` for the string
    members, `0` for the integer members). `scanSummary` MUST NOT be `null`.
+   Its optional `techniques` member is not one of the six; rule 6 governs it.
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
    (printf `%.6f`), e.g. `"87.500000"`. The wire credential keeps `trustScore`
@@ -224,8 +227,8 @@ credential that verifies across implementations and one that does not:
 4. **`issuerChain` is root-first and order-significant.** Element 0 is the root
    authority. JCS preserves array order and never sorts arrays, so reordering the
    chain changes the signed bytes.
-5. **`declaredPurpose` is presence-based (the one optional member).** Unlike every
-   other member, an absent `declaredPurpose` is **omitted from the TBS entirely**,
+5. **`declaredPurpose` is presence-based (the one optional top-level member).** Unlike
+   every other top-level member, an absent `declaredPurpose` is **omitted from the TBS entirely**,
    not emitted as a canonical empty. A credential MUST emit the key only when the
    publisher declared a purpose, and then as a fully-populated object (§1.5); a
    credential with no declared purpose produces the exact bytes it would have
@@ -245,6 +248,19 @@ credential that verifies across implementations and one that does not:
    pattern every future *optional* additive field follows. When the key is
    present, JCS sorts its member names like any other nested object and it sits
    between `contentHash` and `expiresAt` in the canonical output.
+6. **`scanSummary.techniques` is presence-based, as rule 5.** The optional
+   `techniques` member of `scanSummary` is an array of Threat Matrix technique
+   IDs, each a `T-NNNN` string (§11 commitment 2). An absent `techniques` is
+   **omitted from the TBS `scanSummary`**, not emitted as a canonical empty, so a
+   credential that carries none produces the exact bytes it produced before
+   this member existed. The JSON literal `null` and the empty array `[]` (any
+   serialization that parses to it) are both treated as absent and MUST also be
+   omitted. A present value that is anything else, including a non-array value,
+   MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
+   preserves array order, and a verifier MUST NOT sort, deduplicate or drop it,
+   because a value it dropped would ride a valid signature unsigned. When
+   present it is the last member of the canonical `scanSummary`, after
+   `secretless`.
 
 The Ed25519 threshold signatures and the ML-DSA-65 hybrid signature are all
 computed over the **same** `JCS(TBS)` bytes. JCS itself sorts object member names
@@ -652,7 +668,7 @@ These boundaries are as important as the capabilities.
 The non negotiable properties that must hold across every implementation:
 
 1. **Zero Failures.** No issuing node is ever a runtime dependency for customers. Local enforcement continues during any outage. Cloud is coordination, never critical path.
-2. **One taxonomy, one ID.** All attack classifications resolve to Threat Matrix technique IDs (T-NNNN) at threats.opena2a.org. Scan results embedded in ATX reference those IDs. No parallel classifiers.
+2. **One taxonomy, one ID.** All attack classifications resolve to Threat Matrix technique IDs (T-NNNN) at threats.opena2a.org. Scan results embedded in ATX reference those IDs in `scanSummary.techniques` (§1.3a.2 rule 6). No parallel classifiers.
 3. **Append only transparency.** Every ATX issuance and revocation is logged to the RFC 6962 Merkle tree before it takes effect. No retroactive modification is possible.
 4. **Federation by default.** A single ATP node is a demonstration environment, not the architecture. Production deployments assume multiple cosigning nodes.
 5. **Open standard.** ATP and ATX are published openly. Reference implementations are Apache 2.0. The protocol does not depend on OpenA2A as a vendor.

@@ -10,6 +10,23 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
+  (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
+  results embedded in ATX reference those IDs, but the credential had no member to carry them
+  and the schema's `scanSummary` admitted exactly its six members. The schema adds the member as
+  an array of unique `T-NNNN` strings. Section 1.3a.2 rule 6 signs it under 1.1 in the pattern
+  rule 5 set for `declaredPurpose`: an absent, `null` or empty array is omitted from the TBS
+  `scanSummary`, so every credential without it keeps its exact signed bytes and every pinned
+  vector and signature stays valid, and any other present value is signed verbatim in wire
+  order, which a verifier may not sort, deduplicate or drop. Section 1.3a.2 rule 2 says the
+  member is not one of the six it requires. No verdict on an existing credential changes. The
+  conformance fixtures that pin the member's bytes and its injected forms belong in
+  atx-conformance and are not part of this change.
+- `scripts/test_schema.sh`: takes the section 1.1 example, sets one `scanSummary` member, and
+  asserts the schema accepts it or rejects it at the expected JSON path. It covers
+  `scanSummary.techniques` (two IDs and an empty array accepted; a string, `null`, a repeated ID
+  and malformed IDs rejected) and a member the schema does not define. It needs python3 and
+  `jsonschema` and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -103,6 +120,18 @@ identifier registered in `core.md` §14.
   schema cannot express. Every atx-conformance fixture validates as it did before; the suite's
   vendored schema copy moves in its own atx-conformance change, as does a fixture and a verifier
   check for the subset rule. No normative text changes.
+- `scalability.md` and `sovereign-federation.md` describe only credential members and mechanisms
+  that the schema and `core.md` define. `scalability.md` §9.1 said the build plugin mints ATX
+  during an issuing-node outage under a 30 day delegated signing certificate; core.md defines no
+  delegated signing, so builds now queue and are issued when the node recovers. §9.3 said ATX
+  issued while the log is down are marked "log pending", and that a missing log index is
+  detectable; the credential has no such mark and the index is optional, so issuance pauses until
+  the log accepts entries (core.md §11 commitment 3) and logging is established by the log's
+  inclusion proof. `sovereign-federation.md` §7.2 said the ATX includes the Signed Tree Head that
+  contains its log entry; it carries no STH, only the optional index. Section 1.1 no longer says
+  an issuer that recorded no inclusion omits `transparencyLogIndex`, which read as permitting
+  issuance without logging: omitting the field does not exempt the issuance from being logged
+  before it takes effect. No BCP 14 statement is added or removed by these corrections.
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one
