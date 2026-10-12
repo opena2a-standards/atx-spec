@@ -78,9 +78,31 @@ identifier registered in `core.md` §14.
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
   reported as file and line. The check needs only python3 and is not yet run by CI.
+- `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
+  asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
+  it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
+  grammars, the keys and values of `capabilityJustification`, an absent, null or empty
+  `declaredPurpose`, and the canonical empties of §1.3a.2 rules 1 and 2. It needs python3 and the
+  `jsonschema` package, as `scripts/validate_examples.py` does, and is not yet run by CI.
 
 ### Changed
 
+- `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
+  disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
+  grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
+  leading digit in the namespace, and uppercase letters, dots and hyphens in the objective, and
+  checked no grammar on `capabilityJustification` at all. `capabilities` tokens and the
+  keys of `capabilityJustification` follow the AIP §4.1 grammar that §14 cites, which admits the
+  organization-prefixed form (`acme.example/billing:refund`) and no wildcard action; the schema
+  rejected the first and accepted `db:Read.*`. `declaredPurpose: null` validates, since §1.3a.2
+  rule 5 treats it as absent, as it does the empty object. `publisherDid`, `buildAttestation` and
+  `scanSummary.oasbLevel` accept the empty string that §1.3a.2 rules 1 and 2 name as their value
+  when unknown, so a credential with an unknown value has a valid wire form. The
+  `capabilityJustification` description no longer says a verifier enforces its subset rule:
+  neither reference verifier reads the member, and the subset relation is a cross-field rule the
+  schema cannot express. Every atx-conformance fixture validates as it did before; the suite's
+  vendored schema copy moves in its own atx-conformance change, as does a fixture and a verifier
+  check for the subset rule. No normative text changes.
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one
