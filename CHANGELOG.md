@@ -101,7 +101,11 @@ identifier registered in `core.md` §14.
   decides whether an agent may touch a resource. Those three also call nothing permitted in a
   sentence that does not name AAP. A bulleted list item ends at the next bullet, so AAP named in a
   neighbouring bullet does not count. A missing document or section fails rather than passing
-  vacuously. The check needs only python3 and is not yet run by CI.
+  vacuously. The check also fails a sentence that names the forge lab at
+  specs.opena2a.org/lab/forge, by name or by URL, in any Markdown file outside `CHANGELOG.md` and
+  `errata/`, unless that same sentence says that what the lab signs is not an ATX credential,
+  since the lab does not verify `JCS(TBS)` of a real credential; a file that is not UTF-8 also
+  fails. The check needs only python3 and is not yet run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
@@ -182,6 +186,14 @@ identifier registered in `core.md` §14.
   signatures only fail the schema. A reference-verifier rule that rejects such a credential, and
   hybrid fixtures that pin it, are atx-conformance changes and are not part of this one. No BCP 14
   statement is added or removed.
+- `README.md` no longer says the forge lab at specs.opena2a.org/lab/forge runs the same checks
+  as the conformance suite. The lab signs a simplified object of its own, not `JCS(TBS)` as
+  `core.md` §1.3a.2 defines it: it names its version member `atxVersion` rather than
+  `atcVersion`, gives it the value `1.0` while signing members a 1.0 credential does not sign,
+  and does not validate against `schemas/atx-credential-v1.1.schema.json`. The third use case's
+  list of ways to check the claims yourself drops the lab, and the two use cases that still link
+  it say that what it signs is not an ATX credential, so its verdicts are not conformance results.
+
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one
