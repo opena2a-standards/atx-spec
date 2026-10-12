@@ -22,7 +22,7 @@ The summary in one paragraph: verification is local, issuance is bounded by buil
 | Storage | 7 day ATX expiry | Active set stays bounded | Archive on cold storage, never on hot path |
 | Federation | Bilateral cosignatures | Load isolated by node | Each node sized for its own population |
 
-The numbers are not aspirations. They are direct consequences of the architectural commitments in the core doc.
+The numbers are not aspirations. Each derived figure is computed from the rates, entry sizes and step costs this document states, and the section that states it shows its inputs. The capacity targets in section 10 are different: they are sizing guidance, not a computation and not a conformance criterion.
 
 ---
 
@@ -38,20 +38,20 @@ Warm cache verification, broken down:
 
 | Step | Cost | Notes |
 |---|---|---|
-| Parse ATX JSON | 0.05 ms | Bounded by JSON length, typically 1 to 4 KB |
+| Parse ATX JSON | 0.05 ms | Bounded by JSON length, about 6 KB: the base64 ML-DSA-65 signature alone is 4,412 characters |
 | Expiry check | 0.001 ms | Single comparison |
 | DID document cache lookup | 0.01 ms | In memory hash map |
 | Ed25519 signature verify | 0.4 ms | Constant time |
-| ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature |
+| ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature ([core.md §1.1](core.md#11-atx-schema)) |
 | CRL cache lookup | 0.05 ms | In memory hash map |
 | Content hash compare (optional) | 0.1 ms | SHA-256 of presented artifact |
-| Total warm cache | 1 to 4 ms | Dominated by signature verification |
+| Total warm cache | 3.5 to 3.6 ms | The sum of the steps above, without and with the optional content hash compare; dominated by the ML-DSA-65 verification |
 
 Cold cache adds one DID document fetch and one CRL refresh. Both are one time costs amortized across thousands of subsequent verifications. Cold start is under 50 ms total. After that, every verification reverts to warm cache cost.
 
 ### 2.2 Why this matters for global scale
 
-A modest verifier (4 vCPU, no hardware acceleration) handles approximately 1,000 verifications per second per core. Four cores yields 4,000 verifications per second. The ecosystem reaches a billion verifications per second when there are 250,000 such verifiers running. That number is dwarfed by the agent population that would generate that load in the first place.
+A modest verifier (4 vCPU, no hardware acceleration) handles about 277 verifications per second per core: the steps in section 2.1 sum to 3.611 ms, and 1,000 ms over 3.611 ms is 277. Four cores yield about 1,100 verifications per second. The ecosystem reaches a billion verifications per second when there are about 900,000 such verifiers running. That number is dwarfed by the agent population that would generate that load in the first place.
 
 The math is the point. Verification scales linearly with the verifier population. The verifier population scales linearly with the agent population. There is no bottleneck anywhere in this chain.
 
@@ -130,7 +130,7 @@ Monitors verify the consistency proof between consecutive STHs. The consistency 
 
 ### 5.3 Storage of the log itself
 
-A trillion entry log at 256 bytes per entry is 256 TB. That is large but not unmanageable. Hot storage holds the most recent month (roughly 4 TB at the projected rate). Older entries move to object storage where retrieval is slow but cheap.
+A trillion entry log at 256 bytes per entry is 256 TB. That is large but not unmanageable. Hot storage holds the most recent month (roughly 1.1 TB: 30 days at 1,650 entries per second and 256 bytes per entry). Older entries move to object storage where retrieval is slow but cheap.
 
 External monitors do not need the full log. They need the STH stream plus inclusion proofs on demand. The full log lives at the issuing node. Other parties query it as needed.
 
@@ -212,7 +212,7 @@ The 7 day ATX expiry is doing a lot of work for scalability. The active credenti
 
 ### 8.1 Active versus historical
 
-* **Active ATX.** Every currently valid credential. Refreshed weekly. At a billion agents reissuing weekly, the active set is roughly 1 billion ATX, each averaging 2 KB. That is 2 TB of hot storage.
+* **Active ATX.** Every currently valid credential. Refreshed weekly. At a billion agents reissuing weekly, the active set is roughly 1 billion ATX, each about 6 KB (section 2.1). That is 6 TB of hot storage.
 * **Historical ATX.** Every expired credential ever issued. Useful for audit and compliance. Stored in object storage. Retrieved on demand. Cold path only.
 
 The transparency log keeps a record of every issuance. Historical ATX bodies can be reconstructed from the log plus the database snapshot at any STH. The hot path does not need to keep them.
@@ -221,9 +221,9 @@ The transparency log keeps a record of every issuance. Historical ATX bodies can
 
 A mature enterprise node serving 100,000 agents handles:
 
-* 100,000 active ATX at 2 KB each = 200 MB
-* Weekly reissuance: 100,000 build attestations per week = ~150 KB per second peak
-* Transparency log local mirror: ~10 GB per year
+* 100,000 active ATX at about 6 KB each = 600 MB
+* Weekly reissuance: 100,000 issuances per week, about 0.17 per second, which is 1 KB per second of new credentials on average. Section 10 suggests sizing a node of this population for 10 issuances per second at peak, about 60 KB per second.
+* Transparency log local mirror: about 1.3 GB per year, 100,000 weekly entries at 256 bytes each
 
 Even a billion agent node fits comfortably on commodity infrastructure. The architecture does not assume exotic database technology.
 
@@ -264,7 +264,7 @@ The system never has a global brownout. The worst case is that a specific node's
 
 ## 10. Capacity targets
 
-Hard numbers per node tier. These are the minimum capacities a node must support to claim ATP conformance.
+Suggested sizing per node tier. The table is guidance for planning a node, not a conformance criterion: the conformance targets of [core.md §12](core.md#12-conformance) state no capacity, and no published load test measures a node against these figures.
 
 | Node tier | Active ATX | Issuance rate | Verification rate (local) | Hardware |
 |---|---|---|---|---|

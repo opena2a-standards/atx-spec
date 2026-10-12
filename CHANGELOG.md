@@ -66,6 +66,19 @@ identifier registered in `core.md` §14.
   untrusted issuer, so rewording that away fails rather than passing vacuously. Failures are
   reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
   needs only python3 and is not yet run by CI.
+- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: every derived figure in
+  `scalability.md` is recomputed from the inputs the document states and must agree with it to
+  within 5 percent, so a figure may be rounded to two significant digits. The inputs are the §2.1
+  step costs, the 256 byte log entry, the size of the `core.md` §1.1 example credential with
+  full-length Ed25519 and ML-DSA-65 signature values, and the §8.2 node of 100,000 agents; the
+  premises are a billion agents reissued weekly. The derived figures are the warm cache total,
+  verifications per core and per four-core verifier, the verifier count for a billion
+  verifications per second, the issuance rate, the log's size for a trillion entries and for a
+  month, the size stated for one credential, the active set for a billion credentials and for
+  the node, the node's reissuance data rate and its yearly log mirror. A sentence in §10 that
+  names conformance must say the capacity table is not a conformance criterion. A figure or
+  input reworded away fails rather than passing vacuously, and a file that is not UTF-8 fails.
+  It needs only python3 and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -199,6 +212,21 @@ identifier registered in `core.md` §14.
   algorithm. The HackMyAgent row now links the README for the counts and the AIM row links AIP
   §6.1, so the map cannot fall behind either source again. The section is informative and no
   normative text changes.
+- `scalability.md` states figures that follow from the inputs it gives. Verifications per core
+  are about 277, not 1,000: the §2.1 steps sum to 3.611 ms, so a four-core verifier handles
+  about 1,100 a second and a billion a second needs about 900,000 verifiers, not 250,000. The
+  §2.1 warm cache total is 3.5 to 3.6 ms, the sum of its steps, where it said 1 to 4 ms, and the
+  ML-DSA-65 step is required rather than optional, since every credential carries that
+  signature (`core.md` §1.1). A credential is about 6 KB, not 1 to 4 KB averaging 2 KB: the
+  base64 ML-DSA-65 signature alone is 4,412 characters. The active set is therefore 6 TB for a
+  billion credentials and 600 MB for a 100,000 agent node, where it said 2 TB and 200 MB. A month
+  of log entries at 1,650 a second and 256 bytes is about 1.1 TB, not 4 TB, and the 100,000
+  agent node's yearly log mirror is about 1.3 GB, not 10 GB. The node's reissuance is about
+  1 KB a second on average and about 60 KB a second at the 10 issuances a second §10 suggests
+  for that population, where it said 150 KB a second with no rate to derive it from. §10 says
+  its capacity table is sizing guidance and not a conformance criterion, where it called the
+  figures the minimum capacities for ATP conformance: the conformance targets of `core.md` §12
+  state no capacity. No BCP 14 statement is added or removed.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
