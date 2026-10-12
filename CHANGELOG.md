@@ -38,6 +38,15 @@ identifier registered in `core.md` §14.
   that the custom default is the broadest and most sensitive class and the two dual-use
   categories are not narrow, and that each vector's `declaredPurpose` is valid under the schema
   and computes the breadth it pins. It needs python3 and `jsonschema` and is not yet run by CI.
+- `scripts/check_signed_fields.py` + `scripts/test_signed_fields.sh`: no sentence in a Markdown
+  file outside `CHANGELOG.md` and `errata/` may name a trust level and say it is capped, lowered
+  or downgraded, or that it falls back, because section 1.3 says a verifier MUST NOT lower the
+  signed level; and no sentence may name capabilities and use a verb form of authorize, because
+  section 1.5 says capabilities are attested reach and not permission. A verb with a denial among
+  the three words before it passes ("MUST NOT lower"), as does a comparison such as "level 3 or
+  lower". A sentence does not cross a blank line, a heading, a list item or a table cell. Failures
+  are reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
+  runs in time linear in the size of a paragraph, needs only python3 and is not yet run by CI.
 - `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
   (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
   results embedded in ATX reference those IDs, but the credential had no member to carry them
@@ -270,6 +279,21 @@ identifier registered in `core.md` §14.
   never counts signatures against a threshold, or checks only the first, passes it. No verdict
   on any fixture changes.
 
+- `scalability.md` and `sovereign-federation.md` no longer have a verifier lower a signed trust
+  level or describe capabilities as authorization, which contradicted `core.md` sections 1.3 and
+  1.5. `scalability.md` §9.2 said trust level 4 requests fall back to trust level 3 during a
+  partition; it now says the node issues nothing at trust level 4 while the root cannot cosign
+  (core.md §7 rule 4), that a request requiring trust level 4 is not met by a credential issued
+  in that time, and that a credential the root cosigned earlier keeps its signed level.
+  `sovereign-federation.md` §3.1, §4.1 step 5 and §4.4 said the trust level of a credential from
+  a Conditional authority is capped; they now say the verifier reports the sovereign's ceiling as
+  its own marker beside the signed level, which stays as signed, and that policy acts on the
+  lower of the two. Section 4.4 is retitled from "Trust level downgrade across borders" to "Trust
+  level ceilings across borders", so its anchor changes. Section 4.4 also said the credential
+  authorizes capabilities, and the §8.1 human oversight row said the ATX shows human authorized
+  capabilities; both now say `capabilities` are what the build is attested to be able to do, not
+  permission, and that whether an agent may act is a broker policy decision under AAP. No BCP 14
+  statement is added or removed.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a

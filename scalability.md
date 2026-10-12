@@ -243,7 +243,7 @@ Scalability includes how the system behaves when components fail. Zero Failures 
 ### 9.2 Federation node partition
 
 * The partitioned node continues operating for its local population. Issuance, verification, and revocation all work.
-* Cross node cosignatures for the partitioned node degrade to "unverified by root" until the partition heals. Trust level 4 requests fall back to trust level 3.
+* Cross node cosignatures for the partitioned node degrade to "unverified by root" until the partition heals. The root cannot cosign what the node issues in that time, so the node issues nothing at trust level 4 ([core.md §7](core.md#7-cross-org-cosigning) rule 4). A request that requires trust level 4 is not met by a credential issued during the partition. A credential the root cosigned before the partition keeps the trust level it was signed with: a verifier reports the signed level and does not change it ([core.md §1.3](core.md#13-local-verification-algorithm)).
 * When the partition heals, the partitioned node syncs its transparency log entries to the root node and the global view becomes consistent again.
 
 ### 9.3 Transparency log degraded
