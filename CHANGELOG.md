@@ -181,6 +181,14 @@ identifier registered in `core.md` §14.
   grammars, the keys and values of `capabilityJustification`, an absent, null or empty
   `declaredPurpose`, and the canonical empties of §1.3a.2 rules 1 and 2. It needs python3 and the
   `jsonschema` package, as `scripts/validate_examples.py` does, and is not yet run by CI.
+- `scripts/check_coverage_index.py` + `scripts/test_coverage_index.sh`: the sections the
+  `core.md` section 12 Coverage paragraph names (`§3.3`) must equal the sections the
+  atx-conformance `notCovered` items cite ("section 3.3"), as the family spec-drift check
+  `notcovered-index-agrees-with-spec` compares them, so the comparison runs with only the suite
+  checked out (`--suite <path>`). A `notCovered` item that cites no section fails, and so does a
+  missing Coverage paragraph, `conformance.json` or `notCovered` list. The tests build the
+  failing shapes in scratch trees and also run against a real suite checkout when
+  `ATX_CONFORMANCE_SUITE` names one. The check needs only python3 and is not yet run by CI.
 
 ### Changed
 
@@ -244,6 +252,15 @@ identifier registered in `core.md` §14.
   work as intended: an individual Internet-Draft, as AIP and AAP already have, and then a request
   to a working group to adopt it. A version negotiation, if one is added, is specified in ATP. No
   BCP 14 statement is added or removed.
+- §12 Coverage names the k-of-n threshold issuance of §3.1 step 8 (cosignatures from 2 of 3 key
+  holders) among the requirements no fixture exercises, and adds §3.1 step 8 to the requirements
+  an implementation self-attests. The atx-conformance `notCovered` list cites §3.1 step 8 and the
+  paragraph did not, which the family spec-drift check `notcovered-index-agrees-with-spec`
+  reported. The threshold cosignature fixture pins a credential carrying all three signatures,
+  and the fixture format has no field for the number the threshold requires, so a verifier that
+  never counts signatures against a threshold, or checks only the first, passes it. No verdict
+  on any fixture changes.
+
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
