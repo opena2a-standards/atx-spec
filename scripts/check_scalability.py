@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Assert every derived figure in scalability.md follows from the inputs it states.
+"""Assert the figures of scalability.md named under Rules follow from the inputs it states.
 
-scalability.md says its numbers are computed from the rates, entry sizes and
-step costs it gives. This check recomputes each derived figure from those
-inputs and fails when the stated figure is not the computed one. A stated
-figure passes when it is within TOLERANCE of the computed one, so a figure may
-be rounded to two significant digits.
+scalability.md names figures that are computed from the populations, rates,
+sizes and step costs it gives. This check recomputes the figures under Rules
+below from those inputs and fails when a stated figure is not the computed
+one. A stated figure passes when it is within TOLERANCE of the computed one,
+so a figure may be rounded to two significant digits.
+
+It recomputes no figure outside those rules. The section 1 summary table, the
+section 3 ratio of verifications to issuances, the section 5.1 proof sizes and
+the section 5.2 count of entries between Signed Tree Heads are among the
+figures it does not read.
 
 Inputs, each read from the document it lives in:
 
@@ -56,7 +61,7 @@ Rules, each failure reported as file:line with its rule in brackets:
 
     python3 scripts/check_scalability.py [--root <tree>]
 
-Exit 0 when every figure follows from its inputs, 1 otherwise.
+Exit 0 when no rule fails, 1 otherwise.
 """
 
 import argparse
@@ -378,7 +383,7 @@ def main():
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print("scalability ok: every derived figure follows from its stated inputs")
+    print("scalability ok: the figures this check recomputes follow from their stated inputs")
     return 0
 
 

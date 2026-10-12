@@ -66,19 +66,23 @@ identifier registered in `core.md` §14.
   untrusted issuer, so rewording that away fails rather than passing vacuously. Failures are
   reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
   needs only python3 and is not yet run by CI.
-- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: every derived figure in
-  `scalability.md` is recomputed from the inputs the document states and must agree with it to
-  within 5 percent, so a figure may be rounded to two significant digits. The inputs are the §2.1
-  step costs, the 256 byte log entry, the size of the `core.md` §1.1 example credential with
-  full-length Ed25519 and ML-DSA-65 signature values, and the §8.2 node of 100,000 agents; the
-  premises are a billion agents reissued weekly. The derived figures are the warm cache total,
-  verifications per core and per four-core verifier, the verifier count for a billion
-  verifications per second, the issuance rate, the log's size for a trillion entries and for a
-  month, the size stated for one credential, the active set for a billion credentials and for
-  the node, the node's reissuance data rate and its yearly log mirror. A sentence in §10 that
-  names conformance must say the capacity table is not a conformance criterion. A figure or
-  input reworded away fails rather than passing vacuously, and a file that is not UTF-8 fails.
-  It needs only python3 and is not yet run by CI.
+- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: the derived figures of
+  `scalability.md` that this entry lists are recomputed from the inputs the document states and
+  must agree with it to within 5 percent, so a figure may be rounded to two significant digits.
+  The inputs are the §2.1 step costs, the 256 byte log entry, the size of the `core.md` §1.1
+  example credential with full-length Ed25519 and ML-DSA-65 signature values, and the §8.2 node
+  of 100,000 agents; the premises are a billion agents reissued weekly. The derived figures are
+  the warm cache total, verifications per core and per four-core verifier, the verifier count
+  for a billion verifications per second, the issuance rate, the log's size for a trillion
+  entries and for a month, the active set for a billion credentials and for the node, the
+  node's reissuance data rate and its yearly log mirror. The size stated for one credential is
+  bounded rather than recomputed: it may not be below the combined length of the example's
+  signature values or more than 5 percent above the example. The check recomputes no other
+  figure: the §1 summary table, the §3 ratio of verifications to issuances, the §5.1 proof
+  sizes and the §5.2 count of entries between Signed Tree Heads are among the figures it does
+  not read. A sentence in §10 that names conformance must say the capacity table is not a
+  conformance criterion. A figure or input reworded away fails rather than passing vacuously,
+  and a file that is not UTF-8 fails. It needs only python3 and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -242,7 +246,12 @@ identifier registered in `core.md` §14.
   for that population, where it said 150 KB a second with no rate to derive it from. §10 says
   its capacity table is sizing guidance and not a conformance criterion, where it called the
   figures the minimum capacities for ATP conformance: the conformance targets of `core.md` §12
-  state no capacity. No BCP 14 statement is added or removed.
+  state no capacity. The §1 summary says a 10 million entry log verifies in 24 hashes, where it
+  said 23: an RFC 6962 inclusion proof in a log of that size is at most 24 hashes, the base 2
+  logarithm of the entry count rounded up, as the §5.1 table counts it. §1 also names the
+  figures that are computed from the populations, rates, sizes and step costs the document
+  states, where it called the numbers direct consequences of the architectural commitments in
+  the core doc. No BCP 14 statement is added or removed.
 - `core.md` no longer cites an ATP version negotiation or an ATP working group draft, neither of
   which exists. Section 10 and the signature suite row of the section 14 registry table said
   additional suites are added via ATP version negotiation; ATP-SPEC v1.0.0-rc1 defines no

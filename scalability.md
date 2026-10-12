@@ -17,12 +17,12 @@ The summary in one paragraph: verification is local, issuance is bounded by buil
 | Verification throughput | Per verifier CPU | O(1) per check, no network calls in warm cache | Limited by the verifier's host, not the network |
 | Issuance throughput | Build rate of issuing node | Bounded by builds per second, not agents | Issuing nodes provisioned to peak build rate plus 5x |
 | Webhook ingestion | Two global feeds | O(1) on package count | 1.1M packages today, 1B is the same shape |
-| Transparency log | Append only | O(log n) inclusion proofs | A 10M entry log verifies in 23 hashes |
+| Transparency log | Append only | O(log n) inclusion proofs | A 10M entry log verifies in 24 hashes |
 | CRL distribution | Federated push plus CDN cache | Delta sync, 5 minute TTL | Single CRL serves all verifiers via CDN |
 | Storage | 7 day ATX expiry | Active set stays bounded | Archive on cold storage, never on hot path |
 | Federation | Bilateral cosignatures | Load isolated by node | Each node sized for its own population |
 
-The numbers are not aspirations. Each derived figure is computed from the rates, entry sizes and step costs this document states, and the section that states it shows its inputs. The capacity targets in section 10 are different: they are sizing guidance, not a computation and not a conformance criterion.
+The numbers are not aspirations. The warm cache total, the verifier throughput and the verifier count of section 2, the issuance and log entry rate of sections 3 and 5, the log storage of section 5.3 and the credential storage, reissuance data rate and log mirror size of section 8 are computed from the populations, rates, sizes and step costs this document states, and the section that states each shows its inputs. The capacity targets in section 10 are different: they are sizing guidance, not a computation and not a conformance criterion.
 
 ---
 
