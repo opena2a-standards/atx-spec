@@ -38,7 +38,7 @@ ATX is the same model for AI agents. The Agent Trust Protocol (ATP) is how nodes
 | Verification | Network query per interaction | Local check, zero network calls |
 | Scalability | O(n) on query volume | O(1) on verifier path |
 | Single point of failure | Registry down breaks trust | Registry down does not break verification |
-| Adoption barrier | Every verifier integrates Registry API | Verify locally with any Ed25519 library |
+| Adoption barrier | Every verifier integrates Registry API | Verify locally with standard Ed25519 and ML-DSA-65 libraries |
 | Posture toward Google | Compete or be ignored | Federate and cosign |
 | Regulatory posture | SaaS product that regulators evaluate | Infrastructure that regulators can mandate |
 
@@ -462,7 +462,7 @@ This flow has zero issuing node involvement. It runs thousands of times per seco
 2. Parse ATX. Check atxVersion is supported. Check expiresAt is in the future. Under 0.1ms.
 3. Look up issuerDid in local DID document cache. TTL one hour. Cache hit proceeds. Cache miss does a single fetch and caches the result. Under 1ms on hit.
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
-5. If ML-DSA-65 signature is present, verify it too. About 3ms.
+5. Verify the ML-DSA-65 signature, which every credential carries beside the Ed25519 one (§1.1). About 3ms.
 6. Check agentDid against locally cached CRL. TTL 5 minutes. If listed, reject. If cache miss, queue async refresh and allow this request on the cached version. Under 0.1ms.
 7. Optionally verify contentHash against the known artifact for deep verification.
 8. Accept. Warm cache total: under 5ms, the ML-DSA-65 verification of step 5 included. A cold cache adds the one DID document fetch of step 3, for a total under 50ms ([scalability.md §2.1](scalability.md#21-what-verification-actually-costs)). The issuing node is not queried in either case.
@@ -685,7 +685,7 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 **Credential (an ATX instance).** A conforming ATX carries every mandatory field of §1.1, selects exactly one canonical signing form by its version field (§1.3a), and its signatures verify over the bytes that form produces. A v1.1 credential MUST satisfy the determinism rules of §1.3a.2.
 
-**Issuer.** A conforming issuer emits only conforming credentials, signs `JCS(TBS)` bytes that are byte-identical to what the conformance vectors pin (§1.3a.3), logs every issuance and revocation to the transparency log before it takes effect (§11 commitment 3), and never requires a verifier to contact it on the verification path (§9). A conforming issuer MUST NOT assert `trustLevel` 3 or higher on a credential that does not carry signatures from at least two distinct authorities as §1.3 step 7 counts them, and MUST NOT assert `trustLevel` 4 without the root cosignature §7 rule 4 requires. This binds issuance from the point an issuer claims conformance to it; it is not retroactive and it does not reclassify credentials already issued. The conformance suite's fixtures are not conforming issuer output under this rule and are not a model of issuance: they assert `trustLevel` 4 while carrying signatures from a single authority, and all but the three hybrid fixtures carry Ed25519 signatures only (see Coverage below), because they exist to pin signing bytes and verdicts rather than issuance policy.
+**Issuer.** A conforming issuer emits only conforming credentials, signs `JCS(TBS)` bytes that are byte-identical to what the conformance vectors pin (§1.3a.3), logs every issuance and revocation to the transparency log before it takes effect (§11 commitment 3), and never requires a verifier to contact it on the verification path (§9). A conforming issuer MUST NOT assert `trustLevel` 3 or higher on a credential that does not carry signatures from at least two distinct authorities as §1.3 step 7 counts them, and MUST NOT assert `trustLevel` 4 without the root cosignature §7 rule 4 requires. This binds issuance from the point an issuer claims conformance to it; it is not retroactive and it does not reclassify credentials already issued. The conformance suite's fixtures are not conforming issuer output under this rule and are not a model of issuance: they assert `trustLevel` 4 while carrying signatures from a single authority, and all but the three hybrid fixtures carry Ed25519 signatures only (see Coverage below), because they exist to pin signing bytes and verdicts rather than issuance policy. Those of them that declare `atcVersion` 1.1 lack the ML-DSA-65 signature §1.1 requires, and the credential schema refuses them.
 
 **Verifier.** A conforming verifier implements the local verification algorithm of §1.3, dispatching on the credential's version field, and rejects on the failure of any step. It MUST treat the §1.3a.1 unsigned fields as unauthenticated under `atcVersion` `1.0` (§1.3a.4), and it MUST NOT add a network dependency on the issuing node to the acceptance path.
 

@@ -142,6 +142,21 @@ identifier registered in `core.md` §14.
   `README.md` revocation use case say that no conformance fixture yet rejects an agent on list
   membership alone: the revocation fixture also carries `revoked: true`, so a verifier that never
   reads the list still rejects it. No BCP 14 statement changes.
+- `schemas/atx-credential-v1.1.schema.json` refuses an `atcVersion` 1.1 credential whose
+  `signatures` array lacks an Ed25519 or an ML-DSA-65 entry, as §1.1 requires. `signatures` sits
+  outside the signed bytes, so anyone relaying a credential could delete the post-quantum entry,
+  or the Ed25519 one, and the schema still accepted the result. `atcVersion` 1.0 is frozen legacy
+  and is not constrained. `scripts/validate_examples.py` applies an entry's `mustReject` variants,
+  JSON Patch (RFC 6902) `test` and `remove` edits of the mapped example, and fails unless the
+  schema refuses each one; `schemas/examples-map.json` deletes each suite from the §1.1 example in
+  turn. The sentences that called the post-quantum suite optional now match §1.1: the section 0
+  comparison table names Ed25519 and ML-DSA-65 libraries where it said any Ed25519 library,
+  section 3.2 step 5 verifies the ML-DSA-65 signature where it verified one only if present, and
+  the `scalability.md` §2.1 breakdown calls that verification required where it said optional
+  path. Section 12 states that the conformance fixtures declaring `atcVersion` 1.1 with Ed25519
+  signatures only fail the schema. A reference-verifier rule that rejects such a credential, and
+  hybrid fixtures that pin it, are atx-conformance changes and are not part of this one. No BCP 14
+  statement is added or removed.
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one

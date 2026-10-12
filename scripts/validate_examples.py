@@ -10,13 +10,21 @@ For each entry: find the heading line in the file, take the first fenced
 ```json block after it, parse it, and validate it against the schema.
 Also metaschema-checks every schemas/*.schema.json.
 
+An entry may also carry "mustReject": a list of { "name", "patch" } variants.
+Each patch is a JSON Patch (RFC 6902) limited to the "test" and "remove"
+operations, applied to a copy of the example; the schema must refuse the
+result. A "test" that does not hold fails the run, so a variant cannot go on
+passing after the example it edits has changed under it.
+
 Formats (date-time, uuid) are treated as annotations, not assertions, matching
 library defaults across implementations; structural keywords (type, enum,
 pattern, required) carry the contract.
 
-Exit code 0 = all schemas well-formed and all mapped examples valid.
+Exit code 0 = all schemas well-formed, all mapped examples valid and every
+mustReject variant refused.
 """
 
+import copy
 import json
 import pathlib
 import sys
@@ -51,6 +59,46 @@ def extract_block(md_path: pathlib.Path, heading: str) -> str:
                 f"error: no ```json block between {heading!r} and the next heading in {md_path}"
             )
     raise SystemExit(f"error: unterminated ```json block after {heading!r} in {md_path}")
+
+
+class PatchError(Exception):
+    pass
+
+
+def _key(node, token: str, pointer: str):
+    if isinstance(node, list):
+        if not token.isdigit() or int(token) >= len(node):
+            raise PatchError(f"{pointer}: no array index {token!r}")
+        return int(token)
+    if isinstance(node, dict):
+        if token not in node:
+            raise PatchError(f"{pointer}: no member {token!r}")
+        return token
+    raise PatchError(f"{pointer}: cannot step into a {type(node).__name__}")
+
+
+def apply_patch(doc, ops):
+    """Apply a JSON Patch (RFC 6902) of `test` and `remove` operations to a copy of doc."""
+    doc = copy.deepcopy(doc)
+    for op in ops:
+        pointer = op.get("path", "")
+        if not pointer.startswith("/"):
+            raise PatchError(f"path {pointer!r} does not point below the document root")
+        tokens = [t.replace("~1", "/").replace("~0", "~") for t in pointer[1:].split("/")]
+        parent = doc
+        for token in tokens[:-1]:
+            parent = parent[_key(parent, token, pointer)]
+        key = _key(parent, tokens[-1], pointer)
+        if op.get("op") == "test":
+            if parent[key] != op.get("value"):
+                raise PatchError(
+                    f"test failed at {pointer}: found {parent[key]!r}, expected {op.get('value')!r}"
+                )
+        elif op.get("op") == "remove":
+            del parent[key]
+        else:
+            raise PatchError(f"unsupported op {op.get('op')!r} (only test and remove)")
+    return doc
 
 
 def main() -> int:
@@ -90,6 +138,20 @@ def main() -> int:
             failures += 1
         else:
             print(f"example OK     {entry['file']} @ {entry['heading']!r}")
+
+        for variant in entry.get("mustReject", []):
+            label = f"{entry['file']} @ {entry['heading']!r}: {variant['name']}"
+            try:
+                mutated = apply_patch(instance, variant["patch"])
+            except PatchError as exc:
+                print(f"variant BROKEN {label}: {exc}")
+                failures += 1
+                continue
+            if next(validator.iter_errors(mutated), None) is None:
+                print(f"variant FAIL   {label}: accepted by {entry['schema']}")
+                failures += 1
+            else:
+                print(f"variant OK     {label}: refused")
 
     if failures:
         print(f"\n{failures} failure(s)")

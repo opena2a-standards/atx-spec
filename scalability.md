@@ -42,7 +42,7 @@ Warm cache verification, broken down:
 | Expiry check | 0.001 ms | Single comparison |
 | DID document cache lookup | 0.01 ms | In memory hash map |
 | Ed25519 signature verify | 0.4 ms | Constant time |
-| ML-DSA-65 signature verify | 3 ms | Constant time, optional path |
+| ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature |
 | CRL cache lookup | 0.05 ms | In memory hash map |
 | Content hash compare (optional) | 0.1 ms | SHA-256 of presented artifact |
 | Total warm cache | 1 to 4 ms | Dominated by signature verification |
