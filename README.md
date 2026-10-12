@@ -58,14 +58,14 @@ This specification is early and authored in the open. We are looking for co-auth
 | Doc | Scope |
 |---|---|
 | [`core.md`](core.md) | ATX schema and lifecycle, ATP protocol surface (5 planes), local-verify algorithm, federation, transparency log, product integration map |
-| [`scalability.md`](scalability.md) | Scaling properties: revocation propagation, CRL caching, transparency log monitor protocol |
+| [`scalability.md`](scalability.md) | Scaling properties: revocation propagation, CRL caching, transparency log scaling and monitor cost (the monitor verification cycle is [`core.md`](core.md) §6.4) |
 | [`sovereign-federation.md`](sovereign-federation.md) | Multi-authority cosigning, sovereign-node operation, cross-org trust |
 
 ## Status
 
 Architecture specifications, document version 1.1.0-final (July 2026; first published May 2026). The normative credential wire format is **ATX 1.1** (JCS canonical signing form, [`core.md`](core.md) §1.3a.2) — this is what production issuance emits; ATX 1.0 is frozen legacy with a documented transition rule (§1.3a.5). OpenA2A's issuing node is the OpenA2A Registry service. OpenA2A AIM (Agent Identity Management), at [`opena2a-org/agent-identity-management`](https://github.com/opena2a-org/agent-identity-management), verifies ATX and does not issue it. AIM requests ATX from the Registry for the agents registered with it. Changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
-ATX/ATP/AIP cross-reference: see [`opena2a-org/agent-trust-protocol`](https://github.com/opena2a-org/agent-trust-protocol) for the ATP wire protocol spec and [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol) for the AIP identity spec.
+ATX/ATP/AIP cross-reference: see [`opena2a-standards/agent-trust-protocol`](https://github.com/opena2a-standards/agent-trust-protocol) for the ATP wire protocol spec and [`opena2a-standards/agent-identity-protocol`](https://github.com/opena2a-standards/agent-identity-protocol) for the AIP identity spec.
 
 ## Conformance
 

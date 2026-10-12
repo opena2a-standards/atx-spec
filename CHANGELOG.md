@@ -10,6 +10,14 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_references.py` + `scripts/test_references.sh`: no Markdown file outside
+  `CHANGELOG.md` and `errata/` names `opena2a-org/<repo>`, in a URL or in link text, for a
+  repository that lives under `opena2a-standards`; a link whose text cites a version such as
+  `v1.0.0-rc1` and points at a GitHub repository points at that version's tag through
+  `/blob/<version>/` or `/tree/<version>`; and `atxVersion` appears only in a sentence that also
+  names the wire member `atcVersion`. Failures are reported as file and line, and a file that is
+  not UTF-8 is reported as a failure. The check exits 1 on a failure and 2 on a usage error,
+  needs only python3 and is not yet run by CI.
 - `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
   (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
   results embedded in ATX reference those IDs, but the credential had no member to carry them
@@ -153,6 +161,14 @@ identifier registered in `core.md` §14.
 - `scripts/test_schema.py` writes no `scripts/__pycache__/` when it imports
   `validate_examples`, so running it leaves the working tree clean, and `scripts/test_schema.sh`
   asserts that in a scratch copy.
+- Links to the ATP and AIP specifications and to the conformance suite's `jcs-vectors/` in
+  `README.md` and `core.md` sections 1.3a.3 and 10 name `opena2a-standards`, where those
+  repositories now live, instead of `opena2a-org`, which answers 301. The `core.md` header link to
+  ATP-SPEC v1.0.0-rc1 points at `ATP-SPEC.md` at the `v1.0.0-rc1` tag; the repository root shows
+  the next draft. Section 3.2 step 2 checks `atcVersion`, the wire member, where it said
+  `atxVersion`, which the schema rejects. The `README.md` scope cell for `scalability.md` says it
+  covers transparency log scaling and monitor cost and names `core.md` §6.4 for the monitor
+  verification cycle. No BCP 14 statement is added or removed.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a

@@ -4,7 +4,7 @@
 
 **Document version:** 1.1.0-final (July 2026; first published as "Version 1.0", May 2026)
 **Credential format status:** ATX 1.1 is the current, normative wire format (§1.3a.2) and is what production issuance emits; ATX 1.0 is frozen legacy (§1.3a.1), accepted per the transition rule in §1.3a.5.
-**Protocol status:** the ATP wire protocol (§2) is normatively specified in [ATP-SPEC v1.0.0-rc1](https://github.com/opena2a-standards/agent-trust-protocol); this document defines the architecture it implements. Identity (AIP) and authorization (AAP) layers beneath this document carry their own, earlier maturity levels — a claim in this document never upgrades theirs.
+**Protocol status:** the ATP wire protocol (§2) is normatively specified in [ATP-SPEC v1.0.0-rc1](https://github.com/opena2a-standards/agent-trust-protocol/blob/v1.0.0-rc1/ATP-SPEC.md); this document defines the architecture it implements. Identity (AIP) and authorization (AAP) layers beneath this document carry their own, earlier maturity levels — a claim in this document never upgrades theirs.
 **Errata:** errata/README.md, incorporated through none
 
 Defines the Agent Trust eXtension credential format, the Agent Trust Protocol that issues and verifies it, and the architectural commitments that make the system survive at planetary scale.
@@ -277,7 +277,7 @@ Because issuance (Go), the offline verifier (Go), the conformance verifiers
 independently, a v1.1 credential is only interoperable if all of them produce
 identical `JCS(TBS)` bytes. The normative byte vectors and the cross-language
 agreement gate live in
-[`atx-conformance/jcs-vectors`](https://github.com/opena2a-org/atx-conformance/tree/main/jcs-vectors).
+[`atx-conformance/jcs-vectors`](https://github.com/opena2a-standards/atx-conformance/tree/main/jcs-vectors).
 A conformant implementation MUST reproduce, byte-for-byte, the
 `expected.canonicalHex` of every vector there.
 
@@ -460,7 +460,7 @@ Total time under 90 seconds. The developer merges a PR and the agent has a fresh
 This flow has zero issuing node involvement. It runs thousands of times per second across the ecosystem.
 
 1. Verifier receives request. Extracts Agent-Trust-Credential header or the atx field from an A2A agent card or MCP manifest.
-2. Parse ATX. Check atxVersion is supported. Check expiresAt is in the future. Under 0.1ms.
+2. Parse ATX. Check atcVersion is supported. Check expiresAt is in the future. Under 0.1ms.
 3. Look up issuerDid in local DID document cache. TTL one hour. Cache hit proceeds. Cache miss does a single fetch and caches the result. Under 1ms on hit.
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
 5. Verify the ML-DSA-65 signature, which every credential carries beside the Ed25519 one (§1.1). About 3ms.
@@ -655,7 +655,7 @@ This is the architectural property that makes ATX scale to a billion agents. It 
 
 These boundaries are as important as the capabilities.
 
-* **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
+* **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-standards/agent-identity-protocol`](https://github.com/opena2a-standards/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
 * **ATX is not a runtime authorization system.** AAP is the authorization layer: whether an agent may touch a given resource is a broker policy decision under AAP. ATX presents the credential. The broker enforces the policy, and can take the credential's verified `capabilities` as one input to it (§1.3a.4).
 * **ATX is not a centralized database.** It is a credential format. The issuing nodes are infrastructure. The credential travels with the agent.
 * **ATX is not proprietary.** ATP is published as an open standard. Any organization can issue ATX credentials using the same format. Compatibility is the goal.
