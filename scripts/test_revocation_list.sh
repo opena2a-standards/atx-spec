@@ -38,7 +38,7 @@ run_check() {  # run_check <root>
 }
 
 # The sizes scalability.md must state, at the ATP section 8.1 example entry size.
-SIZES='The example entry in section 8.1 is 212 bytes, so each CRL entry is roughly 212 bytes and one million revocations is about 212 MB.'
+SIZES='The example entry in section 8.1 is 227 bytes, so each CRL entry is roughly 227 bytes and one million revocations is about 227 MB.'
 
 new_tree() {  # new_tree <name> -> path to a scratch tree whose scalability.md states the sizes
     mkdir -p "$TMP/$1"
@@ -117,6 +117,25 @@ printf '### 6.2 CRL size\n\nA full CRL listing every revoked agentId is small. E
 expect_fail "an entry size below the section 8.1 example fails" "$T" "scalability.md:3" "entry-size"
 expect_fail "a million revocations at 40 MB fails" "$T" "scalability.md:4" "total-size"
 
+# 212 bytes is the section 8.1 example entry of the later ATP 1.1.0 draft, whose
+# reason is a registered code. The v1.0.0-rc1 entry the specification cites is
+# 227 bytes.
+T="$(new_tree later-draft)"
+printf '### 6.2 CRL size\n\nThe example entry in section 8.1 is 212 bytes, so each CRL entry is roughly 212 bytes\nand one million revocations is about 212 MB.\n' > "$T/scalability.md"
+expect_fail "an entry at the 212 bytes of a later draft's example fails" "$T" "scalability.md:3" "entry-size"
+expect_fail "a million revocations at 212 MB fails" "$T" "scalability.md:4" "total-size"
+
+T="$(new_tree one-byte-short)"
+printf 'Each CRL entry is 226 bytes.\n' > "$T/core.md"
+run_check "$T"
+if [ $? -eq 1 ] && grep -qF "core.md:1 [entry-size]" "$OUT" \
+        && grep -qF "example entry is 227 bytes as compact JSON" "$OUT"; then
+    ok "an entry one byte below the v1.0.0-rc1 example fails, and the failure names 227 bytes"
+else
+    not_ok "an entry one byte below the v1.0.0-rc1 example fails, and the failure names 227 bytes" \
+        "$(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
 T="$(new_tree table-row)"
 printf '| Item | Size |\n|---|---|\n| CRL entry | 40 bytes |\n' > "$T/core.md"
 expect_fail "an entry size in a table row fails" "$T" "core.md:3" "entry-size"
@@ -131,7 +150,7 @@ expect_fail "a thousand revocations at 100 KB fails" "$T" "core.md:3" "total-siz
 expect_fail "a million revocations written in digits at 50 MB fails" "$T" "core.md:5" "total-size"
 
 T="$(new_tree fractional)"
-printf '2.5 million revocations is 530 MB. One billion revocations is about 212 GB.\n' > "$T/core.md"
+printf '2.5 million revocations is 567.5 MB. One billion revocations is about 227 GB.\n' > "$T/core.md"
 expect_pass "totals at the section 8.1 entry size pass, fractional counts included" "$T"
 
 T="$(new_tree no-figure)"

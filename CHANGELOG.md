@@ -117,8 +117,8 @@ identifier registered in `core.md` §14.
   cache is signed, in a sentence that names a CRL or a revocation, unless that sentence names
   ATP 1.1, since the §8.1 response has no member for a signature. A file signed for transport,
   such as a CRL published as a signed file, is not that claim and passes. No byte figure stated
-  for a revocation entry may be below 212 bytes, the §8.1 example entry as compact JSON, and no
-  size stated for a number of revocations may be below that number times 212 bytes.
+  for a revocation entry may be below 227 bytes, the §8.1 example entry as compact JSON, and no
+  size stated for a number of revocations may be below that number times 227 bytes.
   `scalability.md` must state both sizes, so rewording them away fails rather than passing
   vacuously. Failures are reported as file and line, and a file that is not UTF-8 is reported as
   a failure. The check needs only python3 and is not yet run by CI.
@@ -138,8 +138,8 @@ identifier registered in `core.md` §14.
   and on each entry's `transparencyLogIndex`, that a server on the path can drop an entry without
   the list showing it, and that a signed revocation list is ATP 1.1 work. §6.2 put each entry at
   roughly 40 bytes and a million revocations at 40 MB; each entry has five required members, the
-  §8.1 example entry is 212 bytes as compact JSON, and §6.2 now says roughly 212 bytes per entry
-  and about 212 MB per million revocations before compression. No normative text changes.
+  §8.1 example entry is 227 bytes as compact JSON, and §6.2 now says roughly 227 bytes per entry
+  and about 227 MB per million revocations before compression. No normative text changes.
 
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2

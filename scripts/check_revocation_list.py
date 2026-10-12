@@ -55,7 +55,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXAMPLE_ENTRY = {
     "agentDid": "did:opena2a:mcp_server:compromised-package",
     "revokedAt": "2026-03-22T15:00:00Z",
-    "reason": "security_incident",
+    "reason": "Supply chain compromise detected",
     "transparencyLogIndex": 1847300,
     "revokedByKeyId": "did:opena2a:authority:opena2a.org#key-v3",
 }
