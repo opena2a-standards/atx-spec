@@ -450,7 +450,7 @@ ATP defines five things:
 4. **The federation protocol.** How nodes register with each other, exchange public keys, cosign credentials, propagate revocations, and maintain trust lists.
 5. **The revocation list format.** ATP-SPEC v1.0.0-rc1 §8.1 defines the since-timestamp revocation response, its schema (`$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`), and the client refresh cadence. That response body is **not signed** in ATP 1.0 — authenticity rides on the transport and on each entry's transparency-log index — and §8.1 records signing it as an open question for a future revision; a signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work, not ATP 1.0 guarantees.
 
-ATP is the standards play. ATX is the wedge. We push ATP into A2A spec as the trust binding A2A is missing today (PR 1496 already in flight). We push ATP into IETF as a Working Group draft. We push the transparency log conformance criteria into the same model the WebPKI uses for CA acceptance.
+ATP is the standards play. ATX is the wedge. We push ATP into A2A spec as the trust binding A2A is missing today (PR 1496 already in flight). We intend to take ATP to the IETF. No ATP Internet-Draft exists yet: the plan is to submit ATP as an individual Internet-Draft, as AIP (`draft-fane-opena2a-aip`) and AAP (`draft-fane-opena2a-aap`) already are, and then to ask an IETF working group to adopt it. We push the transparency log conformance criteria into the same model the WebPKI uses for CA acceptance.
 
 The credential is the wedge because every agent carries one. The protocol is the moat because once it is in the spec, every implementer is using ours.
 
@@ -690,7 +690,7 @@ These boundaries are as important as the capabilities.
 * **ATX is not a runtime authorization system.** AAP is the authorization layer: whether an agent may touch a given resource is a broker policy decision under AAP. ATX presents the credential. The broker enforces the policy, and can take the credential's verified `capabilities` as one input to it (§1.3a.4).
 * **ATX is not a centralized database.** It is a credential format. The issuing nodes are infrastructure. The credential travels with the agent.
 * **ATX is not proprietary.** ATP is published as an open standard. Any organization can issue ATX credentials using the same format. Compatibility is the goal.
-* **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites can be added via ATP version negotiation.
+* **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites are added by specification revision (§14).
 * **ATX is not a substitute for code review.** Scans embedded in the ATX are signals, not absolution. A trust level 4 ATX on a malicious agent is a bug in the scanners, not a property of the credential.
 
 ---
@@ -758,7 +758,7 @@ This specification is not (yet) under IANA administration; the registries below 
 | Registry | Governed set | Change policy |
 |---|---|---|
 | ATX version numbers | `1.0` (frozen legacy), `1.1` (current) | Specification revision only. A new version number is REQUIRED whenever the canonical signing form changes (§1.3a); reusing a version for different bytes is forbidden. |
-| Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision via ATP version negotiation (§10). |
+| Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision only (§10). |
 | DID type prefixes (`did:opena2a`) | `registry`, `authority`, `publisher`, `agent`, `mcp_server`, `ai_tool`, `llm`, `skill` (`a2a_agent`: deprecated legacy alias of `agent`) | Registered in the [did:opena2a method specification](https://github.com/opena2a-standards/did-method-opena2a); additions by PR there, mirrored into §2 here. |
 | `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion`, each with the breadth class and sensitivity class published in [`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json) | Core set and core classes change by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest, most sensitive class until reviewed (§1.5.3). |
 | `taskScope` namespaces | 17 reserved core namespaces (§1.5.3) | Same policy as categories; non-reserved namespaces are org-custom. |

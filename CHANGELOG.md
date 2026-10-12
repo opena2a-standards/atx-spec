@@ -167,6 +167,14 @@ identifier registered in `core.md` §14.
   `scalability.md` must state both sizes, so rewording them away fails rather than passing
   vacuously. Failures are reported as file and line, and a file that is not UTF-8 is reported as
   a failure. The check needs only python3 and is not yet run by CI.
+- `scripts/check_atp_claims.py` + `scripts/test_atp_claims.sh`: no Markdown file outside
+  `CHANGELOG.md` and `errata/` may name a negotiation in a sentence that also names ATP or the
+  word version, because ATP-SPEC v1.0.0-rc1 defines no negotiation, and none may call a document
+  a working group draft (`Working Group draft`, `working-group Internet-Draft` or `WG draft`, in
+  any case), because no working group has adopted ATP. A sentence may wrap across lines but not
+  across a blank line. Each rule goes in the change that cites the ATP section or the adopted
+  draft that makes it obsolete. Failures are reported as file and line. The check needs only
+  python3 and is not yet run by CI.
 - `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
   asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
   it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
@@ -227,6 +235,15 @@ identifier registered in `core.md` §14.
   its capacity table is sizing guidance and not a conformance criterion, where it called the
   figures the minimum capacities for ATP conformance: the conformance targets of `core.md` §12
   state no capacity. No BCP 14 statement is added or removed.
+- `core.md` no longer cites an ATP version negotiation or an ATP working group draft, neither of
+  which exists. Section 10 and the signature suite row of the section 14 registry table said
+  additional suites are added via ATP version negotiation; ATP-SPEC v1.0.0-rc1 defines no
+  negotiation, so both now state the change policy as it is, specification revision. Section 2
+  said ATP is pushed into the IETF as a Working Group draft; no ATP Internet-Draft exists, and a
+  working group draft is one a working group has adopted, so section 2 now describes the IETF
+  work as intended: an individual Internet-Draft, as AIP and AAP already have, and then a request
+  to a working group to adopt it. A version negotiation, if one is added, is specified in ATP. No
+  BCP 14 statement is added or removed.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a
