@@ -204,6 +204,58 @@ rm "$T/README.md"
 expect_fail "a tree with no README.md fails instead of passing vacuously" \
     "$T" pointer "README.md"
 
+# --- forge lab --------------------------------------------------------------
+
+# lab_tree <name> <text> -> a passing tree whose README.md gains <text> as a
+# paragraph on line 17, after the default README's 15 lines and a blank one.
+lab_tree() {
+    local t
+    t="$(new_tree "$1")"
+    write_core "$t" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+    printf '\n%s\n' "$2" >> "$t/README.md"
+    printf '%s' "$t"
+}
+
+LAB='[forge lab](https://specs.opena2a.org/lab/forge)'
+
+T="$(lab_tree lab-same-checks "Why you can check this yourself: the $LAB runs the same checks in a browser.")"
+expect_fail "a sentence saying the forge lab runs the same checks fails" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-url-only "Or try to forge one in your browser at [specs.opena2a.org/lab/forge](https://specs.opena2a.org/lab/forge).")"
+expect_fail "a sentence naming the lab only by its URL fails" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-name-only "What you can do today: the forge lab lets you present a credential past its lifetime.")"
+expect_fail "a sentence naming the lab only by name fails" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-next-sentence "The $LAB runs the same checks in a browser. What it signs is not an ATX credential.")"
+expect_fail "the caveat in the next sentence does not count" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat "The $LAB signs a simplified object, not an ATX credential, so its verdicts are not conformance results.")"
+expect_pass "a sentence naming the lab with the caveat passes" "$T"
+
+T="$(lab_tree lab-caveat-wrapped "The $LAB signs a simplified object, not an
+ATX credential.")"
+expect_pass "the caveat may wrap across a soft line break" "$T"
+
+T="$(lab_tree lab-wrapped-line "Conformance results come from the suite.
+The $LAB runs the same checks in a browser.")"
+expect_fail "a mention on a continuation line reports that line" "$T" lab "README.md:18"
+
+T="$(lab_tree lab-other-file "No mention here.")"
+mkdir -p "$T/docs"
+printf '# Labs\n\nThe forge lab verifies credentials in a browser.\n' > "$T/docs/labs.md"
+expect_fail "a mention in any other Markdown file fails" "$T" lab "docs/labs.md:3"
+
+T="$(lab_tree lab-history "No mention here.")"
+printf '# Changelog\n\nThe forge lab ran the same checks in a browser.\n' > "$T/CHANGELOG.md"
+mkdir -p "$T/errata"
+printf 'The forge lab ran the same checks in a browser.\n' > "$T/errata/ATX-E-0001.md"
+expect_pass "CHANGELOG.md and errata/ record history and are not checked" "$T"
+
+T="$(lab_tree lab-not-utf8 "No mention here.")"
+printf 'The forge lab \377 runs the same checks.\n' > "$T/notes.md"
+expect_fail "a Markdown file that is not UTF-8 fails" "$T" lab "notes.md"
+
 # --- vacuous pass -----------------------------------------------------------
 
 T="$(new_tree renamed)"

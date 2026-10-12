@@ -23,7 +23,7 @@ go run . ../../fixtures
 # summary: 23 pass, 0 fail (23 fixtures)
 ```
 
-Or try to forge one in your browser at [specs.opena2a.org/lab/forge](https://specs.opena2a.org/lab/forge).
+Or try to forge a signed object in your browser at [specs.opena2a.org/lab/forge](https://specs.opena2a.org/lab/forge): the lab signs a simplified object, not an ATX credential, so its verdicts are not conformance results.
 
 Where it stops today: an ATX is a bearer artifact. Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with a proof-of-possession channel such as the AIP challenge.
 
@@ -33,7 +33,7 @@ An agent passed review once and kept its credential for a year. A new build ship
 
 An ATX lives for 7 days. Renewal runs the build plugin and the scan again, so a fresh credential describes the current build, and an agent that must be stopped sooner is placed on a revocation list that verifiers check on every verification.
 
-What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you present a credential past its lifetime.
+What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object that is not an ATX credential.
 
 Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. The `fixtures/revoked.json` credential also carries `revoked: true`, a field outside the signed bytes, so a verifier that never reads the revocation list still rejects it: no fixture yet rejects an agent on list membership alone.
 
@@ -47,7 +47,7 @@ What you can do today: `fixtures/v1_1-tampered-capabilities.json`, whose capabil
 
 Where it stops today: capabilities in an ATX describe what the build is attested to be able to do. They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
 
-Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships 23 byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; the [forge lab](https://specs.opena2a.org/lab/forge) runs the same checks in a browser; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
+Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships 23 byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
 
 ## Contributing
 

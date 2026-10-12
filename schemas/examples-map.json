@@ -2,6 +2,24 @@
   {
     "file": "core.md",
     "heading": "### 1.1 ATX schema",
-    "schema": "schemas/atx-credential-v1.1.schema.json"
+    "schema": "schemas/atx-credential-v1.1.schema.json",
+    "mustReject": [
+      {
+        "name": "atcVersion 1.1 with the ML-DSA-65 signature deleted",
+        "patch": [
+          { "op": "test", "path": "/atcVersion", "value": "1.1" },
+          { "op": "test", "path": "/signatures/1/algorithm", "value": "ML-DSA-65" },
+          { "op": "remove", "path": "/signatures/1" }
+        ]
+      },
+      {
+        "name": "atcVersion 1.1 with the Ed25519 signature deleted",
+        "patch": [
+          { "op": "test", "path": "/atcVersion", "value": "1.1" },
+          { "op": "test", "path": "/signatures/0/algorithm", "value": "Ed25519" },
+          { "op": "remove", "path": "/signatures/0" }
+        ]
+      }
+    ]
   }
 ]

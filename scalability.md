@@ -42,7 +42,7 @@ Warm cache verification, broken down:
 | Expiry check | 0.001 ms | Single comparison |
 | DID document cache lookup | 0.01 ms | In memory hash map |
 | Ed25519 signature verify | 0.4 ms | Constant time |
-| ML-DSA-65 signature verify | 3 ms | Constant time, optional path |
+| ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature |
 | CRL cache lookup | 0.05 ms | In memory hash map |
 | Content hash compare (optional) | 0.1 ms | SHA-256 of presented artifact |
 | Total warm cache | 1 to 4 ms | Dominated by signature verification |
@@ -160,7 +160,7 @@ The 5 minute TTL is the hard upper bound. Verifiers that need faster revocation 
 
 ### 6.2 CRL size
 
-A full CRL listing every revoked agentId is small. Each entry is roughly 40 bytes (agentId plus revocation timestamp plus reason code). One million revocations is 40 MB. Compressed and CDN cached, a single CRL serves the entire ecosystem.
+A full CRL listing every revoked agent is the ATP-SPEC v1.0.0-rc1 §8.1 revocation response asked for from the earliest `since` timestamp. Each entry carries five required members, `agentDid`, `revokedAt`, `reason`, `transparencyLogIndex` and `revokedByKeyId`, and the schema allows no others. The example entry in §8.1 is 227 bytes as compact JSON, so with DIDs and reasons of that length each entry is roughly 227 bytes and one million revocations is about 227 MB before compression. Compressed and CDN cached, a single CRL serves the entire ecosystem, and a verifier that already holds it asks only for the revocations after its `nextSince` cursor.
 
 Delta CRLs are much smaller. A delta from STH N to STH N+1 covers approximately 5 minutes of revocations, typically a few KB.
 
@@ -175,7 +175,7 @@ Issuing node (canonical)
       -> Verifiers (local cache, 5 minute TTL)
 ```
 
-A verifier that loses network access continues using its cached CRL until the cache expires. The cache is signed, so a stale CRL cannot be tampered with. The verifier still rejects revoked credentials that were on the CRL when the cache was last refreshed.
+A verifier that loses network access continues using its cached CRL until the cache expires. The verifier still rejects revoked credentials that were on the CRL when the cache was last refreshed. The CRL itself carries no signature in ATP 1.0: the §8.1 response has no member for one and allows no additional members. Its authenticity rides on the transport, which authenticates whichever server the verifier fetched it from (the issuing node, a CDN edge or a federation mirror), and on each entry's `transparencyLogIndex`, which names the log entry that records the revocation so a verifier can ask for its inclusion proof. A server on that path can still drop an entry without the list showing it; a verifier that needs to rule that out compares the list with the REVOCATION entries in the transparency log. A signed revocation list is ATP 1.1 work (`core.md` §2 item 5).
 
 ---
 
@@ -191,7 +191,7 @@ In a mature federation:
 * Each sovereign node handles its jurisdiction's agents.
 * The root node (OpenA2A) handles community packages and cross node cosignatures.
 
-The root node's load is bounded by the rate of cross node trust level 4 requests, not the total agent population. If 1 percent of interactions require root cosignature, the root node handles 1 percent of the global verification load. The other 99 percent is fully local.
+The root node's load is bounded by the rate at which credentials that need its cosignature are issued, not by the total agent population or the number of interactions. The root cosigns at issuance, once per credential, and is never on the verification path (core.md §9). Every interaction, cross node ones included, is verified fully locally.
 
 ### 7.2 Why federation improves scalability
 
@@ -202,7 +202,7 @@ Naive intuition says federation adds coordination overhead. The opposite is true
 * **Failures are isolated.** A node going down affects only its own population.
 * **Updates are decoupled.** Each node updates its software on its own cadence.
 
-The cost of federation is the bilateral cosignature for cross node interactions. The cosignature is one Ed25519 signature plus one DID document lookup. Sub 5 ms. Compared to a database query that fans out across the entire ecosystem, federation is cheaper at every meaningful scale.
+The cost of federation is the bilateral cosignature, made once at issuance and checked locally on each cross node interaction. The cosignature is one Ed25519 signature plus one DID document lookup. Sub 5 ms. Compared to a database query that fans out across the entire ecosystem, federation is cheaper at every meaningful scale.
 
 ---
 

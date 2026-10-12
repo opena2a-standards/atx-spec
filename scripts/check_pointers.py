@@ -18,11 +18,18 @@ list item runs to the next blank line or the next list item, numbered or not.
 References may wrap across lines, since Markdown renders a soft line break as a
 space. Each failure is reported as file:line with its rule in brackets.
 
+The forge lab at specs.opena2a.org/lab/forge signs a simplified object of its
+own, not the JCS(TBS) of core.md §1.3a.2, and that object does not validate
+against the credential schema. Until the lab verifies a real credential, every
+sentence that names the lab, in a Markdown file outside CHANGELOG.md and
+errata/, says that what it signs is not an ATX credential, so a reader does not
+take its verdicts for conformance results.
+
     python3 scripts/check_pointers.py [--root <tree>]
 
-Exit 0 when every section carries its references, 1 otherwise. A document or
-opening line that is missing also fails, so a renamed section cannot pass
-vacuously.
+Exit 0 when every section carries its references and every sentence naming the
+forge lab carries its caveat, 1 otherwise. A document or opening line that is
+missing also fails, so a renamed section cannot pass vacuously.
 """
 
 import argparse
@@ -43,6 +50,11 @@ POINTERS = [
     ("core.md", "* **ATX is not a runtime authorization system.**", (AUTHORIZATION,)),
     ("README.md", "### An auditor asks what each agent was allowed to attempt", (AUTHORIZATION,)),
 ]
+
+LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
+LAB_CAVEAT = "not an ATX credential"
+HISTORY = {"CHANGELOG.md"}
+HISTORY_DIRS = {"errata"}
 
 HEADING_RE = re.compile(r"^(#+)\s")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
@@ -97,6 +109,81 @@ def check(root):
     return failures
 
 
+def markdown_files(root):
+    """Every *.md under root, skipping hidden directories and history, in a stable order."""
+    found = []
+    for path in sorted(root.rglob("*.md")):
+        rel = path.relative_to(root)
+        if any(part.startswith(".") for part in rel.parts[:-1]):
+            continue
+        if "node_modules" in rel.parts:
+            continue
+        if rel.as_posix() in HISTORY or (len(rel.parts) > 1 and rel.parts[0] in HISTORY_DIRS):
+            continue
+        found.append(path)
+    return found
+
+
+def blocks(lines):
+    """(first line number, text) per paragraph, heading or list item.
+
+    Continuation lines join their block with a newline, so a sentence may wrap
+    across a soft line break and still report the line its mention sits on.
+    """
+    out = []
+    start, buf = None, []
+    for number, line in enumerate(lines, 1):
+        if not line.strip() or HEADING_RE.match(line) or ITEM_RE.match(line.lstrip()):
+            if buf:
+                out.append((start, "\n".join(buf)))
+            start, buf = None, []
+            if not line.strip():
+                continue
+        if start is None:
+            start = number
+        buf.append(line)
+    if buf:
+        out.append((start, "\n".join(buf)))
+    return out
+
+
+def sentences(text):
+    """(offset, sentence) pairs."""
+    pos = 0
+    for m in SENTENCE_END_RE.finditer(text):
+        yield pos, text[pos:m.start()]
+        pos = m.end()
+    if pos < len(text):
+        yield pos, text[pos:]
+
+
+def check_lab(root):
+    """Failures, and how many sentences name the forge lab."""
+    failures, mentions = [], 0
+    for path in markdown_files(root):
+        rel = path.relative_to(root).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            failures.append(f"{rel} [lab] not UTF-8 ({exc.reason} at byte {exc.start})")
+            continue
+        for start, block in blocks(text.splitlines()):
+            for offset, sentence in sentences(block):
+                mention = LAB_RE.search(sentence)
+                if not mention:
+                    continue
+                mentions += 1
+                if LAB_CAVEAT in " ".join(sentence.split()):
+                    continue
+                line = start + block.count("\n", 0, offset + mention.start())
+                failures.append(
+                    f"{rel}:{line} [lab] a sentence names the forge lab without saying that "
+                    f"what it signs is {LAB_CAVEAT!r}: {' '.join(sentence.split())[:100]!r}; "
+                    f"the lab does not verify JCS(TBS) of a real credential, so say so"
+                )
+    return failures, mentions
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=str(ROOT), help="tree to check (default: this repository)")
@@ -104,13 +191,22 @@ def main():
     root = pathlib.Path(args.root).resolve()
 
     failures = check(root)
+    lab_failures, lab_mentions = check_lab(root)
+    failures += lab_failures
     if failures:
-        print("sections do not name where what they describe is specified:\n", file=sys.stderr)
+        print(
+            "sections do not name where what they describe is specified, "
+            "or a sentence overstates the forge lab:\n",
+            file=sys.stderr,
+        )
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print(f"pointers ok: {len(POINTERS)} section(s) name where what they describe is specified")
+    print(
+        f"pointers ok: {len(POINTERS)} section(s) name where what they describe is specified; "
+        f"{lab_mentions} sentence(s) naming the forge lab say it signs {LAB_CAVEAT!r}"
+    )
     return 0
 
 
