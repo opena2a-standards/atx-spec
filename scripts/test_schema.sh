@@ -72,11 +72,10 @@ expect_invalid() {  # expect_invalid <leaf name> <member> <value> <JSON path of 
 expect_valid "the section 1.1 example without techniques is valid" techniques absent
 expect_valid "techniques carrying two technique IDs is valid" techniques '["T-4001", "T-5004"]'
 expect_valid "an empty techniques array is valid on the wire" techniques '[]'
+expect_valid "techniques as null is valid on the wire" techniques 'null'
 
 expect_invalid "techniques as a string is rejected" \
     techniques '"T-4001"' '$.scanSummary.techniques'
-expect_invalid "techniques as null is rejected" \
-    techniques 'null' '$.scanSummary.techniques'
 expect_invalid "a technique ID listed twice is rejected" \
     techniques '["T-4001", "T-4001"]' '$.scanSummary.techniques'
 expect_invalid "a technique ID with three digits is rejected" \

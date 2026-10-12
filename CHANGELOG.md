@@ -14,7 +14,8 @@ identifier registered in `core.md` §14.
   (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
   results embedded in ATX reference those IDs, but the credential had no member to carry them
   and the schema's `scanSummary` admitted exactly its six members. The schema adds the member as
-  an array of unique `T-NNNN` strings. Section 1.3a.2 rule 6 signs it under 1.1 in the pattern
+  an array of unique `T-NNNN` strings, and accepts `null` for it, which rule 6 treats as absent,
+  as it accepts a `null` `declaredPurpose`. Section 1.3a.2 rule 6 signs it under 1.1 in the pattern
   rule 5 set for `declaredPurpose`: an absent, `null` or empty array is omitted from the TBS
   `scanSummary`, so every credential without it keeps its exact signed bytes and every pinned
   vector and signature stays valid, and any other present value is signed verbatim in wire
@@ -24,7 +25,7 @@ identifier registered in `core.md` §14.
   atx-conformance and are not part of this change.
 - `scripts/test_schema.sh`: takes the section 1.1 example, sets one `scanSummary` member, and
   asserts the schema accepts it or rejects it at the expected JSON path. It covers
-  `scanSummary.techniques` (two IDs and an empty array accepted; a string, `null`, a repeated ID
+  `scanSummary.techniques` (two IDs, an empty array and `null` accepted; a string, a repeated ID
   and malformed IDs rejected) and a member the schema does not define. It needs python3 and
   `jsonschema` and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
