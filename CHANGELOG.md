@@ -93,8 +93,10 @@ identifier registered in `core.md` §14.
   vacuously. The check needs only python3 and is not yet run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
-  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one. Failures are
-  reported as file and line. The check needs only python3 and is not yet run by CI.
+  the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
+  name `agentId` and then the CRL or the revocation list, because each entry in that response
+  names the revoked agent by `agentDid` and carries no `agentId`. Failures are reported as file
+  and line. The check needs only python3 and is not yet run by CI.
 - `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
   asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
   it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
@@ -132,6 +134,13 @@ identifier registered in `core.md` §14.
   an issuer that recorded no inclusion omits `transparencyLogIndex`, which read as permitting
   issuance without logging: omitting the field does not exempt the issuance from being logged
   before it takes effect. No BCP 14 statement is added or removed by these corrections.
+- Section 1.3 step 6 and section 3.2 step 6 check `agentDid` against the cached revocation list,
+  the key each ATP-SPEC v1.0.0-rc1 §8.1 entry carries. Both said `agentId`, which no entry in
+  that list has. Section 1.3 step 6 also says the issuance envelope's `revoked` field is outside
+  the signed bytes and does not stand in for the list check. Section 12, Coverage, and the
+  `README.md` revocation use case say that no conformance fixture yet rejects an agent on list
+  membership alone: the revocation fixture also carries `revoked: true`, so a verifier that never
+  reads the list still rejects it. No BCP 14 statement changes.
 - Section 1.3 and section 3.2 step 8 state the verification totals the rest of the repository
   states: under 5 ms on a warm cache, including the ML-DSA-65 verification that the family
   signature gate requires of a hybrid credential, and under 50 ms on a cold cache, which adds one

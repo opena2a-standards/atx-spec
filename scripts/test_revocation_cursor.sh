@@ -42,16 +42,16 @@ new_tree() {  # new_tree <name> -> path to an empty scratch tree
     printf '%s' "$TMP/$1"
 }
 
-expect_fail() {  # expect_fail <leaf name> <root> <file:line>
-    local name="$1" root="$2" where="$3" rc
+expect_fail() {  # expect_fail <leaf name> <root> <file:line> [rule, default crl-version]
+    local name="$1" root="$2" where="$3" rule="${4:-crl-version}" rc
     run_check "$root"
     rc=$?
     if [ "$rc" -ne 1 ]; then
         not_ok "$name" "expected exit 1, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
         return
     fi
-    if ! grep -qF -- "$where [crl-version]" "$OUT"; then
-        not_ok "$name" "exit 1 but '$where [crl-version]' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
+    if ! grep -qF -- "$where [$rule]" "$OUT"; then
+        not_ok "$name" "exit 1 but '$where [$rule]' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
         return
     fi
     ok "$name"
@@ -118,6 +118,41 @@ mkdir -p "$T/.suite"
 printf 'Clean.\n' > "$T/README.md"
 printf 'The CRL version advances.\n' > "$T/.suite/README.md"
 expect_pass "hidden directories such as a suite checkout are not checked" "$T"
+
+# --- crl-key ----------------------------------------------------------------
+
+T="$(new_tree key-step)"
+cat > "$T/core.md" <<'EOF'
+### 1.3 Local verification algorithm
+
+5. Verify every remaining declared signature.
+6. Check agentId against locally cached CRL. If listed, reject.
+EOF
+expect_fail "a verification step that looks agentId up in the CRL fails" "$T" "core.md:4" crl-key
+
+T="$(new_tree key-wrapped)"
+printf 'Intro.\n\nThe verifier matches the `agentId` of the credential\nagainst the cached Revocation-List entries.\n' > "$T/scalability.md"
+expect_fail "agentId and the revocation list split by a soft line break fail, in any case" \
+    "$T" "scalability.md:3" crl-key
+
+T="$(new_tree key-did)"
+printf '6. Check `agentDid` against the locally cached CRL (ATP-SPEC v1.0.0-rc1 §8.1). If listed, reject.\n' > "$T/core.md"
+expect_pass "looking agentDid up in the CRL passes" "$T"
+
+T="$(new_tree key-other-sentence)"
+printf 'An SSE event names this agentId. Verifiers detect it on their next CRL refresh.\n\nThe agentId field\n\nis unrelated to the revocation list.\n' > "$T/core.md"
+expect_pass "agentId in one sentence and the list in the next, or past a blank line, passes" "$T"
+
+T="$(new_tree key-list-first)"
+printf 'A full CRL listing every revoked agentId is small.\n' > "$T/scalability.md"
+expect_pass "the list named before agentId is not a lookup of agentId" "$T"
+
+T="$(new_tree key-history)"
+mkdir -p "$T/errata"
+printf 'Clean.\n' > "$T/core.md"
+printf -- '- Step 6 no longer says Check agentId against locally cached CRL.\n' > "$T/CHANGELOG.md"
+printf 'oldText: |\n  6. Check agentId against locally cached CRL.\n' > "$T/errata/ATX-E-0001.md"
+expect_pass "CHANGELOG.md and errata quoting the old lookup are not checked" "$T"
 
 # --- vacuous pass -----------------------------------------------------------
 

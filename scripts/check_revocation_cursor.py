@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert the specification text names no revocation list version counter.
+"""Assert the specification text asks nothing of the revocation list it cannot carry.
 
 ATP-SPEC v1.0.0-rc1 section 8.1 defines the revocation response as
 { "revocations": [...], "nextSince": "<RFC 3339>" } with additionalProperties
@@ -7,15 +7,23 @@ false at both levels. A conforming implementation has nowhere to carry a
 version number for its revocation list; the cursor that advances when a
 revocation is added is nextSince. Text in this repository that has a node
 increment, publish or compare a CRL version therefore asks for something the
-wire cannot express.
+wire cannot express. Each entry in that response names the revoked agent by
+agentDid and carries no agentId, so a verifier told to look an agentId up in
+the list has no member to match it against.
 
-One rule, checked over every Markdown file in the tree (hidden directories such
-as .git and a CI checkout of the conformance suite are skipped):
+Two rules, checked over every Markdown file in the tree (hidden directories
+such as .git and a CI checkout of the conformance suite are skipped):
 
   crl-version   "CRL version" and "revocation list version" do not appear, in
                 any case. The phrase may wrap across lines, since Markdown
                 renders a soft line break as a space. Text that needs the
                 revocation cursor names nextSince and cites ATP section 8.1.
+
+  crl-key       No sentence names agentId and then the CRL or the revocation
+                list, which is how a lookup of agentId in the list reads
+                ("Check agentId against locally cached CRL"). The sentence may
+                wrap across lines but not across a blank line. Text that looks
+                an agent up in the list names agentDid.
 
 CHANGELOG.md and errata/ are not checked: they record what earlier text said,
 and an erratum quotes the published text verbatim by design.
@@ -35,6 +43,12 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 VERSION_RE = re.compile(r"\b(?:CRL|revocation[\s-]+list)\s+version\b", re.IGNORECASE)
+# agentId, then the list later in the same sentence: no sentence end (., ! or ?
+# before whitespace) and no blank line between them.
+KEY_RE = re.compile(
+    r"\bagentId\b(?:(?![.!?](?:\s|$))(?!\n[ \t]*\n)[\s\S])*?"
+    r"\b(?i:CRL|revocation[\s-]+list)\b"
+)
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -59,12 +73,19 @@ def line_of(text, offset):
 
 
 def check_file(rel, text):
-    return [
+    failures = [
         f"{rel}:{line_of(text, m.start())} [crl-version] {' '.join(m.group(0).split())!r} "
         f"cannot be carried by the ATP section 8.1 revocation response; name the "
         f"nextSince cursor instead"
         for m in VERSION_RE.finditer(text)
     ]
+    failures.extend(
+        f"{rel}:{line_of(text, m.start())} [crl-key] agentId is looked up in the revocation "
+        f"list, whose ATP section 8.1 entries carry agentDid and no agentId; name agentDid "
+        f"instead"
+        for m in KEY_RE.finditer(text)
+    )
+    return failures
 
 
 def main():
@@ -83,12 +104,15 @@ def main():
         failures.extend(check_file(path.relative_to(root).as_posix(), path.read_text(encoding="utf-8")))
 
     if failures:
-        print("revocation text names a version the wire cannot carry:\n", file=sys.stderr)
+        print("revocation text asks for something the wire cannot carry:\n", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print(f"revocation cursor ok: {len(files)} Markdown file(s) checked, none names a CRL version")
+    print(
+        f"revocation cursor ok: {len(files)} Markdown file(s) checked, none names a CRL version "
+        f"or looks agentId up in the revocation list"
+    )
     return 0
 
 
