@@ -205,6 +205,11 @@ identifier registered in `core.md` §14.
   Ed25519 signatures only, where four fixtures now carry an ML-DSA-65 signature, one of them
   with no Ed25519 signature. All of those follow the suite, and both fixtures join both fixture
   enumerations. No normative text changes.
+- `core.md` §1.3 step 2: an ATX is expired at the earlier of `expiresAt` and `issuedAt` plus the
+  seven-day credential TTL of §1.2, and is not yet valid while `issuedAt` is in the future; §12
+  adds the matching issuer duty and lists both checks among the requirements no conformance
+  fixture exercises yet. (#48)
+
 - `scalability.md` §6.2 and §6.3 describe the revocation list ATP-SPEC v1.0.0-rc1 §8.1 defines.
   §6.3 said the cached CRL is signed so that a stale one cannot be tampered with, but the §8.1
   response has no member for a signature and allows no additional members, and `core.md` §2
