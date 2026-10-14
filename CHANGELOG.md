@@ -189,6 +189,23 @@ identifier registered in `core.md` §14.
   missing Coverage paragraph, `conformance.json` or `notCovered` list. The tests build the
   failing shapes in scratch trees and also run against a real suite checkout when
   `ATX_CONFORMANCE_SUITE` names one. The check needs only python3 and is not yet run by CI.
+- `core.md` §1.3 step 5 defines the threshold a verifier checks for a threshold key set held by
+  one authority: n keys that each produce their own signature, of which at least m sign. The
+  member keys and m are the ones the authority's DID document declares, as resolved in step 3,
+  never a threshold the credential states or the number of signatures it carries. Once a
+  signature has verified under a member key, the verifier MUST reject the credential unless
+  signatures under at least m distinct member keys have verified, so a credential that carries
+  one of the three signatures of a two-of-three set is rejected although that one verifies. A
+  threshold scheme whose shares combine into one signature under one key is outside the rule.
+  Step 7 still counts the set as one authority. Section 3.1 step 8 and `sovereign-federation.md`
+  §2.3 name the step. Section 12 lists the threshold among the requirements no fixture
+  exercises, and an implementation self-attests it until one does. A credential that carries
+  signatures from at least m member keys verifies as before. The rejecting one-of-three fixture
+  and the reference verifier checks belong in atx-conformance and are not part of this change.
+- `scripts/check_pointers.py` + `scripts/test_pointers.sh`: `core.md` §3.1 step 8,
+  `sovereign-federation.md` §2.3 and the fixture paragraph of `docs/conformance.md` each describe
+  threshold signing or the suite's threshold fixture, and each must cite §1.3 step 5, where the
+  verifier checks the threshold. Without the pointer, "2 of 3" reads as a threshold someone checks.
 
 ### Changed
 
@@ -308,6 +325,17 @@ identifier registered in `core.md` §14.
   capabilities; both now say `capabilities` are what the build is attested to be able to do, not
   permission, and that whether an agent may act is a broker policy decision under AAP. No BCP 14
   statement is added or removed.
+- `docs/conformance.md` no longer describes the conformance suite's threshold fixture as a 2-of-3
+  threshold cosignature. The fixture carries three signatures from one authority's threshold key
+  set and every one of them verifies, so it pins that each declared signature verifies and not
+  the threshold of `core.md` §1.3 step 5. §12 Coverage names that threshold among the
+  requirements no fixture exercises, beside the threshold issuance of §3.1 step 8, and corrects
+  two statements about the suite. The fixtures do not all assert `trustLevel` 4: every one but
+  `wrong-issuer`, which asserts 1, does. The `conformance.json` profile does name the requirement
+  each fixture exercises, in each entry's `requirement` member, and its entries do not all cite
+  the same specification sections: they draw their `specRefs` from a few lists that several
+  entries share, so an entry's `specRefs` name an area of `core.md`, not the requirement its
+  fixture pins.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a

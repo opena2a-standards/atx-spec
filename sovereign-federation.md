@@ -68,7 +68,7 @@ Sovereign signing keys must be controlled by the sovereign. Three patterns are v
 | Sovereign cloud HSM | Keys in cloud HSM under sovereign cloud account | Regulated industry, allied nation |
 | Shared custody | Threshold split between sovereign and external party | Bilateral consortium, regional bloc |
 
-Threshold signing means that no single HSM holds the full signing capability. The sovereign defines the threshold (typically 2 of 3 or 3 of 5). Compromise of any single HSM does not compromise the sovereign's ability to sign.
+Threshold signing means that no single HSM holds the full signing capability. The sovereign defines the threshold (typically 2 of 3 or 3 of 5). Compromise of any single HSM does not compromise the sovereign's ability to sign. Where each HSM's key produces its own signature, the sovereign's DID document declares the key set and its threshold, and a verifier rejects a credential that carries verifying signatures from fewer of those keys than the threshold ([core.md §1.3 step 5](core.md#13-local-verification-algorithm)).
 
 ### 2.4 Identity binding to the sovereign
 

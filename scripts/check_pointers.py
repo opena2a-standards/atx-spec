@@ -22,6 +22,13 @@ rules or tests. A count restated here
 drifts when the project ships; 209 static checks and an 8 factor trust score
 stood in the map while the sources said 317 and 9.
 
+Whether a credential carries enough signatures from a threshold key set is
+checked by the verifier in core.md section 1.3 step 5. Every section that
+describes threshold signing names that step, and so does docs/conformance.md's
+description of the conformance suite's threshold fixture: that fixture carries
+every signature of its key set, so it pins that each one verifies and not the
+threshold, and a "2 of 3" with no pointer reads as a threshold someone checks.
+
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
 table row is one line. References may wrap across lines, since Markdown renders
@@ -55,6 +62,7 @@ AUTHORIZATION = "AAP"
 HMA_README = "https://github.com/opena2a-org/hackmyagent/blob/main/README.md"
 AIP_TRUST = "AIP §6.1"
 AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
+THRESHOLD = "§1.3 step 5"
 
 HMA_ROW = "| HackMyAgent |"
 AIM_ROW = "| AIM |"
@@ -67,6 +75,9 @@ POINTERS = [
     ("README.md", "### An auditor asks what each agent was allowed to attempt", (AUTHORIZATION,)),
     ("core.md", HMA_ROW, (HMA_README,)),
     ("core.md", AIM_ROW, (AIP_TRUST, AIP_SPEC)),
+    ("core.md", "8. Issuing node constructs ATX.", (THRESHOLD,)),
+    ("docs/conformance.md", "Byte-stable conformance fixtures", (THRESHOLD,)),
+    ("sovereign-federation.md", "Threshold signing means", (THRESHOLD,)),
 ]
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
