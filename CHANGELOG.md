@@ -258,6 +258,15 @@ identifier registered in `core.md` §14.
   scratch trees compared with the previous scripts the output is the same. Each check's test
   script adds a file of repeated failing text, expects it checked within 10 seconds, and checks
   the line reported for its last failure.
+- `core.md` §12 gains an informative paragraph, "Verifier clock", after the conformance suite
+  paragraph. Each fixture carries the verifier's current time in `verifierState.clockRfc3339`,
+  and a verifier under test takes "now" from that member, as both reference verifiers do. Every
+  current fixture pins `2026-05-24T00:00:00Z`, one day after the `issuedAt` of each fixture that
+  pins ACCEPT, so §1.3 step 2, its seven-day bound included, rejects none of them, and a verifier
+  that implements all of step 2 produces every pinned verdict. A verifier that substitutes its
+  own wall clock finds those fixtures expired once seven days have passed since their
+  `issuedAt`, which is a difference of clock, not a conflict between step 2 and the suite. No
+  normative text changes. (#70)
 - `sovereign-federation.md` §3.2 places cosigning at issuance, as `core.md` §7 does. It said
   "Cosignature path established" for an allowed issuer; verification now proceeds locally over
   the signatures the credential already carries, including any cosignature, which was made at
