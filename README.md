@@ -6,6 +6,10 @@ Architecture specifications for the **Agent Trust eXtension (ATX)** credential f
 
 ATX is a signed, self-contained credential carried by every AI agent. It is analogous to a TLS certificate but contains agent identity, scan results, capabilities, and behavioral profile. Local verification under 5ms. Ed25519 + ML-DSA-65 hybrid signatures mandatory at v1.
 
+## Start here
+
+Read [`core.md`](core.md#13-local-verification-algorithm) first: section 1.3 is the algorithm every verifier runs, and section 1.1 the credential it checks. To check a verifier against the pinned fixtures, run the reference verifier shown under the [first use case](#a-strangers-agent-calls-you-and-you-cannot-phone-home-on-every-request).
+
 ## Use cases
 
 ### A stranger's agent calls you and you cannot phone home on every request
@@ -35,7 +39,7 @@ An ATX lives for 7 days. Renewal runs the build plugin and the scan again, so a 
 
 What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object that is not an ATX credential.
 
-Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. The `fixtures/revoked.json` credential also carries `revoked: true`, a field outside the signed bytes, so a verifier that never reads the revocation list still rejects it; `fixtures/revoked-crl-only.json` carries `revoked: false` with its agent on the verifier's list, so that verifier wrongly accepts it. No fixture exercises the five-minute bound or a request served on a stale list.
+Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. No fixture exercises the five-minute bound or a request served on a stale list. The two revoked fixtures are compared in [`docs/use-cases.md`](docs/use-cases.md).
 
 ### An auditor asks what each agent was allowed to attempt, and what scanned it
 
@@ -47,7 +51,7 @@ What you can do today: `fixtures/v1_1-tampered-capabilities.json`, whose capabil
 
 Where it stops today: capabilities in an ATX describe what the build is attested to be able to do. They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
 
-Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships 25 byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
+Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
 
 ## Contributing
 
@@ -60,16 +64,11 @@ This specification is early and authored in the open. We are looking for co-auth
 | [`core.md`](core.md) | ATX schema and lifecycle, ATP protocol surface (5 planes), local-verify algorithm, federation, transparency log, product integration map |
 | [`scalability.md`](scalability.md) | Scaling properties: revocation propagation, CRL caching, transparency log scaling and monitor cost (the monitor verification cycle is [`core.md`](core.md) §6.4) |
 | [`sovereign-federation.md`](sovereign-federation.md) | Multi-authority cosigning, sovereign-node operation, cross-org trust |
-
-## Status
-
-Architecture specifications, document version 1.2.0-draft (working text; the last final version, 1.1.0-final, is tagged `v1.1.0`). The normative credential wire format is **ATX 1.1** (JCS canonical signing form, [`core.md`](core.md) §1.3a.2) — this is what production issuance emits; ATX 1.0 is frozen legacy with a documented transition rule (§1.3a.5). OpenA2A's issuing node is the OpenA2A Registry service. OpenA2A AIM (Agent Identity Management), at [`opena2a-org/agent-identity-management`](https://github.com/opena2a-org/agent-identity-management), verifies ATX and does not issue it. AIM requests ATX from the Registry for the agents registered with it. Changes are tracked in [`CHANGELOG.md`](CHANGELOG.md).
-
-ATX/ATP/AIP cross-reference: see [`opena2a-standards/agent-trust-protocol`](https://github.com/opena2a-standards/agent-trust-protocol) for the ATP wire protocol spec and [`opena2a-standards/agent-identity-protocol`](https://github.com/opena2a-standards/agent-identity-protocol) for the AIP identity spec.
+| [`docs/status.md`](docs/status.md) | Document version, the normative wire format, which OpenA2A service issues ATX and which verifies it, the ATP and AIP specifications |
 
 ## Conformance
 
-Byte-stable conformance fixtures and SDK-independent reference verifiers for ATX v1.0 and v1.1 live at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance). The suite ships 25 fixtures — the v1.0 set (baseline valid, hybrid Ed25519 plus ML-DSA-65, threshold 2-of-3 cosignature, revoked, revoked on list membership alone with the credential's own `revoked` flag false, expired, wrong-issuer, cross-issuer-key, tampered-signature, malformed-schema) plus the `v1_1-*` family (JCS-form baselines, signed-field integrity via tampered `capabilities`, issuer binding, an untrusted chain authority that contributes no eligible key even when named in the signed `issuerChain`, `declaredPurpose` carried under the signature, the §1.3a.2 rule-5 degenerate inputs — whitespace-empty object accepted as absent, injected array/string values rejected — and strict credential parse: duplicate object members rejected at any depth per RFC 8259 §4, and case-variant members that a last-wins JSON decoder would collapse rejected as `PARSE_ERROR`, and a hybrid credential whose ML-DSA-65 signature is forged while its Ed25519 signature stays intact, which every declared signature having to verify rejects, a hybrid credential carrying one ML-DSA-65 signature that verifies and no Ed25519 signature, which `core.md` §13 rejects because an ML-DSA-65 entry needs a verifying Ed25519 entry beside it, and a credential omitting the optional `transparencyLogIndex`, which a verifier that still requires the field wrongly rejects) — each pinned by SHA-256 in `MANIFEST.sha256`, plus two reference verifiers that each verify both declared signature suites: Go (via Cloudflare CIRCL) and Python (via `dilithium-py`, FIPS 204). Both verifiers report 25 of 25 PASS against the shipped fixture set, and the suite's `jcs-vectors/` gate pins the cross-language `JCS(TBS)` byte agreement that [`core.md`](core.md) §1.3a.3 makes mandatory. Conformance targets (credential, issuer, verifier) are defined in [`core.md`](core.md) §12. The credential wire shape is additionally published as a machine-readable JSON Schema at [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json), CI-validated against the §1.1 example here and against the fixture set in the conformance suite.
+Byte-stable conformance fixtures and SDK-independent reference verifiers live at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance). Conformance targets (credential, issuer, verifier) are defined in [`core.md`](core.md) §12. [`docs/conformance.md`](docs/conformance.md) lists what the fixtures cover, the two reference verifiers and the JSON Schema of the credential wire shape.
 
 To report a second-party implementation of ATX issuance or verification, open an issue on this repository.
 

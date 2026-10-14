@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Assert the conformance-suite fixture counts stated here match the suite.
 
-README.md and core.md (section 12) both state how many fixtures the
-atx-conformance suite ships, and both restate the pass count the reference
-verifiers report. Those are measurements taken in another repository, so they
-are checked here rather than maintained by hand: the count drifted to 18 while
-the suite shipped 20 and nothing caught it.
+README.md, docs/conformance.md and core.md (section 12) each state how many
+fixtures the atx-conformance suite ships, and docs/conformance.md restates the
+pass count the reference verifiers report. Those are measurements taken in
+another repository, so they are checked here rather than maintained by hand:
+the count drifted to 18 while the suite shipped 20 and nothing caught it.
 
 This repository does not contain the fixtures, so the suite is supplied by the
 caller:
@@ -28,7 +28,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # Files that state a fixture count, and a human pointer to where.
 CLAIM_FILES = {
-    "README.md": "the conformance-suite paragraph",
+    "README.md": "the reference verifier's summary line under the first use case",
+    "docs/conformance.md": "the conformance-suite paragraph",
     "core.md": "section 12, Conformance",
 }
 
