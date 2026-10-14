@@ -47,7 +47,7 @@ What you can do today: `fixtures/v1_1-tampered-capabilities.json`, whose capabil
 
 Where it stops today: capabilities in an ATX describe what the build is attested to be able to do. They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
 
-Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships 23 byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
+Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships 25 byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
 
 ## Contributing
 

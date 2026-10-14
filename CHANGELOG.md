@@ -189,9 +189,12 @@ identifier registered in `core.md` §14.
   has a fixture of its own and a verifier that never reads the list fails it, and
   `fixtures/v1_1-hybrid-pq-only.json`, a MUST-REJECT v1.1 credential carrying one ML-DSA-65
   signature that verifies and no Ed25519 signature, which §13 rejects. `README.md` carried
-  "23 fixtures", "23 of 23 PASS" and the verifier's summary line for 23, and said no fixture yet
-  rejects an agent on list membership alone; §12 carried "23 fixtures" and said step 6 has no
-  fixture of its own. All of those follow the suite, and both fixtures join both fixture
+  "23 fixtures", "23 of 23 PASS", the verifier's summary line for 23 and, in its "Why you can
+  check this yourself" paragraph, "ships 23 byte-pinned fixtures", and said no fixture yet
+  rejects an agent on list membership alone; §12 carried "23 fixtures", said step 6 has no
+  fixture of its own, and in its Issuer paragraph said all but the three hybrid fixtures carry
+  Ed25519 signatures only, where four fixtures now carry an ML-DSA-65 signature, one of them
+  with no Ed25519 signature. All of those follow the suite, and both fixtures join both fixture
   enumerations. No normative text changes.
 - `scalability.md` §6.2 and §6.3 describe the revocation list ATP-SPEC v1.0.0-rc1 §8.1 defines.
   §6.3 said the cached CRL is signed so that a stale one cannot be tampered with, but the §8.1
