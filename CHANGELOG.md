@@ -183,6 +183,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **25** fixtures. atx-conformance added
+  `fixtures/revoked-crl-only.json`, a MUST-REJECT v1.0 credential whose own `revoked` flag is
+  false and whose agent is on the verifier's revocation list, so the §1.3 step 6 list check now
+  has a fixture of its own and a verifier that never reads the list fails it, and
+  `fixtures/v1_1-hybrid-pq-only.json`, a MUST-REJECT v1.1 credential carrying one ML-DSA-65
+  signature that verifies and no Ed25519 signature, which §13 rejects. `README.md` carried
+  "23 fixtures", "23 of 23 PASS" and the verifier's summary line for 23, and said no fixture yet
+  rejects an agent on list membership alone; §12 carried "23 fixtures" and said step 6 has no
+  fixture of its own. All of those follow the suite, and both fixtures join both fixture
+  enumerations. No normative text changes.
 - `scalability.md` §6.2 and §6.3 describe the revocation list ATP-SPEC v1.0.0-rc1 §8.1 defines.
   §6.3 said the cached CRL is signed so that a stale one cannot be tampered with, but the §8.1
   response has no member for a signature and allows no additional members, and `core.md` §2
