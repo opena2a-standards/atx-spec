@@ -2,7 +2,9 @@
 
 **How governments and regulated industries stand up their own ATX platform**
 
-Version 1.0. May 2026. This document is the sovereignty companion to the ATX core architecture. It defines how a government, a regulated industry, or any organization with jurisdictional or trust constraints stands up its own ATX issuing node, controls its own trust relationships, and federates selectively with the rest of the ecosystem.
+**Document version:** 1.2.0-draft (working text; the last final version, 1.1.0-final, is tagged v1.1.0)
+
+This document is the sovereignty companion to the ATX core architecture. It defines how a government, a regulated industry, or any organization with jurisdictional or trust constraints stands up its own ATX issuing node, controls its own trust relationships, and federates selectively with the rest of the ecosystem.
 
 The architectural goal: each sovereign decides who it trusts. No central authority can force a relationship. No foreign infrastructure can become the gatekeeper. The system survives any pattern of hostile relationships because federation is opt in at every edge.
 
@@ -97,7 +99,7 @@ A trust list is a sovereign maintained list of other authorities whose ATX crede
 | State | Behavior |
 |---|---|
 | Allowed | ATX issued by this authority is honored at the trust level the credential specifies. |
-| Conditional | ATX is honored but trust level is capped at a sovereign defined ceiling (often level 2 or 3). |
+| Conditional | ATX is honored, and the verifier reports a sovereign defined ceiling (often level 2 or 3) as its own marker beside the signed trust level. The signed level is not rewritten ([core.md §1.3](core.md#13-local-verification-algorithm)); decisions in this jurisdiction act on the lower of the two. |
 | Denied | ATX issued by this authority is never honored. Verification fails regardless of credential validity. |
 
 The trust list is not a global registry. Each sovereign maintains its own. Two sovereigns can have entirely different trust lists. A third sovereign can be on neither list.
@@ -161,7 +163,7 @@ Two recognized sovereigns:
 2. Agent A calls a service in jurisdiction Y.
 3. Verifier in Y looks up did:opena2a:authority:gov.x in Y's trust list. Allowed.
 4. Verifier in Y has gov.x's public key cached. Signature verifies.
-5. ATX accepted at its specified trust level (potentially capped per Y's policy).
+5. ATX accepted at its signed trust level. A ceiling in Y's policy is reported beside that level, which stays as signed ([§3.1](#31-trust-list-semantics)).
 
 No external arbiter is involved. The two sovereigns have a bilateral agreement. The cryptographic verification confirms the agreement is being honored.
 
@@ -192,11 +194,11 @@ Two sovereigns with a hostile relationship:
 
 The credential may be cryptographically valid. The signature may verify. The transparency log may show the issuance is real. None of that matters. The trust list is the gate, and the trust list says no.
 
-### 4.4 Trust level downgrade across borders
+### 4.4 Trust level ceilings across borders
 
-A common pattern: honor the credential but cap the trust level when it comes from outside the jurisdiction.
+A common pattern: honor the credential but hold it to a ceiling when it comes from outside the jurisdiction.
 
-Example: UK sovereign accepts US sovereign ATX at full trust level for read operations and capped trust level for write operations. The conditional state in the trust list encodes this. The credential is honored. The capabilities the credential authorizes are constrained at the verifier.
+Example: UK sovereign accepts US sovereign ATX at its signed trust level for read operations and under a lower ceiling for write operations. The conditional state in the trust list encodes this. The credential is honored and its `trustLevel` stays as signed: a verifier does not lower it, because that would assert a level no issuer signed ([core.md §1.3](core.md#13-local-verification-algorithm)). The verifier reports the ceiling as its own marker beside the signed level, and policy in the UK acts on the lower of the two. The credential's `capabilities` are what its build is attested to be able to do, not permission: whether the agent may perform a write in the UK is a broker policy decision under AAP, the authorization layer ([core.md §1.5](core.md#15-declared-purpose-optional)).
 
 This is the mechanism that lets a sovereign say: I trust you, but not as much as I trust myself. It is a generalization of the "external" versus "internal" boundary that most enterprises already enforce informally.
 
@@ -310,7 +312,7 @@ The Act distinguishes high risk, limited risk, and minimal risk AI systems. ATX 
 | Data and data governance | Build attestation includes data source declarations |
 | Technical documentation | The ATX itself is technical documentation, signed and timestamped |
 | Record keeping | Transparency log provides immutable record |
-| Human oversight | AIM capability grants in the ATX show human authorized capabilities |
+| Human oversight | `capabilities` in the ATX, signed under ATX 1.1, show a human reviewer what the build is attested to be able to do. They are not permission: whether an agent may touch a resource is a broker policy decision under AAP ([core.md §1.5](core.md#15-declared-purpose-optional)) |
 | Accuracy, robustness, cybersecurity | HMA scan results in scanSummary |
 
 A sovereign node operated by an EU member state issues ATX that is automatically EU AI Act compliant evidence.
