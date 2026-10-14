@@ -492,7 +492,7 @@ Total time under 90 seconds. The developer merges a PR and the agent has a fresh
 This flow has zero issuing node involvement. It runs thousands of times per second across the ecosystem.
 
 1. Verifier receives request. Extracts Agent-Trust-Credential header or the atx field from an A2A agent card or MCP manifest.
-2. Parse ATX. Check atcVersion is supported. Check expiresAt is in the future. Under 0.1ms.
+2. Parse ATX. Check atcVersion is supported. Check the validity window of §1.3 step 2 against the verifier's clock: the ATX is expired at the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL of §1.2, and it is not yet valid while `issuedAt` is in the future, both within the family clock-skew bound of ATP §10.2. Reject an expired or not-yet-valid ATX. Under 0.1ms.
 3. Look up issuerDid in local DID document cache. TTL one hour. Cache hit proceeds. Cache miss does a single fetch and caches the result. Under 1ms on hit.
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
 5. Verify the ML-DSA-65 signature, which every credential carries beside the Ed25519 one (§1.1). About 3ms.

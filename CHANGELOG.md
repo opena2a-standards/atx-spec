@@ -10,6 +10,13 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_validity_window.py` + `scripts/test_validity_window.sh`: a paragraph, list item,
+  heading or table cell in a Markdown file outside `CHANGELOG.md` and `errata/` that names
+  `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
+  names `issuedAt`, because `core.md` §1.3 step 2 bounds an ATX by both. A list item does not
+  borrow `issuedAt` from the next item, a nested item, the next paragraph or another table cell.
+  Failures are reported as file and line, and a file that is not UTF-8 is reported as a failure.
+  The check needs only python3 and is not yet run by CI.
 - `scripts/test_conformance_counts.sh`: builds scratch trees and scratch suites of a known size
   and asserts that `scripts/check_conformance_counts.py` fails a stale count in each phrasing it
   reads, naming the file and line, and that `README.md`, `docs/conformance.md` and `core.md` agree
@@ -214,6 +221,12 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §3.2 step 2 checks the validity window of §1.3 step 2. It said "Check expiresAt is in
+  the future", which passes a credential whose `issuedAt` is in the future, or whose `expiresAt`
+  lies past `issuedAt` plus the seven-day credential TTL, while that `expiresAt` is still ahead.
+  It now says the ATX is expired at the earlier of `expiresAt` and `issuedAt` plus that TTL and
+  is not yet valid while `issuedAt` is in the future, both within the family clock-skew bound of
+  ATP §10.2, as §1.3 step 2 does. (#69)
 - `sovereign-federation.md` §3.2 places cosigning at issuance, as `core.md` §7 does. It said
   "Cosignature path established" for an allowed issuer; verification now proceeds locally over
   the signatures the credential already carries, including any cosignature, which was made at
