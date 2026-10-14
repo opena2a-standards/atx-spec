@@ -78,10 +78,13 @@ expect_pass() {  # expect_pass <leaf name> <root>
 #            [<section 1.5 text>] [<section 10 authorization bullet text>]
 #            [<section 8 HackMyAgent row text>] [<section 8 AIM row text>]
 #            [<section 8 Build plugin row text>]
-# Sections 1.5, 10 and 8 follow section 4 so the line numbers above them stay
-# put; the check finds a section by its opening line, wherever it sits. In the
-# section 8 table the HackMyAgent row is line 36 and the AIM row line 38. A tree
-# with no README.md also gets the default one from write_readme.
+# Sections 1.5, 10, 8 and 3.1 follow section 4 so the line numbers above them
+# stay put; the check finds a section by its opening line, wherever it sits. In
+# the section 8 table the HackMyAgent row is line 36 and the AIM row line 38.
+# Section 3.1 item 8, on line 44, cites the threshold step; a test that needs it
+# bare rewrites that line. A tree with no README.md, docs/conformance.md or
+# sovereign-federation.md also gets the default one from write_readme,
+# write_conformance or write_sovereign.
 write_core() {
     local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
     local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
@@ -128,8 +131,34 @@ $purpose
 | Build plugin | The CA interface | $build |
 | AIM | Identity issuance and runtime enforcement | $aim |
 | CryptoServe | PQC hygiene at issuance | ML-DSA-65 signature on every ATX. OASB levels L1, L2, L3. |
+
+### 3.1 Issuance flow
+
+7. Issuing node verifies attestation signature.
+8. Issuing node constructs ATX. Requests threshold cosignatures from 2 of 3 key holders; a verifier rejects fewer (§1.3 step 5).
+9. Issuing node returns signed ATX.
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
+    [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
+    [ -e "$1/sovereign-federation.md" ] || write_sovereign "$1"
+}
+
+# write_sovereign <root> [<text after the threshold paragraph's first sentence>]
+# Section 2.4 cites the threshold step outside the paragraph, so a paragraph
+# that leaves it out fails on its own.
+write_sovereign() {
+    local rest="${2-A verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5).}"
+    cat > "$1/sovereign-federation.md" <<EOF
+# ATX sovereign federation
+
+### 2.3 Key custody
+
+Threshold signing means that no single HSM holds the full signing capability. $rest
+
+### 2.4 Identity binding to the sovereign
+
+The threshold is checked in core.md §1.3 step 5, cited outside the paragraph.
+EOF
 }
 
 # write_readme <root> [<use case 3 "where it stops" text>]
@@ -154,9 +183,24 @@ AAP is named here too, after use case 3.
 EOF
 }
 
+# write_conformance <root> [<threshold fixture text>]
+# The fixture paragraph is line 3; the next paragraph cites the threshold step
+# outside it, so a paragraph that leaves it out fails on its own.
+write_conformance() {
+    local fixture="${2-three verifying signatures from a threshold key set held by one authority, which pin that each signature verifies and not the threshold of core.md §1.3 step 5.}"
+    mkdir -p "$1/docs"
+    cat > "$1/docs/conformance.md" <<EOF
+# Conformance
+
+Byte-stable conformance fixtures live in atx-conformance: $fixture
+
+Conformance targets are defined in core.md §12, which cites §1.3 step 5 too.
+EOF
+}
+
 # --- the delivered tree -----------------------------------------------------
 
-expect_pass "the repository's own core.md and README.md pass" "$REPO"
+expect_pass "the repository's own core.md, README.md, docs/conformance.md and sovereign-federation.md pass" "$REPO"
 
 # --- pointer ----------------------------------------------------------------
 
@@ -249,8 +293,15 @@ expect_fail "a sentence naming the lab only by name fails" "$T" lab "README.md:1
 T="$(lab_tree lab-caveat-next-sentence "The $LAB runs the same checks in a browser. What it signs is not an ATX credential.")"
 expect_fail "the caveat in the next sentence does not count" "$T" lab "README.md:17"
 
+T="$(lab_tree lab-caveat-words-only "The forge lab runs the conformance checks and rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words describing what the lab rejects, not what it signs, fail" \
+    "$T" lab "README.md:17"
+
 T="$(lab_tree lab-caveat "The $LAB signs a simplified object, not an ATX credential, so its verdicts are not conformance results.")"
 expect_pass "a sentence naming the lab with the caveat passes" "$T"
+
+T="$(lab_tree lab-caveat-relative "The forge lab lets you expire a simplified object it signs, which is not an ATX credential.")"
+expect_pass "a caveat in a relative clause after what the lab signs passes" "$T"
 
 T="$(lab_tree lab-caveat-wrapped "The $LAB signs a simplified object, not an
 ATX credential.")"
@@ -270,6 +321,11 @@ printf '# Changelog\n\nThe forge lab ran the same checks in a browser.\n' > "$T/
 mkdir -p "$T/errata"
 printf 'The forge lab ran the same checks in a browser.\n' > "$T/errata/ATX-E-0001.md"
 expect_pass "CHANGELOG.md and errata/ record history and are not checked" "$T"
+
+T="$(lab_tree lab-hidden-dir "No mention here.")"
+mkdir -p "$T/.suite"
+printf 'The forge lab runs the same checks in a browser.\n' > "$T/.suite/README.md"
+expect_pass "hidden directories such as a CI checkout of the suite are not checked" "$T"
 
 T="$(lab_tree lab-not-utf8 "No mention here.")"
 printf 'The forge lab \377 runs the same checks.\n' > "$T/notes.md"
@@ -329,6 +385,47 @@ write_core "$T" "$ITEM5" "$S33"
 grep -v '^| HackMyAgent |' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
 expect_fail "a map with no HackMyAgent row fails instead of passing vacuously" \
     "$T" pointer "core.md"
+
+# --- threshold ----------------------------------------------------------------
+
+T="$(new_tree issuance-threshold-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^8\. Issuing node constructs ATX\..*$/8. Issuing node constructs ATX. Requests threshold cosignatures from 2 of 3 key holders./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+sed 's/^9\. Issuing node returns signed ATX\.$/9. Issuing node returns signed ATX. The threshold is checked in §1.3 step 5./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "section 3.1 item 8 stating 2 of 3 without the verifier's step fails, even when item 9 cites it" \
+    "$T" pointer "core.md:44"
+
+T="$(new_tree conformance-threshold-fixture-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_conformance "$T" "baseline valid, threshold 2-of-3 cosignature, revoked."
+expect_fail "docs/conformance.md's threshold fixture described as 2-of-3 without the verifier's step fails, even when the next paragraph cites it" \
+    "$T" pointer "docs/conformance.md:3"
+
+T="$(new_tree no-conformance-doc)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+rm "$T/docs/conformance.md"
+expect_fail "a tree with no docs/conformance.md fails instead of passing vacuously" \
+    "$T" pointer "docs/conformance.md"
+
+T="$(new_tree sovereign-threshold-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_sovereign "$T" "The sovereign defines the threshold (typically 2 of 3 or 3 of 5)."
+expect_fail "the sovereign threshold paragraph without the verifier's step fails, even when section 2.4 cites it" \
+    "$T" pointer "sovereign-federation.md:5"
+
+T="$(new_tree sovereign-threshold-wrapped)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_sovereign "$T" "A verifier rejects fewer signatures than the threshold (core.md §1.3
+step 5)."
+expect_pass "the threshold step may wrap across a soft line break" "$T"
+
+T="$(new_tree no-sovereign)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+rm "$T/sovereign-federation.md"
+expect_fail "a tree with no sovereign-federation.md fails instead of passing vacuously" \
+    "$T" pointer "sovereign-federation.md"
 
 # --- vacuous pass -----------------------------------------------------------
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert the specification text describes the revocation list ATP section 8.1 defines.
+"""Assert the specification text describes the revocation list ATP-SPEC v1.0.0-rc1 section 8.1 defines.
 
 ATP-SPEC v1.0.0-rc1 section 8.1 defines the revocation response as
 { "revocations": [...], "nextSince": "<RFC 3339>" }, and its schema
@@ -8,8 +8,11 @@ additionalProperties false at both levels. The body has no member for a
 signature, and core.md section 2 item 5 states that it is not signed in ATP 1.0
 and places a signed revocation list in ATP 1.1. Each entry carries five required
 members: agentDid, revokedAt, reason, transparencyLogIndex and revokedByKeyId.
-EXAMPLE_ENTRY below is the section 8.1 example entry; ENTRY_BYTES is its length
-as compact JSON.
+EXAMPLE_ENTRY below is the section 8.1 example entry of ATP-SPEC v1.0.0-rc1, the
+revision core.md and scalability.md cite; ENTRY_BYTES is its length as compact
+JSON. Other revisions size the entry differently (the 1.1.0 draft's example
+entry is 212 bytes, with a registered reason code and four required members),
+so every message names the revision the figure comes from (SOURCE).
 
 Three rules, checked over every Markdown file in the tree (hidden directories
 such as .git and a CI checkout of the conformance suite are skipped):
@@ -44,6 +47,7 @@ Exit 0 when every file passes, 1 otherwise.
 """
 
 import argparse
+import bisect
 import json
 import pathlib
 import re
@@ -52,6 +56,8 @@ from decimal import Decimal
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+SOURCE = "ATP-SPEC v1.0.0-rc1 section 8.1"
+# Copied by hand from SOURCE; change both together.
 EXAMPLE_ENTRY = {
     "agentDid": "did:opena2a:mcp_server:compromised-package",
     "revokedAt": "2026-03-22T15:00:00Z",
@@ -72,15 +78,20 @@ SIGNED_RE = re.compile(
 )
 LATER_REVISION_RE = re.compile(r"\bATP\s+1\.1\b")
 ENTRY_RE = re.compile(r"\bentry\b|\bentries\b", re.IGNORECASE)
-BYTES_RE = re.compile(r"(?P<n>\d[\d,]*)\s*bytes\b", re.IGNORECASE)
+# A number starts only where a run of digits and commas starts. Without the
+# lookbehind every position inside a long run is tried as a start and each try
+# scans to the end of the run, which takes time quadratic in its length.
+BYTES_RE = re.compile(r"(?<![\d,])(?P<n>\d[\d,]*)\s*bytes\b", re.IGNORECASE)
 SCALES = {"thousand": 10**3, "million": 10**6, "billion": 10**9}
 COUNT_RE = re.compile(
-    r"\b(?:(?P<num>\d[\d,]*(?:\.\d+)?)\s+(?:(?P<scale>thousand|million|billion)\s+)?"
-    r"|(?:one|a)\s+(?P<wscale>thousand|million|billion)\s+)revocations\b",
+    r"(?:(?<![\w,])(?P<num>\d[\d,]*(?:\.\d+)?)\s+(?:(?P<scale>thousand|million|billion)\s+)?"
+    r"|\b(?:one|a)\s+(?P<wscale>thousand|million|billion)\s+)revocations\b",
     re.IGNORECASE,
 )
 UNITS = {"bytes": 1, "kb": 10**3, "mb": 10**6, "gb": 10**9, "tb": 10**12}
-SIZE_RE = re.compile(r"(?P<n>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>bytes|KB|MB|GB|TB)\b", re.IGNORECASE)
+SIZE_RE = re.compile(
+    r"(?<![\d,])(?P<n>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>bytes|KB|MB|GB|TB)\b", re.IGNORECASE
+)
 BLOCK_START_RE = re.compile(r"[ \t]*(?:\||#|[-*+][ \t]|\d+[.)][ \t]|```|~~~)")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 MARKERS = str.maketrans("*`", "  ")
@@ -151,7 +162,7 @@ def check_file(rel, text, seen):
                 for m in SIGNED_RE.finditer(sentence):
                     failures.append(
                         f"{rel}:{line_of(text, base + m.start())} [signed-crl] "
-                        f"{' '.join(m.group(0).split())!r}: the ATP section 8.1 revocation response "
+                        f"{' '.join(m.group(0).split())!r}: the {SOURCE} revocation response "
                         f"is not signed in ATP 1.0 and has no member for a signature; a signed "
                         f"revocation list is ATP 1.1 work (core.md section 2 item 5)"
                     )
@@ -163,13 +174,19 @@ def check_file(rel, text, seen):
                         failures.append(
                             f"{rel}:{line_of(text, base + m.start())} [entry-size] "
                             f"{' '.join(m.group(0).split())!r} for a revocation entry in {phrase[:80]!r}; "
-                            f"the ATP section 8.1 example entry is {ENTRY_BYTES} bytes as compact JSON"
+                            f"the {SOURCE} example entry is {ENTRY_BYTES} bytes as compact JSON"
                         )
 
+            # Every size in the sentence, found once; each count takes the
+            # first size after it. Searching the rest of the sentence once per
+            # count would take time quadratic in the number of counts.
+            sizes = list(SIZE_RE.finditer(sentence))
+            size_starts = [m.start() for m in sizes]
             for count in COUNT_RE.finditer(sentence):
-                size = SIZE_RE.search(sentence, count.end())
-                if size is None:
+                after = bisect.bisect_left(size_starts, count.end())
+                if after == len(sizes):
                     continue
+                size = sizes[after]
                 seen.add((rel, "total"))
                 if count.group("num") is not None:
                     n = number(count.group("num")) * SCALES.get((count.group("scale") or "").lower(), 1)
@@ -180,8 +197,8 @@ def check_file(rel, text, seen):
                     failures.append(
                         f"{rel}:{line_of(text, base + size.start())} [total-size] "
                         f"{' '.join(count.group(0).split())} stated as "
-                        f"{' '.join(size.group(0).split())!r}; at {ENTRY_BYTES} bytes per ATP section "
-                        f"8.1 entry that many revocations take at least {n * ENTRY_BYTES:,.0f} bytes"
+                        f"{' '.join(size.group(0).split())!r}; at {ENTRY_BYTES} bytes per {SOURCE} "
+                        f"entry that many revocations take at least {n * ENTRY_BYTES:,.0f} bytes"
                     )
     return failures
 
@@ -211,18 +228,18 @@ def main():
         if (rel, kind) not in seen:
             failures.append(
                 f"{rel} [missing] states no revocation {kind} size; it should state one at "
-                f"{ENTRY_BYTES} bytes per ATP section 8.1 entry"
+                f"{ENTRY_BYTES} bytes per {SOURCE} entry"
             )
 
     if failures:
-        print("revocation list text disagrees with ATP section 8.1:\n", file=sys.stderr)
+        print(f"revocation list text disagrees with {SOURCE}:\n", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
     print(
         f"revocation list ok: {len(files)} Markdown file(s) checked, none calls the list signed "
-        f"or sizes an entry below {ENTRY_BYTES} bytes"
+        f"or sizes an entry below {ENTRY_BYTES} bytes, the {SOURCE} example entry"
     )
     return 0
 

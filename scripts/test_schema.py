@@ -6,7 +6,11 @@ member, and asserts that the schema accepts the result when the text allows it
 and rejects it when the text forbids it. The cited rules are core.md section
 1.3a.2 rules 1, 2 and 5 (canonical empties, the full scanSummary, an absent
 declaredPurpose), section 1.5.2 (the taskScope grammar, capabilityJustification
-keys) and section 14 (capability tokens in the AIP section 4.1 grammar).
+keys), section 14 (capability tokens in the AIP section 4.1 grammar) and section
+1.1 (an atcVersion 1.1 credential carries both signature suites; frozen 1.0 is
+not held to that). The last cases check the JSON Patch `test` and `remove`
+operations that scripts/validate_examples.py applies to build the mustReject
+variants of schemas/examples-map.json.
 
     python3 scripts/test_schema.py
 
@@ -25,7 +29,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_examples import Draft202012Validator, extract_block  # noqa: E402
+from validate_examples import (  # noqa: E402
+    Draft202012Validator,
+    PatchError,
+    apply_patch,
+    extract_block,
+)
 
 SCHEMA = json.loads(
     (ROOT / "schemas" / "atx-credential-v1.1.schema.json").read_text(encoding="utf-8")
@@ -64,6 +73,16 @@ def drop_purpose(d):
     d.pop("declaredPurpose")
 
 
+def one_suite(version, algorithm):
+    # Keeps only the signatures of one suite, the shape the two-suite rule
+    # refuses under atcVersion 1.1 and leaves alone under frozen 1.0.
+    def apply(d):
+        d["atcVersion"] = version
+        d["signatures"] = [s for s in d["signatures"] if s["algorithm"] == algorithm]
+        assert d["signatures"], f"the example carries no {algorithm} signature"
+    return apply
+
+
 ACCEPT = [
     ("the section 1.1 example as published", lambda d: None),
     ("capabilities empty array (rule 1)", capabilities([])),
@@ -85,6 +104,10 @@ ACCEPT = [
      purpose(taskScopes=["acme:refund_review"])),
     ("capabilityJustification organization-prefixed key",
      purpose(capabilityJustification={"acme.example/billing:refund": ["billing:refund"]})),
+    ("atcVersion 1.0 with Ed25519 signatures only (1.0 is outside the two-suite rule)",
+     one_suite("1.0", "Ed25519")),
+    ("atcVersion 1.0 with ML-DSA-65 signatures only (1.0 is outside the two-suite rule)",
+     one_suite("1.0", "ML-DSA-65")),
 ]
 
 REJECT = [
@@ -109,6 +132,27 @@ REJECT = [
     ("publisherDid that is neither a DID nor empty", member(publisherDid="acme-corp")),
     ("scanSummary.oasbLevel L10", scan(oasbLevel="L10")),
     ("scanSummary null (rule 2)", member(scanSummary=None)),
+    ("atcVersion 1.1 with Ed25519 signatures only (section 1.1)", one_suite("1.1", "Ed25519")),
+    ("atcVersion 1.1 with ML-DSA-65 signatures only (section 1.1)", one_suite("1.1", "ML-DSA-65")),
+]
+
+# JSON Patch (RFC 6902) cases for apply_patch in scripts/validate_examples.py,
+# which builds the mustReject variants of schemas/examples-map.json. A `test`
+# operation that does not hold stops the patch, so a variant whose target moved
+# is reported broken instead of removing the wrong member.
+PATCH = [
+    ("a test that holds lets the patch continue",
+     [{"op": "test", "path": "/atcVersion", "value": "1.1"},
+      {"op": "remove", "path": "/signatures/1"}], None),
+    ("a test whose value differs fails",
+     [{"op": "test", "path": "/atcVersion", "value": "1.0"}], "test failed at /atcVersion"),
+    ("a failing test stops the remove after it",
+     [{"op": "test", "path": "/signatures/0/algorithm", "value": "ML-DSA-65"},
+      {"op": "remove", "path": "/signatures/0"}], "test failed at /signatures/0/algorithm"),
+    ("a test of a member that does not exist fails",
+     [{"op": "test", "path": "/noSuchMember", "value": None}], "no member 'noSuchMember'"),
+    ("an unsupported operation fails",
+     [{"op": "add", "path": "/atcVersion", "value": "1.0"}], "unsupported op 'add'"),
 ]
 
 
@@ -132,6 +176,25 @@ def main() -> int:
                 if errors else "the schema accepted it"
             )
             print(f"  ---\n  reason: {reason}\n  ---")
+    for name, ops, expected_error in PATCH:
+        count += 1
+        try:
+            patched = apply_patch(EXAMPLE, ops)
+            error = None
+        except PatchError as exc:
+            patched, error = None, str(exc)
+        if expected_error is None:
+            passed = error is None and len(patched["signatures"]) == len(EXAMPLE["signatures"]) - 1
+            reason = error or "the patch did not remove exactly one signature"
+        else:
+            passed = error is not None and expected_error in error
+            reason = f"expected an error naming {expected_error!r}, got {error!r}"
+        if passed:
+            print(f"ok {count} - patch: {name}")
+            continue
+        failed += 1
+        print(f"not ok {count} - patch: {name}")
+        print(f"  ---\n  reason: {reason}\n  ---")
     print(f"1..{count}")
     if failed:
         print(f"# {failed} of {count} failed")

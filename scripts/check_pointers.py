@@ -22,6 +22,13 @@ rules or tests. A count restated here
 drifts when the project ships; 209 static checks and an 8 factor trust score
 stood in the map while the sources said 317 and 9.
 
+Whether a credential carries enough signatures from a threshold key set is
+checked by the verifier in core.md section 1.3 step 5. Every section that
+describes threshold signing names that step, and so does docs/conformance.md's
+description of the conformance suite's threshold fixture: that fixture carries
+every signature of its key set, so it pins that each one verifies and not the
+threshold, and a "2 of 3" with no pointer reads as a threshold someone checks.
+
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
 table row is one line. References may wrap across lines, since Markdown renders
@@ -33,7 +40,10 @@ own, not the JCS(TBS) of core.md §1.3a.2, and that object does not validate
 against the credential schema. Until the lab verifies a real credential, every
 sentence that names the lab, in a Markdown file outside CHANGELOG.md and
 errata/, says that what it signs is not an ATX credential, so a reader does not
-take its verdicts for conformance results.
+take its verdicts for conformance results. The sentence says the lab signs
+something before it says "not an ATX credential"; those words describing
+anything else ("rejects anything that is not an ATX credential") are not the
+caveat.
 
     python3 scripts/check_pointers.py [--root <tree>]
 
@@ -55,6 +65,7 @@ AUTHORIZATION = "AAP"
 HMA_README = "https://github.com/opena2a-org/hackmyagent/blob/main/README.md"
 AIP_TRUST = "AIP §6.1"
 AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
+THRESHOLD = "§1.3 step 5"
 
 HMA_ROW = "| HackMyAgent |"
 AIM_ROW = "| AIM |"
@@ -67,10 +78,14 @@ POINTERS = [
     ("README.md", "### An auditor asks what each agent was allowed to attempt", (AUTHORIZATION,)),
     ("core.md", HMA_ROW, (HMA_README,)),
     ("core.md", AIM_ROW, (AIP_TRUST, AIP_SPEC)),
+    ("core.md", "8. Issuing node constructs ATX.", (THRESHOLD,)),
+    ("docs/conformance.md", "Byte-stable conformance fixtures", (THRESHOLD,)),
+    ("sovereign-federation.md", "Threshold signing means", (THRESHOLD,)),
 ]
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
 LAB_CAVEAT = "not an ATX credential"
+LAB_SIGNS_RE = re.compile(r"\bsign(?:s|ed|ing)?\b", re.IGNORECASE)
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -193,6 +208,16 @@ def sentences(text):
         yield pos, text[pos:]
 
 
+def says_lab_signs_no_credential(sentence):
+    """True when the sentence says the lab signs something and, after that, that
+    it is not an ATX credential. The caveat words alone are not the caveat: in
+    "rejects anything that is not an ATX credential" they describe something
+    else."""
+    caveat = sentence.rfind(LAB_CAVEAT)
+    signs = LAB_SIGNS_RE.search(sentence)
+    return caveat != -1 and signs is not None and signs.start() < caveat
+
+
 def check_lab(root):
     """Failures, and how many sentences name the forge lab."""
     failures, mentions = [], 0
@@ -209,7 +234,7 @@ def check_lab(root):
                 if not mention:
                     continue
                 mentions += 1
-                if LAB_CAVEAT in " ".join(sentence.split()):
+                if says_lab_signs_no_credential(" ".join(sentence.split())):
                     continue
                 line = start + block.count("\n", 0, offset + mention.start())
                 failures.append(

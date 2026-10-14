@@ -37,6 +37,18 @@ run_check() {  # run_check <root>
     python3 -B "$REPO/scripts/check_mediation.py" --root "$1" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_mediation.py" "$2" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root], timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
 new_tree() {  # new_tree <name> -> path to a scratch tree whose required files pass
     mkdir -p "$TMP/$1"
     printf 'An issuer not on the list is rejected as an untrusted issuer.\n' > "$TMP/$1/core.md"
@@ -116,6 +128,26 @@ It does not fall back to asking the root, or anyone else, for a cosignature. A v
 EOF
 expect_pass "a negated request states the rule and passes" "$T"
 
+T="$(new_tree negation-earlier-clause)"
+printf 'Verification steps:\n\n3. If X is not listed, the verifier queries the root node for a cosignature.\n' > "$T/notes.md"
+expect_fail "a negation in an earlier clause does not negate the request" \
+    "$T" verify-path "notes.md:3"
+
+T="$(new_tree negation-no-comma)"
+printf 'Verification steps:\n\n3. If X is not listed the verifier queries the root node for a cosignature.\n' > "$T/notes.md"
+expect_fail "a negation before the verifier, with no comma, does not negate the request" \
+    "$T" verify-path "notes.md:3"
+
+T="$(new_tree queries-issuing-node)"
+printf 'Verification steps:\n\n3. If node X is not in the trusted list, the verifier queries the issuing node for a cosignature.\n' > "$T/notes.md"
+expect_fail "a verifier that queries the issuing node for a cosignature fails" \
+    "$T" verify-path "notes.md:3"
+
+T="$(new_tree after-issuance)"
+printf 'After issuance, the verifier requests a cosignature from the root.\n' > "$T/notes.md"
+expect_fail "a verifier named after the issuance word is still the one asking" \
+    "$T" verify-path "notes.md:1"
+
 T="$(new_tree issuance)"
 cat > "$T/notes.md" <<'EOF'
 Verification is local.
@@ -167,6 +199,28 @@ The issuing node writes `issuerChain` = [did:opena2a:authority:opena2a.org, did:
 A chain without the root, issuerChain = [gov.x, gov.y], is not this rule's concern.
 EOF
 expect_pass "root-first, root-only and root-less chains pass" "$T"
+
+# --- time -------------------------------------------------------------------
+
+# Each shape took time quadratic in its length: an issuerChain list with no
+# closing bracket was scanned to the end of the file once per mention, and each
+# request verb re-read every word before it to look for a negation.
+T="$(new_tree large)"
+python3 -B - "$T/large.md" <<'PYEOF'
+import sys
+chain = "issuerChain=[a," * 50000
+negated = "The verifier cosigns nothing and does " + "not ask " * 50000
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Large\n\n" + chain + "\n\n" + negated + "\n")
+PYEOF
+run_check_within 20 "$T"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    ok "an unclosed 750 KB issuerChain list and a 400 KB run of negated requests are checked in time"
+else
+    not_ok "an unclosed 750 KB issuerChain list and a 400 KB run of negated requests are checked in time" \
+        "expected exit 0 within 20 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- missing ----------------------------------------------------------------
 

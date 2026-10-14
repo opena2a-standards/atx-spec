@@ -10,6 +10,11 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/test_conformance_counts.sh`: builds scratch trees and scratch suites of a known size
+  and asserts that `scripts/check_conformance_counts.py` fails a stale count in each phrasing it
+  reads, naming the file and line, and that `README.md`, `docs/conformance.md` and `core.md` agree
+  with the count `core.md` section 12 states. The check takes `--root` for the scratch trees. The
+  test needs only bash and python3 and is not yet run by CI.
 - `scripts/check_references.py` + `scripts/test_references.sh`: no Markdown file outside
   `CHANGELOG.md` and `errata/` names `opena2a-org/<repo>`, in a URL or in link text, for a
   repository that lives under `opena2a-standards`; a link whose text cites a version such as
@@ -189,9 +194,57 @@ identifier registered in `core.md` §14.
   missing Coverage paragraph, `conformance.json` or `notCovered` list. The tests build the
   failing shapes in scratch trees and also run against a real suite checkout when
   `ATX_CONFORMANCE_SUITE` names one. The check needs only python3 and is not yet run by CI.
+- `core.md` §1.3 step 5 defines the threshold a verifier checks for a threshold key set held by
+  one authority: n keys that each produce their own signature, of which at least m sign. The
+  member keys and m are the ones the authority's DID document declares, as resolved in step 3,
+  never a threshold the credential states or the number of signatures it carries. Once a
+  signature has verified under a member key, the verifier MUST reject the credential unless
+  signatures under at least m distinct member keys have verified, so a credential that carries
+  one of the three signatures of a two-of-three set is rejected although that one verifies. A
+  threshold scheme whose shares combine into one signature under one key is outside the rule.
+  Step 7 still counts the set as one authority. Section 3.1 step 8 and `sovereign-federation.md`
+  §2.3 name the step. Section 12 lists the threshold among the requirements no fixture
+  exercises, and an implementation self-attests it until one does. A credential that carries
+  signatures from at least m member keys verifies as before. The rejecting one-of-three fixture
+  and the reference verifier checks belong in atx-conformance and are not part of this change.
+- `scripts/check_pointers.py` + `scripts/test_pointers.sh`: `core.md` §3.1 step 8,
+  `sovereign-federation.md` §2.3 and the fixture paragraph of `docs/conformance.md` each describe
+  threshold signing or the suite's threshold fixture, and each must cite §1.3 step 5, where the
+  verifier checks the threshold. Without the pointer, "2 of 3" reads as a threshold someone checks.
 
 ### Changed
 
+- `sovereign-federation.md` §3.2 places cosigning at issuance, as `core.md` §7 does. It said
+  "Cosignature path established" for an allowed issuer; verification now proceeds locally over
+  the signatures the credential already carries, including any cosignature, which was made at
+  issuance.
+- `scripts/check_conformance_counts.py` reads a count with `byte-pinned`, `pinned`, `shipped` or
+  `conformance` between the number and "fixtures", and it reads the pass count of a
+  `N pass, 0 fail` summary line, so the pass count in the reference verifier's summary line in
+  `README.md` is checked as well as its fixture count. A count with any other word there, such as
+  "3 hybrid fixtures", counts a subset and is not compared with the suite.
+- `scripts/check_mediation.py` no longer passes a sentence because it names issuance. A request
+  is made at issuance when the sentence says so ("at issuance") or the actor named last before
+  the verb is the issuing side, so "the verifier queries the issuing node for a cosignature"
+  fails. A negation counts only when it stands before the verb past auxiliaries, adverbs and
+  catenatives ("does not fall back to asking"), so "if X is not listed, the verifier queries the
+  root node" fails. An `issuerChain` list with no closing bracket and a long run of negated verbs
+  are checked in linear time; both took time quadratic in their length.
+- `scripts/check_pointers.py` passes a sentence naming the forge lab only when it says the lab
+  signs something before it says "not an ATX credential", so "rejects anything that is not an ATX
+  credential" fails. `README.md` now says the lab signs the simplified object whose expiry it lets
+  you pass.
+- `scripts/check_revocation_list.py` names ATP-SPEC v1.0.0-rc1 section 8.1 in every message, since
+  the example entry the 227 bytes come from is 212 bytes in the later 1.1.0 draft. A number starts
+  only where a run of digits and commas starts, and each count of revocations takes the first size
+  after it from one scan of its sentence, so long digit runs and many counts in one sentence are
+  checked in linear time; they took time quadratic in their length.
+- `scripts/test_schema.py` pins that an `atcVersion` 1.0 credential with one signature suite is
+  accepted and a 1.1 one refused, and checks the JSON Patch `test` and `remove` operations that
+  `scripts/validate_examples.py` applies to build the `mustReject` variants. `scripts/test_pointers.sh`
+  covers the hidden-directory skip, `scripts/test_revocation_list.sh` the table-row and list-item
+  paragraph split, and both they and `scripts/test_mediation.sh` cover the cases above, large
+  inputs included.
 - `README.md` is shorter and opens with a link to `core.md` section 1.3, the algorithm every
   verifier runs. Its reference text moved, as written, to three new pages it links:
   `docs/status.md` takes the Status section (document version, wire format, which service
@@ -308,6 +361,17 @@ identifier registered in `core.md` §14.
   capabilities; both now say `capabilities` are what the build is attested to be able to do, not
   permission, and that whether an agent may act is a broker policy decision under AAP. No BCP 14
   statement is added or removed.
+- `docs/conformance.md` no longer describes the conformance suite's threshold fixture as a 2-of-3
+  threshold cosignature. The fixture carries three signatures from one authority's threshold key
+  set and every one of them verifies, so it pins that each declared signature verifies and not
+  the threshold of `core.md` §1.3 step 5. §12 Coverage names that threshold among the
+  requirements no fixture exercises, beside the threshold issuance of §3.1 step 8, and corrects
+  two statements about the suite. The fixtures do not all assert `trustLevel` 4: every one but
+  `wrong-issuer`, which asserts 1, does. The `conformance.json` profile does name the requirement
+  each fixture exercises, in each entry's `requirement` member, and its entries do not all cite
+  the same specification sections: they draw their `specRefs` from a few lists that several
+  entries share, so an entry's `specRefs` name an area of `core.md`, not the requirement its
+  fixture pins.
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
   grammar `^[a-z][a-z0-9]*:[a-z][a-z0-9_]*$`; the schema allowed hyphens, underscores and a

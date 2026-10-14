@@ -37,7 +37,7 @@ An agent passed review once and kept its credential for a year. A new build ship
 
 An ATX lives for 7 days. Renewal runs the build plugin and the scan again, so a fresh credential describes the current build, and an agent that must be stopped sooner is placed on a revocation list that verifiers check on every verification.
 
-What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object that is not an ATX credential.
+What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object it signs, which is not an ATX credential.
 
 Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. No fixture exercises the five-minute bound or a request served on a stale list. The two revoked fixtures are compared in [`docs/use-cases.md`](docs/use-cases.md).
 

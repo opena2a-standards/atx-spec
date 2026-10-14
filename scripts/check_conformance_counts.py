@@ -10,7 +10,11 @@ the count drifted to 18 while the suite shipped 20 and nothing caught it.
 This repository does not contain the fixtures, so the suite is supplied by the
 caller:
 
-    python3 scripts/check_conformance_counts.py --suite <path-to-atx-conformance>
+    python3 scripts/check_conformance_counts.py --suite <path-to-atx-conformance> [--root <tree>]
+
+--root names the tree whose README.md, docs/conformance.md and core.md are read
+(default: this repository); scripts/test_conformance_counts.sh uses it on
+scratch trees.
 
 CI checks out opena2a-standards/atx-conformance at main and passes it here. The
 ref is deliberately main and not a pinned SHA: the drift being caught is exactly
@@ -34,20 +38,36 @@ CLAIM_FILES = {
 }
 
 
+# A word that may sit between the count and "fixtures" and still describe the
+# whole suite. A count with any other word there ("three hybrid fixtures") is a
+# subset of the suite, so it is not compared with the suite's size.
+WHOLE_SUITE_QUALIFIERS = ("byte-pinned", "pinned", "shipped", "conformance")
+
+FIXTURES_RE = re.compile(
+    r"\b(\d+)\s+(?:(?:" + "|".join(map(re.escape, WHOLE_SUITE_QUALIFIERS)) + r")\s+)?fixtures\b"
+)
+OF_PASS_RE = re.compile(r"\b(\d+)\s+of\s+(\d+)\s+PASS\b")
+SUMMARY_PASS_RE = re.compile(r"\b(\d+)\s+pass,\s+\d+\s+fail\b")
+
+
 def stated_counts(text):
     """Every fixture/pass count asserted in one document.
 
     Matches the phrasings actually used:
       "The suite ships 18 fixtures"
+      "ships 18 byte-pinned fixtures"
       "18 fixtures (baseline, hybrid, ...)"
       "Both verifiers report 18 of 18 PASS"
+      "# summary: 18 pass, 0 fail (18 fixtures)"
     """
     found = []
-    for m in re.finditer(r"\b(\d+)\s+fixtures\b", text):
+    for m in FIXTURES_RE.finditer(text):
         found.append(("fixtures", int(m.group(1)), m.start()))
-    for m in re.finditer(r"\b(\d+)\s+of\s+(\d+)\s+PASS\b", text):
+    for m in OF_PASS_RE.finditer(text):
         found.append(("pass", int(m.group(1)), m.start()))
         found.append(("of", int(m.group(2)), m.start()))
+    for m in SUMMARY_PASS_RE.finditer(text):
+        found.append(("pass", int(m.group(1)), m.start()))
     return found
 
 
@@ -58,7 +78,9 @@ def main():
         required=True,
         help="path to a checkout of opena2a-standards/atx-conformance",
     )
+    ap.add_argument("--root", default=str(ROOT), help="tree to check (default: this repository)")
     args = ap.parse_args()
+    root = pathlib.Path(args.root).resolve()
 
     fixtures_dir = pathlib.Path(args.suite) / "fixtures"
     if not fixtures_dir.is_dir():
@@ -74,11 +96,12 @@ def main():
     checked = 0
 
     for name, where in CLAIM_FILES.items():
-        path = ROOT / name
+        path = root / name
         if not path.exists():
             failures.append(f"{name} is missing")
             continue
-        claims = stated_counts(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        claims = stated_counts(text)
         if not claims:
             failures.append(
                 f"{name} states no fixture count ({where}); the guard would pass "
@@ -88,7 +111,7 @@ def main():
         for kind, value, offset in claims:
             checked += 1
             if value != actual:
-                line = path.read_text(encoding="utf-8")[:offset].count("\n") + 1
+                line = text.count("\n", 0, offset) + 1
                 failures.append(
                     f"{name}:{line} states {value} ({kind}) but the suite ships {actual}"
                 )

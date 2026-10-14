@@ -37,6 +37,22 @@ run_check() {  # run_check <root>
     python3 -B "$REPO/scripts/check_revocation_list.py" --root "$1" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_revocation_list.py" "$2" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root], timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
+# The ATP-SPEC revision the 227 byte entry is measured from. Its 1.1.0 draft
+# sizes the example entry at 212 bytes, so a figure without it is ambiguous.
+SOURCE='ATP-SPEC v1.0.0-rc1 section 8.1'
+
 # The sizes scalability.md must state, at the ATP section 8.1 example entry size.
 SIZES='The example entry in section 8.1 is 227 bytes, so each CRL entry is roughly 227 bytes and one million revocations is about 227 MB.'
 
@@ -75,6 +91,24 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # --- the delivered tree -----------------------------------------------------
 
 expect_pass "the repository's own Markdown passes" "$REPO"
+if grep -qF "$SOURCE example entry" "$OUT"; then
+    ok "the pass line names the ATP-SPEC revision of the entry size"
+else
+    not_ok "the pass line names the ATP-SPEC revision of the entry size" "$(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
+T="$TMP/every-rule"
+mkdir -p "$T"
+printf 'Each CRL entry is 100 bytes.\n\nThe CRL is signed.\n\nOne million revocations is 1 MB.\n' > "$T/core.md"
+run_check "$T"
+LINES="$(grep -c '^  - ' "$OUT")"
+NAMED="$(grep '^  - ' "$OUT" | grep -cF "$SOURCE")"
+if [ "$LINES" -eq 5 ] && [ "$NAMED" -eq "$LINES" ] && grep -qF "disagrees with $SOURCE" "$OUT"; then
+    ok "every failure names the ATP-SPEC revision of the entry size"
+else
+    not_ok "every failure names the ATP-SPEC revision of the entry size" \
+        "$NAMED of $LINES failure line(s) name '$SOURCE': $(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- signed-crl -------------------------------------------------------------
 
@@ -140,6 +174,14 @@ T="$(new_tree table-row)"
 printf '| Item | Size |\n|---|---|\n| CRL entry | 40 bytes |\n' > "$T/core.md"
 expect_fail "an entry size in a table row fails" "$T" "core.md:3" "entry-size"
 
+T="$(new_tree list-items)"
+printf -- '- Revocations reach every verifier within minutes.\n- Each cache entry is 64 bytes.\n' > "$T/core.md"
+expect_pass "a list item is its own paragraph, so an entry size beside a revocation item passes" "$T"
+
+T="$(new_tree table-rows)"
+printf '| Item | Size |\n|---|---|\n| Revocation | minutes |\n| Cache entry | 64 bytes |\n' > "$T/core.md"
+expect_pass "a table row is its own paragraph, so an entry size beside a revocation row passes" "$T"
+
 T="$(new_tree log-entry)"
 printf 'A trillion entry log at 100 bytes per entry is 100 TB.\n' > "$T/core.md"
 expect_pass "an entry size in a paragraph that names no revocation passes" "$T"
@@ -156,6 +198,32 @@ expect_pass "totals at the section 8.1 entry size pass, fractional counts includ
 T="$(new_tree no-figure)"
 printf 'A delta covers about 5 minutes of revocations, typically a few KB.\n' > "$T/core.md"
 expect_pass "a count of minutes is not a count of revocations" "$T"
+
+# --- time -------------------------------------------------------------------
+
+# Each shape took time quadratic in its length: a number could start at every
+# digit of a run and each start scanned to the end of it, and each count of
+# revocations searched the rest of its sentence for a size.
+T="$(new_tree large)"
+python3 -B - "$T/large.md" <<'PYEOF'
+import sys
+paragraphs = [
+    "revocation entry " + "1" * 400000,
+    "revocation " + "1," * 200000,
+    "5 revocations " + "1" * 400000,
+    "1 revocations " * 30000,
+]
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Large\n\n" + "\n\n".join(paragraphs) + "\n")
+PYEOF
+run_check_within 20 "$T"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    ok "400 KB digit runs, a 400 KB run of '1,' and 30,000 counts in one sentence are checked in time"
+else
+    not_ok "400 KB digit runs, a 400 KB run of '1,' and 30,000 counts in one sentence are checked in time" \
+        "expected exit 0 within 20 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- required statements ----------------------------------------------------
 
