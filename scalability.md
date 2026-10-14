@@ -41,7 +41,7 @@ Warm cache verification, broken down:
 | Step | Cost | Notes |
 |---|---|---|
 | Parse ATX JSON | 0.05 ms | Bounded by JSON length, about 6 KB: the base64 ML-DSA-65 signature alone is 4,412 characters |
-| Expiry check | 0.001 ms | Single comparison |
+| Expiry check | 0.001 ms | Two comparisons against the verifier's clock: the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL, and `issuedAt` ([core.md §1.3](core.md#13-local-verification-algorithm) step 2) |
 | DID document cache lookup | 0.01 ms | In memory hash map |
 | Ed25519 signature verify | 0.4 ms | Constant time |
 | ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature ([core.md §1.1](core.md#11-atx-schema)) |

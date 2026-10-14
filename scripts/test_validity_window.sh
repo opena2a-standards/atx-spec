@@ -181,6 +181,45 @@ else
         "$(head -c 400 "$OUT" | tr '\n' ' ')"
 fi
 
+# --- single-comparison ------------------------------------------------------
+
+T="$(new_tree cost-row)"
+cat > "$T/scalability.md" <<'EOF'
+| Step | Cost | Notes |
+|---|---|---|
+| Parse ATX JSON | 0.05 ms | Bounded by JSON length |
+| Expiry check | 0.001 ms | Single comparison |
+EOF
+expect_fail "a cost row that calls the expiry check a single comparison fails" \
+    "$T" "scalability.md:4" single-comparison
+
+T="$(new_tree cost-row-window)"
+cat > "$T/scalability.md" <<'EOF'
+| Step | Cost | Notes |
+|---|---|---|
+| Expiry check | 0.001 ms | Two comparisons against the verifier's clock: the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL, and `issuedAt` |
+EOF
+expect_pass "a cost row that names both comparisons of the validity window passes" "$T"
+
+for PHRASE in "is one comparison" "takes a single comparison" "is ONE COMPARISON"; do
+    T="$(new_tree "prose-${PHRASE// /-}")"
+    printf 'The expiration check %s against the clock.\n' "$PHRASE" > "$T/core.md"
+    expect_fail "an expiry check that '$PHRASE' fails" "$T" "core.md:1" single-comparison
+done
+
+T="$(new_tree window-prose)"
+printf 'Intro.\n\nThe validity window check is a\nsingle comparison.\n' > "$T/core.md"
+expect_fail "a validity window check wrapped onto a single comparison fails on that line" \
+    "$T" "core.md:4" single-comparison
+
+T="$(new_tree other-comparison)"
+printf 'The content hash compare is a single comparison of two digests.\n' > "$T/core.md"
+expect_pass "a single comparison that is not an expiry check passes" "$T"
+
+T="$(new_tree next-block)"
+printf 'Expiry check.\n\nThe content hash compare is a single comparison.\n' > "$T/core.md"
+expect_pass "a single comparison past a blank line is not the expiry check's" "$T"
+
 # --- vacuous pass -----------------------------------------------------------
 
 T="$(new_tree empty)"

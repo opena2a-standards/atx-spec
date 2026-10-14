@@ -15,8 +15,11 @@ identifier registered in `core.md` §14.
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
   names `issuedAt`, because `core.md` §1.3 step 2 bounds an ATX by both. A list item does not
   borrow `issuedAt` from the next item, a nested item, the next paragraph or another table cell.
-  Failures are reported as file and line, and a file that is not UTF-8 is reported as a failure.
-  The check needs only python3 and is not yet run by CI.
+  A paragraph, list item, heading or table row that names an expiry or validity window check
+  does not call it a single comparison or one comparison, because §1.3 step 2 compares the
+  verifier's clock with two bounds; a table row is read whole, so a cost table's step and notes
+  cells are read together (#76). Failures are reported as file and line, and a file that is not
+  UTF-8 is reported as a failure. The check needs only python3 and is not yet run by CI.
 - `scripts/test_conformance_counts.sh`: builds scratch trees and scratch suites of a known size
   and asserts that `scripts/check_conformance_counts.py` fails a stale count in each phrasing it
   reads, naming the file and line, and that `README.md`, `docs/conformance.md` and `core.md` agree
@@ -221,6 +224,11 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scalability.md` §2.1 describes the expiry check as two comparisons against the verifier's
+  clock. Its notes cell said "Single comparison", while `core.md` §1.3 step 2 compares that clock
+  with the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL, and with
+  `issuedAt`. The row now names both bounds and links §1.3; its cost of 0.001 ms is unchanged.
+  (#76)
 - `core.md` §3.2 step 2 checks the validity window of §1.3 step 2. It said "Check expiresAt is in
   the future", which passes a credential whose `issuedAt` is in the future, or whose `expiresAt`
   lies past `issuedAt` plus the seven-day credential TTL, while that `expiresAt` is still ahead.
