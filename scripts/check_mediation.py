@@ -14,12 +14,21 @@ the first signature no longer verifies.
 Rules, each failure reported as file:line with its rule in brackets:
 
   verify-path   a sentence that requests, queries, asks for, fetches or obtains
-                a cosignature or countersignature does so at issuance: it names
-                issuance or the issuing side, or the verb is negated ("does not
-                query", "never requests"). The rule applies in a block (a run
-                of non-blank lines, so a whole list or a whole paragraph) that
-                names a verifier or verification; elsewhere the request is an
-                issuance step by context.
+                a cosignature or countersignature does so at issuance, or the
+                verb is negated. It is at issuance when the sentence says so
+                ("at issuance", "during issuance") or the actor named last
+                before the verb is the issuing side ("the issuing node
+                requests"), not a verifier or verification: "the verifier
+                queries the issuing node" fails, since the issuing node is what
+                is queried. It is negated when the word before the verb, past
+                at most four auxiliaries, adverbs and catenatives such as
+                "does", "ever" or "fall back to", is a negation ("does not
+                query", "never requests", "does not fall back to asking"); a
+                negation in an earlier clause ("if X is not listed, the
+                verifier queries") does not count. The rule
+                applies in a block (a run of non-blank lines, so a whole list or
+                a whole paragraph) that names a verifier or verification;
+                elsewhere the request is an issuance step by context.
   chain-order   an issuerChain written out as a list, `issuerChain = [...]` in
                 prose or `"issuerChain": [...]` in JSON, that names the root
                 authority did:opena2a:authority:opena2a.org together with other
@@ -39,6 +48,7 @@ Exit 0 when every file passes, 1 otherwise.
 """
 
 import argparse
+import bisect
 import pathlib
 import re
 import sys
@@ -58,11 +68,30 @@ SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 VERIFIER_RE = re.compile(r"\bverif(?:ier|iers|ying|ication|ications)\b", re.IGNORECASE)
 COSIGN_RE = re.compile(r"\b(?:co-?sign|counter-?sign)\w*", re.IGNORECASE)
 REQUEST_RE = re.compile(r"\b(?:request|quer(?:y|ies|ied|ying)|ask|fetch|obtain)\w*", re.IGNORECASE)
-ISSUANCE_RE = re.compile(r"\bissu(?:ing|ance)\b", re.IGNORECASE)
-NEGATION_RE = re.compile(r"^(?:not|never|nor|cannot|no|without)$", re.IGNORECASE)
-WORD_RE = re.compile(r"[\w']+")
-NEGATION_WINDOW = 4
-CHAIN_RE = re.compile(r"\bissuerChain[`\"']?\s*[=:]\s*\[(?P<body>[^\]]*)\]")
+# The actors a request can be attributed to: the issuing side or a verifier.
+ACTOR_RE = re.compile(
+    r"\b(?P<issuing>issu(?:ing|ance))\b|\bverif(?:ier|iers|ying|ication|ications)\b",
+    re.IGNORECASE,
+)
+# A phrase that places the request at issuance wherever it stands.
+ISSUANCE_TIME_RE = re.compile(r"\b(?:at|during|upon|on)\s+issuance\b", re.IGNORECASE)
+NEGATIONS = {"not", "never", "nor", "cannot", "can't", "no", "without",
+             "don't", "doesn't", "didn't", "won't", "mustn't", "shouldn't"}
+# Words that may stand between a negation and the verb it negates: auxiliaries,
+# adverbs, and the catenatives of "does not fall back to asking".
+AUXILIARIES = {"do", "does", "did", "is", "are", "was", "were", "be", "been", "being",
+               "has", "have", "had", "will", "would", "shall", "should", "may", "might",
+               "must", "can", "could", "need", "needs", "ever", "also", "then", "itself",
+               "themselves", "directly", "separately", "again", "otherwise", "instead",
+               "first", "to", "fall", "falls", "back", "try", "tries", "attempt",
+               "attempts", "go", "goes", "seek", "seeks"}
+# A token is a word or one punctuation character, so a comma or a semicolon
+# stops the walk back from a verb.
+TOKEN_RE = re.compile(r"[\w']+|[^\w\s]")
+NEGATION_WINDOW = 5
+# The body stops at either bracket, so a '[' with no ']' after it costs one scan
+# to the next bracket rather than one scan to the end of the file per mention.
+CHAIN_RE = re.compile(r"\bissuerChain[`\"']?\s*[=:]\s*\[(?P<body>[^\[\]]*)\]")
 UNLISTED_RE = re.compile(r"\buntrusted\s+issuer\b", re.IGNORECASE)
 
 
@@ -102,9 +131,23 @@ def sentences(block):
             yield seg_start + s_start, sentence
 
 
-def negated(sentence, verb_start):
-    words = WORD_RE.findall(sentence[:verb_start])[-NEGATION_WINDOW:]
-    return any(NEGATION_RE.match(w) for w in words)
+def negated(tokens, verb_index):
+    """True when the token before the verb, past at most NEGATION_WINDOW - 1
+    auxiliaries and adverbs, is a negation. Bounded, so a sentence costs time
+    linear in its length however many verbs it has."""
+    for i in range(verb_index - 1, max(verb_index - 1 - NEGATION_WINDOW, -1), -1):
+        word = tokens[i].group(0).lower()
+        if word in NEGATIONS:
+            return True
+        if word not in AUXILIARIES:
+            return False
+    return False
+
+
+def at_issuance(actors, verb_start):
+    """True when the actor named last before the verb is the issuing side."""
+    before = bisect.bisect_left(actors, (verb_start, False))
+    return before > 0 and actors[before - 1][1]
 
 
 def verify_path_failures(rel, text):
@@ -113,10 +156,16 @@ def verify_path_failures(rel, text):
         if not VERIFIER_RE.search(block):
             continue
         for s_start, sentence in sentences(block):
-            if not COSIGN_RE.search(sentence) or ISSUANCE_RE.search(sentence):
+            if not COSIGN_RE.search(sentence) or ISSUANCE_TIME_RE.search(sentence):
                 continue
+            tokens = list(TOKEN_RE.finditer(sentence))
+            token_starts = [t.start() for t in tokens]
+            actors = [(m.start(), m.group("issuing") is not None)
+                      for m in ACTOR_RE.finditer(sentence)]
             for verb in REQUEST_RE.finditer(sentence):
-                if negated(sentence, verb.start()):
+                if at_issuance(actors, verb.start()):
+                    continue
+                if negated(tokens, bisect.bisect_left(token_starts, verb.start())):
                     continue
                 line = line_of(text, block_start + s_start + verb.start())
                 failures.append(

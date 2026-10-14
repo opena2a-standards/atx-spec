@@ -119,7 +119,7 @@ gov.uk trust list:
   did:opena2a:authority:enterprise.acme    Conditional (max trust level 2)
 ```
 
-A UK verifier checking an ATX issued by gov.us looks up gov.us in the local trust list. Allowed. Cosignature path established. Verification proceeds.
+A UK verifier checking an ATX issued by gov.us looks up gov.us in the local trust list. Allowed. Verification proceeds locally over the signatures the credential already carries, including any cosignature, which was made at issuance.
 
 A UK verifier checking an ATX issued by an authority not on the list rejects it as coming from an untrusted issuer. It does not query the root node (OpenA2A) or any other authority for a cosignature while it verifies (core.md §9). The UK can still honor the authorities the root recognizes by importing the root's published trust list into its own ahead of time (§4.2). Without that, verification fails closed.
 

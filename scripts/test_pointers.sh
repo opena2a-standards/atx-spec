@@ -293,8 +293,15 @@ expect_fail "a sentence naming the lab only by name fails" "$T" lab "README.md:1
 T="$(lab_tree lab-caveat-next-sentence "The $LAB runs the same checks in a browser. What it signs is not an ATX credential.")"
 expect_fail "the caveat in the next sentence does not count" "$T" lab "README.md:17"
 
+T="$(lab_tree lab-caveat-words-only "The forge lab runs the conformance checks and rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words describing what the lab rejects, not what it signs, fail" \
+    "$T" lab "README.md:17"
+
 T="$(lab_tree lab-caveat "The $LAB signs a simplified object, not an ATX credential, so its verdicts are not conformance results.")"
 expect_pass "a sentence naming the lab with the caveat passes" "$T"
+
+T="$(lab_tree lab-caveat-relative "The forge lab lets you expire a simplified object it signs, which is not an ATX credential.")"
+expect_pass "a caveat in a relative clause after what the lab signs passes" "$T"
 
 T="$(lab_tree lab-caveat-wrapped "The $LAB signs a simplified object, not an
 ATX credential.")"
@@ -314,6 +321,11 @@ printf '# Changelog\n\nThe forge lab ran the same checks in a browser.\n' > "$T/
 mkdir -p "$T/errata"
 printf 'The forge lab ran the same checks in a browser.\n' > "$T/errata/ATX-E-0001.md"
 expect_pass "CHANGELOG.md and errata/ record history and are not checked" "$T"
+
+T="$(lab_tree lab-hidden-dir "No mention here.")"
+mkdir -p "$T/.suite"
+printf 'The forge lab runs the same checks in a browser.\n' > "$T/.suite/README.md"
+expect_pass "hidden directories such as a CI checkout of the suite are not checked" "$T"
 
 T="$(lab_tree lab-not-utf8 "No mention here.")"
 printf 'The forge lab \377 runs the same checks.\n' > "$T/notes.md"

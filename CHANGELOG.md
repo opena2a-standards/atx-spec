@@ -10,6 +10,11 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/test_conformance_counts.sh`: builds scratch trees and scratch suites of a known size
+  and asserts that `scripts/check_conformance_counts.py` fails a stale count in each phrasing it
+  reads, naming the file and line, and that `README.md`, `docs/conformance.md` and `core.md` agree
+  with the count `core.md` section 12 states. The check takes `--root` for the scratch trees. The
+  test needs only bash and python3 and is not yet run by CI.
 - `scripts/check_references.py` + `scripts/test_references.sh`: no Markdown file outside
   `CHANGELOG.md` and `errata/` names `opena2a-org/<repo>`, in a URL or in link text, for a
   repository that lives under `opena2a-standards`; a link whose text cites a version such as
@@ -209,6 +214,37 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `sovereign-federation.md` §3.2 places cosigning at issuance, as `core.md` §7 does. It said
+  "Cosignature path established" for an allowed issuer; verification now proceeds locally over
+  the signatures the credential already carries, including any cosignature, which was made at
+  issuance.
+- `scripts/check_conformance_counts.py` reads a count with `byte-pinned`, `pinned`, `shipped` or
+  `conformance` between the number and "fixtures", and it reads the pass count of a
+  `N pass, 0 fail` summary line, so the pass count in the reference verifier's summary line in
+  `README.md` is checked as well as its fixture count. A count with any other word there, such as
+  "3 hybrid fixtures", counts a subset and is not compared with the suite.
+- `scripts/check_mediation.py` no longer passes a sentence because it names issuance. A request
+  is made at issuance when the sentence says so ("at issuance") or the actor named last before
+  the verb is the issuing side, so "the verifier queries the issuing node for a cosignature"
+  fails. A negation counts only when it stands before the verb past auxiliaries, adverbs and
+  catenatives ("does not fall back to asking"), so "if X is not listed, the verifier queries the
+  root node" fails. An `issuerChain` list with no closing bracket and a long run of negated verbs
+  are checked in linear time; both took time quadratic in their length.
+- `scripts/check_pointers.py` passes a sentence naming the forge lab only when it says the lab
+  signs something before it says "not an ATX credential", so "rejects anything that is not an ATX
+  credential" fails. `README.md` now says the lab signs the simplified object whose expiry it lets
+  you pass.
+- `scripts/check_revocation_list.py` names ATP-SPEC v1.0.0-rc1 section 8.1 in every message, since
+  the example entry the 227 bytes come from is 212 bytes in the later 1.1.0 draft. A number starts
+  only where a run of digits and commas starts, and each count of revocations takes the first size
+  after it from one scan of its sentence, so long digit runs and many counts in one sentence are
+  checked in linear time; they took time quadratic in their length.
+- `scripts/test_schema.py` pins that an `atcVersion` 1.0 credential with one signature suite is
+  accepted and a 1.1 one refused, and checks the JSON Patch `test` and `remove` operations that
+  `scripts/validate_examples.py` applies to build the `mustReject` variants. `scripts/test_pointers.sh`
+  covers the hidden-directory skip, `scripts/test_revocation_list.sh` the table-row and list-item
+  paragraph split, and both they and `scripts/test_mediation.sh` cover the cases above, large
+  inputs included.
 - `README.md` is shorter and opens with a link to `core.md` section 1.3, the algorithm every
   verifier runs. Its reference text moved, as written, to three new pages it links:
   `docs/status.md` takes the Status section (document version, wire format, which service

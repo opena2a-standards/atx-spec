@@ -40,7 +40,10 @@ own, not the JCS(TBS) of core.md §1.3a.2, and that object does not validate
 against the credential schema. Until the lab verifies a real credential, every
 sentence that names the lab, in a Markdown file outside CHANGELOG.md and
 errata/, says that what it signs is not an ATX credential, so a reader does not
-take its verdicts for conformance results.
+take its verdicts for conformance results. The sentence says the lab signs
+something before it says "not an ATX credential"; those words describing
+anything else ("rejects anything that is not an ATX credential") are not the
+caveat.
 
     python3 scripts/check_pointers.py [--root <tree>]
 
@@ -82,6 +85,7 @@ POINTERS = [
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
 LAB_CAVEAT = "not an ATX credential"
+LAB_SIGNS_RE = re.compile(r"\bsign(?:s|ed|ing)?\b", re.IGNORECASE)
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -204,6 +208,16 @@ def sentences(text):
         yield pos, text[pos:]
 
 
+def says_lab_signs_no_credential(sentence):
+    """True when the sentence says the lab signs something and, after that, that
+    it is not an ATX credential. The caveat words alone are not the caveat: in
+    "rejects anything that is not an ATX credential" they describe something
+    else."""
+    caveat = sentence.rfind(LAB_CAVEAT)
+    signs = LAB_SIGNS_RE.search(sentence)
+    return caveat != -1 and signs is not None and signs.start() < caveat
+
+
 def check_lab(root):
     """Failures, and how many sentences name the forge lab."""
     failures, mentions = [], 0
@@ -220,7 +234,7 @@ def check_lab(root):
                 if not mention:
                     continue
                 mentions += 1
-                if LAB_CAVEAT in " ".join(sentence.split()):
+                if says_lab_signs_no_credential(" ".join(sentence.split())):
                     continue
                 line = start + block.count("\n", 0, offset + mention.start())
                 failures.append(
