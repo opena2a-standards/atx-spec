@@ -480,7 +480,7 @@ This is the only flow where the issuing node is synchronously required. It happe
 5. Build plugin computes content hash of the build artifact.
 6. Build plugin constructs build attestation JSON. Signs with ephemeral OIDC derived key. Posts to issuing node.
 7. Issuing node verifies attestation signature. Writes attestation to transparency log. Receives log index.
-8. Issuing node constructs ATX. The issuing node requests threshold cosignatures from 2 of 3 key holders. A verifier rejects a credential that carries verifying signatures from fewer than 2 of them (§1.3 step 5). Adds transparency log index.
+8. Issuing node constructs ATX. The issuing node requests threshold cosignatures from 2 of 3 key holders. Once a signature under one of the three keys verifies, a verifier rejects the credential unless signatures under at least 2 distinct keys of the three verify (§1.3 step 5). Adds transparency log index.
 9. If an enterprise or sovereign node is in the issuerChain, the issuing node requests cosignature from that node's API.
 10. Issuing node returns signed ATX to build plugin.
 11. Build plugin embeds ATX in the deployment artifact. Writes to build outputs.
@@ -549,7 +549,7 @@ The build plugin produces four things in sequence:
 1. **Tool integrity verification.** Before running HMA or Secretless, verify their content hashes against their own ATX credentials. The security tools verify themselves before they run. This is the exact defense against the Trivy attack. If HMA were compromised and its binary changed, its ATX would not verify and the build would fail before the compromised tool ran.
 2. **Security scans.** HMA, Secretless, CryptoServe. Results embedded in the ATX.
 3. **Build attestation.** Signed record of this build. Commit hash, content hash, tool versions, scan results, builder identity, OIDC derived ephemeral key. Written to transparency log before the ATX is issued.
-4. **ATX issuance request.** Issuing node receives the build attestation, issues the ATX, signs with threshold keys, logs issuance, returns ATX to the build environment.
+4. **ATX issuance request.** Issuing node receives the build attestation, issues the ATX, signs with threshold keys (§1.3 step 5 says when a verifier checks their threshold), logs issuance, returns ATX to the build environment.
 
 ---
 

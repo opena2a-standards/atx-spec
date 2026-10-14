@@ -15,8 +15,11 @@ identifier registered in `core.md` §14.
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
   names `issuedAt`, because `core.md` §1.3 step 2 bounds an ATX by both. A list item does not
   borrow `issuedAt` from the next item, a nested item, the next paragraph or another table cell.
-  Failures are reported as file and line, and a file that is not UTF-8 is reported as a failure.
-  The check needs only python3 and is not yet run by CI.
+  A paragraph, list item, heading or table row that names an expiry or validity window check
+  does not call it a single comparison or one comparison, because §1.3 step 2 compares the
+  verifier's clock with two bounds; a table row is read whole, so a cost table's step and notes
+  cells are read together (#76). Failures are reported as file and line, and a file that is not
+  UTF-8 is reported as a failure. The check needs only python3 and is not yet run by CI.
 - `scripts/test_conformance_counts.sh`: builds scratch trees and scratch suites of a known size
   and asserts that `scripts/check_conformance_counts.py` fails a stale count in each phrasing it
   reads, naming the file and line, and that `README.md`, `docs/conformance.md` and `core.md` agree
@@ -221,12 +224,40 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scalability.md` §2.1 describes the expiry check as two comparisons against the verifier's
+  clock. Its notes cell said "Single comparison", while `core.md` §1.3 step 2 compares that clock
+  with the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL, and with
+  `issuedAt`. The row now names both bounds and links §1.3; its cost of 0.001 ms is unchanged.
+  (#76)
 - `core.md` §3.2 step 2 checks the validity window of §1.3 step 2. It said "Check expiresAt is in
   the future", which passes a credential whose `issuedAt` is in the future, or whose `expiresAt`
   lies past `issuedAt` plus the seven-day credential TTL, while that `expiresAt` is still ahead.
   It now says the ATX is expired at the earlier of `expiresAt` and `issuedAt` plus that TTL and
   is not yet valid while `issuedAt` is in the future, both within the family clock-skew bound of
   ATP §10.2, as §1.3 step 2 does. (#69)
+- `core.md` §3.1 step 8 and `sovereign-federation.md` §2.3 state the threshold rule as §1.3 step
+  5 does: once a signature under one of the set's keys verifies, a verifier rejects the
+  credential unless signatures under at least the threshold number of distinct keys of the set
+  verify. They said a verifier rejects a credential that carries verifying signatures from fewer
+  of those keys than the threshold, which also covers a credential that carries none of the
+  set's signatures, and step 5 does not reject that one. No verification rule changes.
+- `core.md` §4.2 item 4 and the HSM item of `sovereign-federation.md` §2.2 name §1.3 step 5, and
+  `scripts/check_pointers.py` checks both. Its description named "every section that describes
+  threshold signing" while it checked three places; it now names the five it checks, and says
+  that other mentions, such as the §1.2 lifecycle table, are not checked.
+- `scripts/check_pointers.py` passes a sentence naming the forge lab only when the lab is the
+  subject of "signs" or "signed": "the lab", "the forge lab", a Markdown link to the lab, or "it"
+  stands directly before the verb. "The forge lab checks what you signed and rejects anything
+  that is not an ATX credential" and "The forge lab, a sign of progress, rejects anything that is
+  not an ATX credential" fail; both passed.
+- `scripts/check_mediation.py`, `scripts/check_revocation_list.py`, `scripts/check_pointers.py`
+  and `scripts/check_conformance_counts.py` find each failure's line by bisecting the newline
+  offsets of its file, or of its paragraph in `check_pointers.py`, found once, instead of counting
+  newlines from the start for each failure. On a 1.6 MB file of repeated failing text the four
+  took 8.8, 16.5, 11.2 and 29.6 seconds and now take under 0.4 seconds each; on
+  scratch trees compared with the previous scripts the output is the same. Each check's test
+  script adds a file of repeated failing text, expects it checked within 10 seconds, and checks
+  the line reported for its last failure.
 - `sovereign-federation.md` §3.2 places cosigning at issuance, as `core.md` §7 does. It said
   "Cosignature path established" for an allowed issuer; verification now proceeds locally over
   the signatures the credential already carries, including any cosignature, which was made at

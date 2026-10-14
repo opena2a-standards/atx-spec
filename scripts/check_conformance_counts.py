@@ -24,6 +24,7 @@ Exit 0 when every stated count matches the suite, 1 otherwise.
 """
 
 import argparse
+import bisect
 import pathlib
 import re
 import sys
@@ -48,6 +49,14 @@ FIXTURES_RE = re.compile(
 )
 OF_PASS_RE = re.compile(r"\b(\d+)\s+of\s+(\d+)\s+PASS\b")
 SUMMARY_PASS_RE = re.compile(r"\b(\d+)\s+pass,\s+\d+\s+fail\b")
+NEWLINE_RE = re.compile(r"\n")
+
+
+def line_of(newlines, offset):
+    """The line offset sits on, found by bisecting where each newline of its
+    text stands. Counting newlines from the start of the file for each stale
+    count took time quadratic in the number of stale counts."""
+    return bisect.bisect_left(newlines, offset) + 1
 
 
 def stated_counts(text):
@@ -108,10 +117,11 @@ def main():
                 f"vacuously, so this is a failure"
             )
             continue
+        newlines = [m.start() for m in NEWLINE_RE.finditer(text)]
         for kind, value, offset in claims:
             checked += 1
             if value != actual:
-                line = text.count("\n", 0, offset) + 1
+                line = line_of(newlines, offset)
                 failures.append(
                     f"{name}:{line} states {value} ({kind}) but the suite ships {actual}"
                 )

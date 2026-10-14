@@ -6,16 +6,23 @@ at the earlier of expiresAt and issuedAt plus the seven-day credential TTL of
 section 1.2, and it is not yet valid while issuedAt is in the future. A step
 that checks expiresAt alone ("Check expiresAt is in the future") accepts a
 credential whose expiresAt was set past that TTL and one issued in the future,
-so it restates a weaker algorithm than section 1.3.
+so it restates a weaker algorithm than section 1.3. The verifier's clock is
+compared with both bounds, so the check is not a single comparison either.
 
-One rule, checked over every Markdown file in the tree:
+Two rules, checked over every Markdown file in the tree:
 
-  expiry-alone   A step that names expiresAt and a check verb also names
-                 issuedAt. A step is a paragraph, a list item, a heading or
-                 one table cell; it may wrap across lines but does not cross a
-                 blank line, a heading, another list item or another cell. The
-                 check verbs are check, verify, validate, compare and reject in
-                 any form and in any case.
+  expiry-alone       A step that names expiresAt and a check verb also names
+                     issuedAt. A step is a paragraph, a list item, a heading or
+                     one table cell; it may wrap across lines but does not
+                     cross a blank line, a heading, another list item or
+                     another cell. The check verbs are check, verify, validate,
+                     compare and reject in any form and in any case.
+  single-comparison  A paragraph, list item, heading or table row that names
+                     an expiry or validity window check (a word beginning with
+                     "expir", or "validity window") does not call it a single
+                     comparison or one comparison. A table row is read whole,
+                     so a cost table's step cell and its notes cell are read
+                     together. Letter case is ignored.
 
 CHANGELOG.md and errata/ are not checked: they record what earlier text said,
 and an erratum quotes the published text verbatim by design. Hidden
@@ -43,6 +50,8 @@ CHECK_RE = re.compile(
     r"|compar(?:e|es|ed|ing)|reject(?:s|ed|ing)?)\b",
     re.IGNORECASE,
 )
+EXPIRY_RE = re.compile(r"\bexpir\w*|\bvalidity\s+window\b", re.IGNORECASE)
+SINGLE_RE = re.compile(r"\b(?:single|one)\s+comparison\b", re.IGNORECASE)
 BLOCK_START_RE = re.compile(r"^\s*(?:#+\s|\d+\.\s|[-*+]\s|\|)")
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
@@ -97,6 +106,14 @@ def steps(block):
 def check_file(rel, text):
     failures = []
     for first, block in blocks(text.splitlines()):
+        single = SINGLE_RE.search(block)
+        if single and EXPIRY_RE.search(block):
+            at = first + block.count("\n", 0, single.start())
+            failures.append(
+                f"{rel}:{at} [single-comparison] an expiry check called a single comparison; "
+                f"core.md section 1.3 step 2 compares the verifier's clock with the earlier of "
+                f"expiresAt and issuedAt plus the credential TTL, and with issuedAt"
+            )
         for step in steps(block):
             expires = EXPIRES_RE.search(step)
             if expires is None or ISSUED_RE.search(step) or not CHECK_RE.search(step):
@@ -139,7 +156,7 @@ def main():
 
     print(
         f"validity window ok: {len(files)} Markdown file(s) checked, every step that checks "
-        f"expiresAt also names issuedAt"
+        f"expiresAt also names issuedAt, and no expiry check is called a single comparison"
     )
     return 0
 
