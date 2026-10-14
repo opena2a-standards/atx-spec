@@ -62,6 +62,7 @@ REQUIRED = ("core.md", "sovereign-federation.md")
 ROOT_AUTHORITY = "did:opena2a:authority:opena2a.org"
 ROOT_FORMS = {ROOT_AUTHORITY, "opena2a.org"}
 
+NEWLINE_RE = re.compile(r"\n")
 BLOCK_SPLIT_RE = re.compile(r"\n[ \t]*\n")
 SEGMENT_SPLIT_RE = re.compile(r"\n(?=[ \t]*(?:\||[-*+][ \t]|\d+[.)][ \t]|#))")
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
@@ -110,8 +111,16 @@ def markdown_files(root):
     return found
 
 
-def line_of(text, offset):
-    return text.count("\n", 0, offset) + 1
+def newline_offsets(text):
+    """Where each newline of text stands, found once per file."""
+    return [m.start() for m in NEWLINE_RE.finditer(text)]
+
+
+def line_of(newlines, offset):
+    """The line offset sits on, found by bisecting the newline offsets.
+    Counting newlines from the start of the file for each failure took time
+    quadratic in the number of failures."""
+    return bisect.bisect_left(newlines, offset) + 1
 
 
 def pieces(text, split_re):
@@ -150,7 +159,7 @@ def at_issuance(actors, verb_start):
     return before > 0 and actors[before - 1][1]
 
 
-def verify_path_failures(rel, text):
+def verify_path_failures(rel, text, newlines):
     failures = []
     for block_start, block in pieces(text, BLOCK_SPLIT_RE):
         if not VERIFIER_RE.search(block):
@@ -167,7 +176,7 @@ def verify_path_failures(rel, text):
                     continue
                 if negated(tokens, bisect.bisect_left(token_starts, verb.start())):
                     continue
-                line = line_of(text, block_start + s_start + verb.start())
+                line = line_of(newlines, block_start + s_start + verb.start())
                 failures.append(
                     f"{rel}:{line} [verify-path] {' '.join(sentence.split())!r} asks for a "
                     f"cosignature beside verification; a verifier makes no network call "
@@ -177,7 +186,7 @@ def verify_path_failures(rel, text):
     return failures
 
 
-def chain_order_failures(rel, text):
+def chain_order_failures(rel, text, newlines):
     failures = []
     for m in CHAIN_RE.finditer(text):
         members = [e.strip().strip("`\"'").strip() for e in m.group("body").split(",")]
@@ -185,7 +194,7 @@ def chain_order_failures(rel, text):
         roots = [i for i, e in enumerate(members) if e in ROOT_FORMS]
         if len(members) > 1 and roots and roots[0] != 0:
             failures.append(
-                f"{rel}:{line_of(text, m.start())} [chain-order] issuerChain names the root "
+                f"{rel}:{line_of(newlines, m.start())} [chain-order] issuerChain names the root "
                 f"authority at position {roots[0]} of {members}; core.md section 1.3a.2 "
                 f"rule 4 puts it first"
             )
@@ -213,8 +222,9 @@ def main():
             failures.append(f"{rel}:1 [encoding] not UTF-8 ({exc.reason}); cannot be checked")
             continue
         texts[rel] = text
-        failures.extend(verify_path_failures(rel, text))
-        failures.extend(chain_order_failures(rel, text))
+        newlines = newline_offsets(text)
+        failures.extend(verify_path_failures(rel, text, newlines))
+        failures.extend(chain_order_failures(rel, text, newlines))
 
     for rel in REQUIRED:
         if rel not in texts or not UNLISTED_RE.search(texts[rel]):

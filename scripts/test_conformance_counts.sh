@@ -39,6 +39,19 @@ run_check() {  # run_check <root> <suite>
     python3 -B "$REPO/scripts/check_conformance_counts.py" --root "$1" --suite "$2" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root> <suite>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_conformance_counts.py" "$2" "$3" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root, suite = float(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root, "--suite", suite],
+                            timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
 suite() {  # suite <n> -> path to a scratch suite shipping <n> fixtures
     local dir="$TMP/suite-$1" i
     if [ ! -d "$dir" ]; then
@@ -160,6 +173,25 @@ mkdir -p "$TMP/suite-empty/fixtures"
 T="$(tree empty-suite $'# Title\n\nThe suite ships 5 fixtures.')"
 expect_fail "a suite with no fixtures fails instead of passing vacuously" \
     "$T" "$TMP/suite-empty" "refusing to pass vacuously"
+
+# --- time -------------------------------------------------------------------
+
+# Each stale count's line was found by counting newlines from the start of the
+# file, which took time quadratic in the number of stale counts.
+T="$(tree many-stale $'# Title')"
+python3 -B - "$T/README.md" <<'PYEOF'
+import sys
+with open(sys.argv[1], "a", encoding="utf-8") as f:
+    f.write("\n" + "7 fixtures\n" * 150000)
+PYEOF
+run_check_within 10 "$T" "$(suite 5)"
+rc=$?
+if [ "$rc" -eq 1 ] && grep -qF "README.md:150002 states 7 (fixtures)" "$OUT"; then
+    ok "a 1.65 MB README.md of 150,000 stale counts is checked in time, the last on its own line"
+else
+    not_ok "a 1.65 MB README.md of 150,000 stale counts is checked in time, the last on its own line" \
+        "expected exit 1 within 10 s reporting README.md:150002, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- summary ----------------------------------------------------------------
 

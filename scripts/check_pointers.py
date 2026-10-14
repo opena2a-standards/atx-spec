@@ -23,11 +23,15 @@ drifts when the project ships; 209 static checks and an 8 factor trust score
 stood in the map while the sources said 317 and 9.
 
 Whether a credential carries enough signatures from a threshold key set is
-checked by the verifier in core.md section 1.3 step 5. Every section that
-describes threshold signing names that step, and so does docs/conformance.md's
-description of the conformance suite's threshold fixture: that fixture carries
-every signature of its key set, so it pins that each one verifies and not the
-threshold, and a "2 of 3" with no pointer reads as a threshold someone checks.
+checked by the verifier in core.md section 1.3 step 5. Four sections that
+describe threshold signing name that step: core.md section 3.1 step 8 and
+section 4.2 item 4, and sovereign-federation.md's section 2.2 HSM item and
+section 2.3 threshold paragraph. So does docs/conformance.md's description of
+the conformance suite's threshold fixture: that fixture carries every signature
+of its key set, so it pins that each one verifies and not the threshold, and a
+"2 of 3" with no pointer reads as a threshold someone checks. Other mentions of
+threshold signing, such as the core.md section 1.2 lifecycle table, are not
+checked.
 
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
@@ -41,9 +45,11 @@ against the credential schema. Until the lab verifies a real credential, every
 sentence that names the lab, in a Markdown file outside CHANGELOG.md and
 errata/, says that what it signs is not an ATX credential, so a reader does not
 take its verdicts for conformance results. The sentence says the lab signs
-something before it says "not an ATX credential"; those words describing
-anything else ("rejects anything that is not an ATX credential") are not the
-caveat.
+something, with "the lab", "the forge lab", a Markdown link to the lab or "it"
+directly before "signs" or "signed", before it says "not an ATX credential".
+Those words describing anything else ("rejects anything that is not an ATX
+credential") are not the caveat, and neither is a form of "sign" with another
+subject ("checks what you signed") or used as a noun ("a sign of progress").
 
     python3 scripts/check_pointers.py [--root <tree>]
 
@@ -53,6 +59,7 @@ missing also fails, so a renamed section cannot pass vacuously.
 """
 
 import argparse
+import bisect
 import pathlib
 import re
 import sys
@@ -79,13 +86,20 @@ POINTERS = [
     ("core.md", HMA_ROW, (HMA_README,)),
     ("core.md", AIM_ROW, (AIP_TRUST, AIP_SPEC)),
     ("core.md", "8. Issuing node constructs ATX.", (THRESHOLD,)),
+    ("core.md", "4. **ATX issuance request.**", (THRESHOLD,)),
     ("docs/conformance.md", "Byte-stable conformance fixtures", (THRESHOLD,)),
+    ("sovereign-federation.md", "* 3 HSMs", (THRESHOLD,)),
     ("sovereign-federation.md", "Threshold signing means", (THRESHOLD,)),
 ]
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
 LAB_CAVEAT = "not an ATX credential"
-LAB_SIGNS_RE = re.compile(r"\bsign(?:s|ed|ing)?\b", re.IGNORECASE)
+# The lab, by name, as link text followed by its link target, or as "it", is the
+# subject: "you signed" and "a sign" are not.
+LAB_SIGNS_RE = re.compile(
+    r"\b(?:(?:the\s+)?(?:forge\s+)?lab(?:/forge)?(?:\]\([^)\s]*\))?|it)\s+sign(?:s|ed)\b",
+    re.IGNORECASE,
+)
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -93,6 +107,7 @@ HISTORY_DIRS = {"errata"}
 FIGURES = {("core.md", HMA_ROW), ("core.md", AIM_ROW)}
 
 HEADING_RE = re.compile(r"^(#+)\s")
+NEWLINE_RE = re.compile(r"\n")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 PERMITTED_RE = re.compile(r"\bpermitted\b", re.IGNORECASE)
 ITEM_RE = re.compile(r"^(?:\d+\.|[*+-])\s")
@@ -229,6 +244,10 @@ def check_lab(root):
             failures.append(f"{rel} [lab] not UTF-8 ({exc.reason} at byte {exc.start})")
             continue
         for start, block in blocks(text.splitlines()):
+            # Where each newline of the block stands, found once per block and
+            # bisected per failure: counting from the start of the block for
+            # each failure took time quadratic in the number of failures.
+            newlines = None
             for offset, sentence in sentences(block):
                 mention = LAB_RE.search(sentence)
                 if not mention:
@@ -236,7 +255,9 @@ def check_lab(root):
                 mentions += 1
                 if says_lab_signs_no_credential(" ".join(sentence.split())):
                     continue
-                line = start + block.count("\n", 0, offset + mention.start())
+                if newlines is None:
+                    newlines = [m.start() for m in NEWLINE_RE.finditer(block)]
+                line = start + bisect.bisect_left(newlines, offset + mention.start())
                 failures.append(
                     f"{rel}:{line} [lab] a sentence names the forge lab without saying that "
                     f"what it signs is {LAB_CAVEAT!r}: {' '.join(sentence.split())[:100]!r}; "

@@ -92,6 +92,7 @@ UNITS = {"bytes": 1, "kb": 10**3, "mb": 10**6, "gb": 10**9, "tb": 10**12}
 SIZE_RE = re.compile(
     r"(?<![\d,])(?P<n>\d[\d,]*(?:\.\d+)?)\s*(?P<unit>bytes|KB|MB|GB|TB)\b", re.IGNORECASE
 )
+NEWLINE_RE = re.compile(r"\n")
 BLOCK_START_RE = re.compile(r"[ \t]*(?:\||#|[-*+][ \t]|\d+[.)][ \t]|```|~~~)")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 MARKERS = str.maketrans("*`", "  ")
@@ -112,8 +113,16 @@ def markdown_files(root):
     return found
 
 
-def line_of(text, offset):
-    return text.count("\n", 0, offset) + 1
+def newline_offsets(text):
+    """Where each newline of text stands, found once per file."""
+    return [m.start() for m in NEWLINE_RE.finditer(text)]
+
+
+def line_of(newlines, offset):
+    """The line offset sits on, found by bisecting the newline offsets.
+    Counting newlines from the start of the file for each failure took time
+    quadratic in the number of failures."""
+    return bisect.bisect_left(newlines, offset) + 1
 
 
 def paragraphs(text):
@@ -152,6 +161,7 @@ def number(raw):
 def check_file(rel, text, seen):
     failures = []
     text = text.translate(MARKERS)
+    newlines = newline_offsets(text)
     for p_off, para in paragraphs(text):
         names_revocations = bool(REVOCATION_RE.search(para))
         for s_off, sentence in sentences(para):
@@ -161,7 +171,7 @@ def check_file(rel, text, seen):
             if REVOCATION_RE.search(sentence) and not LATER_REVISION_RE.search(sentence):
                 for m in SIGNED_RE.finditer(sentence):
                     failures.append(
-                        f"{rel}:{line_of(text, base + m.start())} [signed-crl] "
+                        f"{rel}:{line_of(newlines, base + m.start())} [signed-crl] "
                         f"{' '.join(m.group(0).split())!r}: the {SOURCE} revocation response "
                         f"is not signed in ATP 1.0 and has no member for a signature; a signed "
                         f"revocation list is ATP 1.1 work (core.md section 2 item 5)"
@@ -172,7 +182,7 @@ def check_file(rel, text, seen):
                     seen.add((rel, "entry"))
                     if number(m.group("n")) < ENTRY_BYTES:
                         failures.append(
-                            f"{rel}:{line_of(text, base + m.start())} [entry-size] "
+                            f"{rel}:{line_of(newlines, base + m.start())} [entry-size] "
                             f"{' '.join(m.group(0).split())!r} for a revocation entry in {phrase[:80]!r}; "
                             f"the {SOURCE} example entry is {ENTRY_BYTES} bytes as compact JSON"
                         )
@@ -195,7 +205,7 @@ def check_file(rel, text, seen):
                 stated = number(size.group("n")) * UNITS[size.group("unit").lower()]
                 if stated < n * ENTRY_BYTES:
                     failures.append(
-                        f"{rel}:{line_of(text, base + size.start())} [total-size] "
+                        f"{rel}:{line_of(newlines, base + size.start())} [total-size] "
                         f"{' '.join(count.group(0).split())} stated as "
                         f"{' '.join(size.group(0).split())!r}; at {ENTRY_BYTES} bytes per {SOURCE} "
                         f"entry that many revocations take at least {n * ENTRY_BYTES:,.0f} bytes"

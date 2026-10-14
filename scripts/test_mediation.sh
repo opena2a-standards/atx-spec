@@ -222,6 +222,23 @@ else
         "expected exit 0 within 20 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
 fi
 
+# Each failure's line was found by counting newlines from the start of the
+# file, which took time quadratic in the number of failures.
+T="$(new_tree many-failures)"
+python3 -B - "$T/many.md" <<'PYEOF'
+import sys
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Many\n\n" + "The verifier requests a cosignature.\n\n" * 80000)
+PYEOF
+run_check_within 10 "$T"
+rc=$?
+if [ "$rc" -eq 1 ] && grep -qF "many.md:160001 [verify-path]" "$OUT"; then
+    ok "a 3 MB file of 80,000 failing paragraphs is checked in time, the last on its own line"
+else
+    not_ok "a 3 MB file of 80,000 failing paragraphs is checked in time, the last on its own line" \
+        "expected exit 1 within 10 s reporting many.md:160001, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
 # --- missing ----------------------------------------------------------------
 
 T="$(new_tree missing-core)"

@@ -43,6 +43,18 @@ run_check() {  # run_check <root>
     python3 -B "$REPO/scripts/check_pointers.py" --root "$1" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_pointers.py" "$2" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root], timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
 new_tree() {  # new_tree <name> -> path to an empty scratch tree
     mkdir -p "$TMP/$1"
     printf '%s' "$TMP/$1"
@@ -81,8 +93,8 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # Sections 1.5, 10, 8 and 3.1 follow section 4 so the line numbers above them
 # stay put; the check finds a section by its opening line, wherever it sits. In
 # the section 8 table the HackMyAgent row is line 36 and the AIM row line 38.
-# Section 3.1 item 8, on line 44, cites the threshold step; a test that needs it
-# bare rewrites that line. A tree with no README.md, docs/conformance.md or
+# Section 3.1 item 8, on line 44, and section 4.2 item 4, on line 49, cite the
+# threshold step; a test that needs one bare rewrites that line. A tree with no README.md, docs/conformance.md or
 # sovereign-federation.md also gets the default one from write_readme,
 # write_conformance or write_sovereign.
 write_core() {
@@ -137,6 +149,11 @@ $purpose
 7. Issuing node verifies attestation signature.
 8. Issuing node constructs ATX. Requests threshold cosignatures from 2 of 3 key holders; a verifier rejects fewer (§1.3 step 5).
 9. Issuing node returns signed ATX.
+
+### 4.2 The build plugin as trust anchor
+
+4. **ATX issuance request.** Issuing node issues the ATX, signs with threshold keys (§1.3 step 5 says when a verifier checks their threshold), logs issuance.
+5. **After issuance.** The threshold is checked in §1.3 step 5, cited outside item 4.
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
     [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
@@ -144,10 +161,15 @@ EOF
 }
 
 # write_sovereign <root> [<text after the threshold paragraph's first sentence>]
+#                 [<section 2.2 HSM item>]
 # Section 2.4 cites the threshold step outside the paragraph, so a paragraph
-# that leaves it out fails on its own.
+# that leaves it out fails on its own. Section 2.2 follows it, so the paragraph
+# stays on line 5; its HSM item is line 13, and the item after it cites the
+# step, so an HSM item that leaves it out fails on its own.
+SOVEREIGN_REST="A verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5)."
 write_sovereign() {
-    local rest="${2-A verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5).}"
+    local rest="${2-$SOVEREIGN_REST}"
+    local hsm="${3-* 3 HSMs (2 of 3 threshold signing; core.md §1.3 step 5 says when a verifier checks the threshold)}"
     cat > "$1/sovereign-federation.md" <<EOF
 # ATX sovereign federation
 
@@ -158,6 +180,11 @@ Threshold signing means that no single HSM holds the full signing capability. $r
 ### 2.4 Identity binding to the sovereign
 
 The threshold is checked in core.md §1.3 step 5, cited outside the paragraph.
+
+### 2.2 Minimum viable sovereign deployment
+
+$hsm
+* 2 active issuing nodes; core.md §1.3 step 5 is cited in this item, not the one above.
 EOF
 }
 
@@ -297,8 +324,21 @@ T="$(lab_tree lab-caveat-words-only "The forge lab runs the conformance checks a
 expect_fail "the caveat words describing what the lab rejects, not what it signs, fail" \
     "$T" lab "README.md:17"
 
+T="$(lab_tree lab-caveat-other-signer "The forge lab checks what you signed and rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words after something other than the lab signs fail" \
+    "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-sign-noun "The forge lab, a sign of progress, rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words after 'sign' used as a noun fail" "$T" lab "README.md:17"
+
 T="$(lab_tree lab-caveat "The $LAB signs a simplified object, not an ATX credential, so its verdicts are not conformance results.")"
 expect_pass "a sentence naming the lab with the caveat passes" "$T"
+
+T="$(lab_tree lab-caveat-past "The forge lab signed a simplified object, not an ATX credential.")"
+expect_pass "a caveat after what the lab signed passes" "$T"
+
+T="$(lab_tree lab-caveat-url-subject "The lab at [specs.opena2a.org/lab/forge](https://specs.opena2a.org/lab/forge) signs a simplified object, not an ATX credential.")"
+expect_pass "a caveat after what a link to the lab by its URL signs passes" "$T"
 
 T="$(lab_tree lab-caveat-relative "The forge lab lets you expire a simplified object it signs, which is not an ATX credential.")"
 expect_pass "a caveat in a relative clause after what the lab signs passes" "$T"
@@ -330,6 +370,23 @@ expect_pass "hidden directories such as a CI checkout of the suite are not check
 T="$(lab_tree lab-not-utf8 "No mention here.")"
 printf 'The forge lab \377 runs the same checks.\n' > "$T/notes.md"
 expect_fail "a Markdown file that is not UTF-8 fails" "$T" lab "notes.md"
+
+# Each failure's line was found by counting newlines from the start of its
+# block, which took time quadratic in the number of failures in one block.
+T="$(lab_tree lab-many-failures "No mention here.")"
+python3 -B - "$T/README.md" <<'PYEOF'
+import sys
+with open(sys.argv[1], "a", encoding="utf-8") as f:
+    f.write("\n" + "The forge lab runs.\n" * 120000)
+PYEOF
+run_check_within 10 "$T"
+rc=$?
+if [ "$rc" -eq 1 ] && grep -qF "README.md:120018 [lab]" "$OUT"; then
+    ok "a 2.4 MB paragraph of 120,000 failing lab sentences is checked in time, the last on its own line"
+else
+    not_ok "a 2.4 MB paragraph of 120,000 failing lab sentences is checked in time, the last on its own line" \
+        "expected exit 1 within 10 s reporting README.md:120018, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- figure -----------------------------------------------------------------
 
@@ -397,6 +454,13 @@ sed 's/^9\. Issuing node returns signed ATX\.$/9. Issuing node returns signed AT
 expect_fail "section 3.1 item 8 stating 2 of 3 without the verifier's step fails, even when item 9 cites it" \
     "$T" pointer "core.md:44"
 
+T="$(new_tree build-plugin-threshold-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^4\. \*\*ATX issuance request\.\*\*.*$/4. **ATX issuance request.** Issuing node issues the ATX, signs with threshold keys, logs issuance./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "section 4.2 item 4 signing with threshold keys without the verifier's step fails, even when item 5 cites it" \
+    "$T" pointer "core.md:49"
+
 T="$(new_tree conformance-threshold-fixture-bare)"
 write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
 write_conformance "$T" "baseline valid, threshold 2-of-3 cosignature, revoked."
@@ -414,6 +478,12 @@ write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; sch
 write_sovereign "$T" "The sovereign defines the threshold (typically 2 of 3 or 3 of 5)."
 expect_fail "the sovereign threshold paragraph without the verifier's step fails, even when section 2.4 cites it" \
     "$T" pointer "sovereign-federation.md:5"
+
+T="$(new_tree sovereign-hsm-threshold-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_sovereign "$T" "$SOVEREIGN_REST" "* 3 HSMs (2 of 3 threshold signing)"
+expect_fail "the sovereign section 2.2 HSM item stating 2 of 3 without the verifier's step fails, even when the next item cites it" \
+    "$T" pointer "sovereign-federation.md:13"
 
 T="$(new_tree sovereign-threshold-wrapped)"
 write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
