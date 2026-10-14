@@ -20,6 +20,9 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# validate_examples is imported from scripts/, so write no __pycache__ there:
+# the repository ignores nothing, and a broad add would commit it.
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from validate_examples import Draft202012Validator, extract_block  # noqa: E402

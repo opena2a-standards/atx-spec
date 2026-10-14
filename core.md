@@ -4,7 +4,7 @@
 
 **Document version:** 1.1.0-final (July 2026; first published as "Version 1.0", May 2026)
 **Credential format status:** ATX 1.1 is the current, normative wire format (§1.3a.2) and is what production issuance emits; ATX 1.0 is frozen legacy (§1.3a.1), accepted per the transition rule in §1.3a.5.
-**Protocol status:** the ATP wire protocol (§2) is normatively specified in [ATP-SPEC v1.0.0-rc1](https://github.com/opena2a-standards/agent-trust-protocol); this document defines the architecture it implements. Identity (AIP) and authorization (AAP) layers beneath this document carry their own, earlier maturity levels — a claim in this document never upgrades theirs.
+**Protocol status:** the ATP wire protocol (§2) is normatively specified in [ATP-SPEC v1.0.0-rc1](https://github.com/opena2a-standards/agent-trust-protocol/blob/v1.0.0-rc1/ATP-SPEC.md); this document defines the architecture it implements. Identity (AIP) and authorization (AAP) layers beneath this document carry their own, earlier maturity levels — a claim in this document never upgrades theirs.
 **Errata:** errata/README.md, incorporated through none
 
 Defines the Agent Trust eXtension credential format, the Agent Trust Protocol that issues and verifies it, and the architectural commitments that make the system survive at planetary scale.
@@ -250,13 +250,14 @@ credential that verifies across implementations and one that does not:
    between `contentHash` and `expiresAt` in the canonical output.
 6. **`scanSummary.techniques` is presence-based, as rule 5.** The optional
    `techniques` member of `scanSummary` is an array of Threat Matrix technique
-   IDs, each a `T-NNNN` string (§11 commitment 2). An absent `techniques` is
+   IDs, each a `T-NNNN` string (§11 commitment 2), and an issuer MUST NOT list
+   the same ID twice; the schema rejects a repeated ID. An absent `techniques` is
    **omitted from the TBS `scanSummary`**, not emitted as a canonical empty, so a
    credential that carries none produces the exact bytes it produced before
    this member existed. The JSON literal `null` and the empty array `[]` (any
    serialization that parses to it) are both treated as absent and MUST also be
-   omitted. A present value that is anything else, including a non-array value,
-   MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
+   omitted. A present value that is anything else, including a non-array value
+   or an array that repeats an ID, MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
    preserves array order, and a verifier MUST NOT sort, deduplicate or drop it,
    because a value it dropped would ride a valid signature unsigned. When
    present it is the last member of the canonical `scanSummary`, after
@@ -276,7 +277,7 @@ Because issuance (Go), the offline verifier (Go), the conformance verifiers
 independently, a v1.1 credential is only interoperable if all of them produce
 identical `JCS(TBS)` bytes. The normative byte vectors and the cross-language
 agreement gate live in
-[`atx-conformance/jcs-vectors`](https://github.com/opena2a-org/atx-conformance/tree/main/jcs-vectors).
+[`atx-conformance/jcs-vectors`](https://github.com/opena2a-standards/atx-conformance/tree/main/jcs-vectors).
 A conformant implementation MUST reproduce, byte-for-byte, the
 `expected.canonicalHex` of every vector there.
 
@@ -361,18 +362,39 @@ request, and may be written to the transparency log.
 
 `category` and the `taskScope` namespaces are **governed, versioned vocabularies**
 — closed core plus org-namespaced custom — managed like the capability registry.
-The core `category` values (vocab v1), each with a breadth class and a
-sensitivity class, are: `customer-support`, `financial-operations`,
-`data-analysis`, `data-engineering`, `software-development`, `devops-automation`,
-`security-operations`, `content-generation`, `research-assistant`,
-`sales-marketing`, `hr-people-ops`, `legal-compliance`, `healthcare-clinical`,
-`device-control`, `agent-orchestration`. There is deliberately no catch-all
-category. Custom categories (`<org>.<name>`) default to the broadest, most
-sensitive class until reviewed, so custom is never a cheap way to claim a narrow
-profile. The reserved core `taskScope` namespaces (vocab v1) are: `support`,
-`billing`, `accounting`, `analytics`, `dataops`, `dev`, `ci`, `infra`, `secops`,
-`content`, `research`, `crm`, `people`, `legal`, `clinical`, `device`,
-`orchestrate`. A non-reserved namespace is a custom org taskScope.
+The core `category` values (vocab v1) and the breadth class and sensitivity
+class of each are below. The same table is published as the registry file
+[`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json).
+
+| Category | Breadth class | Sensitivity class |
+|---|---|---|
+| `customer-support` | `moderate` | `elevated` |
+| `financial-operations` | `moderate` | `critical` |
+| `data-analysis` | `moderate` | `standard` |
+| `data-engineering` | `broad` | `elevated` |
+| `software-development` | `broad` | `elevated` |
+| `devops-automation` | `broad` | `critical` |
+| `security-operations` | `broad` | `critical` |
+| `content-generation` | `narrow` | `standard` |
+| `research-assistant` | `narrow` | `standard` |
+| `sales-marketing` | `moderate` | `elevated` |
+| `hr-people-ops` | `moderate` | `critical` |
+| `legal-compliance` | `moderate` | `elevated` |
+| `healthcare-clinical` | `moderate` | `critical` |
+| `device-control` | `broad` | `critical` |
+| `agent-orchestration` | `broad` | `elevated` |
+
+Breadth classes, narrowest first, are `narrow`, `moderate` and `broad`; §1.5.4
+gives the number of capability namespaces each admits. Sensitivity classes,
+least sensitive first, are `standard`, `elevated` and `critical`; the
+sensitivity class does not enter the breadth measure. There is deliberately no
+catch-all category. Custom categories (`<org>.<name>`) default to the broadest,
+most sensitive class (`broad`, `critical`) until reviewed, so custom is never a
+cheap way to claim a narrow profile. The reserved core `taskScope` namespaces
+(vocab v1) are: `support`, `billing`, `accounting`, `analytics`, `dataops`,
+`dev`, `ci`, `infra`, `secops`, `content`, `research`, `crm`, `people`, `legal`,
+`clinical`, `device`, `orchestrate`. A non-reserved namespace is a custom org
+taskScope.
 
 `security-operations` and `device-control` are legitimately dual-use (a security
 agent's behavior resembles an attacker's; device control has physical-world
@@ -387,8 +409,18 @@ taskScope tokens are named (which an adversary could craft to sound narrow). The
 measure is the count of distinct capability *namespaces* across all
 justification entries; a "narrow" declaration that justifies `secrets:read`,
 `network:connect`, and `system:exec` scores broad regardless of its token names.
-A computed breadth above the category's class raises the floor; it never lowers
-it. An over-broad declaration is therefore a visible, scoreable downgrade rather
+A capability's namespace is everything before its colon, an organization's
+domain prefix included (`acme.example/billing:refund` is in namespace
+`acme.example/billing`), and two capabilities in one namespace count once. A
+count of 0 or 1 is `narrow`, 2 is `moderate`, and 3 or more is `broad`. The
+effective breadth class is the broader of that computed class and the
+category's class (§1.5.3): a computed breadth above the category's class raises
+the floor; it never lowers it. The vectors in
+[`schemas/purpose-breadth-vectors-v1.json`](./schemas/purpose-breadth-vectors-v1.json)
+pin the measure for the §1.1 example (kept at `moderate`), for the declaration
+above filed under `customer-support` (raised to `broad`), and for a
+one-namespace `software-development` declaration (not lowered from `broad`).
+An over-broad declaration is therefore a visible, scoreable downgrade rather
 than a free pass — the property that makes a vague "cover everything" purpose
 useless as cover.
 
@@ -418,7 +450,7 @@ ATP defines five things:
 4. **The federation protocol.** How nodes register with each other, exchange public keys, cosign credentials, propagate revocations, and maintain trust lists.
 5. **The revocation list format.** ATP-SPEC v1.0.0-rc1 §8.1 defines the since-timestamp revocation response, its schema (`$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`), and the client refresh cadence. That response body is **not signed** in ATP 1.0 — authenticity rides on the transport and on each entry's transparency-log index — and §8.1 records signing it as an open question for a future revision; a signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work, not ATP 1.0 guarantees.
 
-ATP is the standards play. ATX is the wedge. We push ATP into A2A spec as the trust binding A2A is missing today (PR 1496 already in flight). We push ATP into IETF as a Working Group draft. We push the transparency log conformance criteria into the same model the WebPKI uses for CA acceptance.
+ATP is the standards play. ATX is the wedge. We push ATP into A2A spec as the trust binding A2A is missing today (PR 1496 already in flight). We intend to take ATP to the IETF. No ATP Internet-Draft exists yet: the plan is to submit ATP as an individual Internet-Draft, as AIP (`draft-fane-opena2a-aip`) and AAP (`draft-fane-opena2a-aap`) already are, and then to ask an IETF working group to adopt it. We push the transparency log conformance criteria into the same model the WebPKI uses for CA acceptance.
 
 The credential is the wedge because every agent carries one. The protocol is the moat because once it is in the spec, every implementer is using ours.
 
@@ -459,7 +491,7 @@ Total time under 90 seconds. The developer merges a PR and the agent has a fresh
 This flow has zero issuing node involvement. It runs thousands of times per second across the ecosystem.
 
 1. Verifier receives request. Extracts Agent-Trust-Credential header or the atx field from an A2A agent card or MCP manifest.
-2. Parse ATX. Check atxVersion is supported. Check expiresAt is in the future. Under 0.1ms.
+2. Parse ATX. Check atcVersion is supported. Check expiresAt is in the future. Under 0.1ms.
 3. Look up issuerDid in local DID document cache. TTL one hour. Cache hit proceeds. Cache miss does a single fetch and caches the result. Under 1ms on hit.
 4. Verify Ed25519 signature against cached issuer public key. Under 1ms.
 5. Verify the ML-DSA-65 signature, which every credential carries beside the Ed25519 one (§1.1). About 3ms.
@@ -626,9 +658,9 @@ Every OpenA2A product gains a specific role in the ATX architecture. Nothing is 
 | Product | Role | What it contributes |
 |---|---|---|
 | OpenA2A Registry | The root CA node | Issues ATX for community packages. Runs transparency log. Maintains CRL. Operates root federation node. Runs global webhook feeds. |
-| HackMyAgent | The scanner at issuance | Scan results embedded in ATX at build time. HMA's own binary carries an ATX and verifies itself before running. 209 static plus 29 semantic plus 164 adversarial checks gate trust level. |
+| HackMyAgent | The scanner at issuance | Scan results embedded in ATX at build time. HMA's own binary carries an ATX and verifies itself before running. Its static, NanoMind semantic and adversarial checks gate trust level; the [HackMyAgent README](https://github.com/opena2a-org/hackmyagent/blob/main/README.md) states how many of each it ships. |
 | Build plugin | The CA interface | Translates every CI build into a build attestation and ATX request. The developer's voice in the trust system. |
-| AIM | Identity issuance and runtime enforcement | Issues agent keypairs bound to ATX. Enforces capabilities at runtime. 8 factor trust feeds into ATX trust score. Fleet dashboard shows ATX status across all agents. |
+| AIM | Identity issuance and runtime enforcement | Issues agent keypairs bound to ATX. Enforces capabilities at runtime. Its trust score, the multi-factor algorithm specified in [AIP §6.1](https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md), feeds into ATX trust score. Fleet dashboard shows ATX status across all agents. |
 | ARP (part of HMA) | Runtime self attestation and L1 behavioral twin | At agent startup verifies own binary hash matches ATX contentHash. L1 behavioral model learns normal behavior. Anomaly events push to the behavioral gradient endpoint. |
 | Secretless AI | Credential surface elimination | Removes all persistent credentials from CI and runtime. Nothing to steal equals no cascade after an ATX compromise attempt. |
 | NanoMind | ATX intelligence layer | Routes natural language queries to ATX verification, scan results, revocation status. Answers "why is my agent trust level 2" conversationally from ATX data. |
@@ -654,11 +686,11 @@ This is the architectural property that makes ATX scale to a billion agents. It 
 
 These boundaries are as important as the capabilities.
 
-* **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-org/agent-identity-protocol`](https://github.com/opena2a-org/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
+* **ATX is not an identity system.** AIM is, and AIM implements AIP §3 Agent Identity (see [`opena2a-standards/agent-identity-protocol`](https://github.com/opena2a-standards/agent-identity-protocol)). ATX binds an AIM-issued, AIP-conformant identity to a build and a behavioral profile. The identity itself comes from AIM.
 * **ATX is not a runtime authorization system.** AAP is the authorization layer: whether an agent may touch a given resource is a broker policy decision under AAP. ATX presents the credential. The broker enforces the policy, and can take the credential's verified `capabilities` as one input to it (§1.3a.4).
 * **ATX is not a centralized database.** It is a credential format. The issuing nodes are infrastructure. The credential travels with the agent.
 * **ATX is not proprietary.** ATP is published as an open standard. Any organization can issue ATX credentials using the same format. Compatibility is the goal.
-* **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites can be added via ATP version negotiation.
+* **ATX does not bind to a single cryptographic suite.** Ed25519 and ML-DSA-65 are mandatory today. Additional suites are added by specification revision (§14).
 * **ATX is not a substitute for code review.** Scans embedded in the ATX are signals, not absolution. A trust level 4 ATX on a malicious agent is a bug in the scanners, not a property of the credential.
 
 ---
@@ -685,13 +717,13 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 **Credential (an ATX instance).** A conforming ATX carries every mandatory field of §1.1, selects exactly one canonical signing form by its version field (§1.3a), and its signatures verify over the bytes that form produces. A v1.1 credential MUST satisfy the determinism rules of §1.3a.2.
 
-**Issuer.** A conforming issuer emits only conforming credentials, signs `JCS(TBS)` bytes that are byte-identical to what the conformance vectors pin (§1.3a.3), logs every issuance and revocation to the transparency log before it takes effect (§11 commitment 3), and never requires a verifier to contact it on the verification path (§9). A conforming issuer MUST NOT assert `trustLevel` 3 or higher on a credential that does not carry signatures from at least two distinct authorities as §1.3 step 7 counts them, and MUST NOT assert `trustLevel` 4 without the root cosignature §7 rule 4 requires. This binds issuance from the point an issuer claims conformance to it; it is not retroactive and it does not reclassify credentials already issued. The conformance suite's fixtures are not conforming issuer output under this rule and are not a model of issuance: they assert `trustLevel` 4 while carrying signatures from a single authority, and all but the three hybrid fixtures carry Ed25519 signatures only (see Coverage below), because they exist to pin signing bytes and verdicts rather than issuance policy. Those of them that declare `atcVersion` 1.1 lack the ML-DSA-65 signature §1.1 requires, and the credential schema refuses them.
+**Issuer.** A conforming issuer emits only conforming credentials, signs `JCS(TBS)` bytes that are byte-identical to what the conformance vectors pin (§1.3a.3), logs every issuance and revocation to the transparency log before it takes effect (§11 commitment 3), and never requires a verifier to contact it on the verification path (§9). A conforming issuer MUST NOT assert `trustLevel` 3 or higher on a credential that does not carry signatures from at least two distinct authorities as §1.3 step 7 counts them, and MUST NOT assert `trustLevel` 4 without the root cosignature §7 rule 4 requires. This binds issuance from the point an issuer claims conformance to it; it is not retroactive and it does not reclassify credentials already issued. The conformance suite's fixtures are not conforming issuer output under this rule and are not a model of issuance: they assert `trustLevel` 4 while carrying signatures from a single authority, and all but the four fixtures that carry an ML-DSA-65 signature carry Ed25519 signatures only (see Coverage below), because they exist to pin signing bytes and verdicts rather than issuance policy. Those of them that declare `atcVersion` 1.1 lack the ML-DSA-65 signature §1.1 requires, and the credential schema refuses them.
 
 **Verifier.** A conforming verifier implements the local verification algorithm of §1.3, dispatching on the credential's version field, and rejects on the failure of any step. It MUST treat the §1.3a.1 unsigned fields as unauthenticated under `atcVersion` `1.0` (§1.3a.4), and it MUST NOT add a network dependency on the issuing node to the acceptance path.
 
-**Conformance suite.** The executable definition of these claims is the byte-pinned fixture set and SDK-independent reference verifiers at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance): 23 fixtures (baseline, hybrid, threshold cosignature, revocation, expiry, issuer binding, tamper rejection, malformed schema, and the `v1_1-*` family covering JCS signing, signed-field integrity, the untrusted chain authority of §1.3 step 4 that contributes no eligible key even when named in the signed `issuerChain`, `declaredPurpose`, the rule-5 degenerate inputs — whitespace-empty object accepted as absent, injected non-object values rejected — and strict credential parse: duplicate object members rejected at any depth per RFC 8259 §4, and case-variant members that a last-wins JSON decoder would collapse rejected as `PARSE_ERROR`, and a hybrid credential carrying a forged ML-DSA-65 signature beside an intact Ed25519 one, rejected because every declared signature must verify, and a credential that omits the optional `transparencyLogIndex`, which pins the field's optionality against a verifier that still requires it), each pinned by SHA-256 in its `MANIFEST.sha256`, plus the `jcs-vectors` cross-language byte-agreement gate. An implementation claiming issuer or verifier conformance MUST produce the pinned verdict on every fixture and, for v1.1 issuance, MUST reproduce every `jcs-vectors` `expected.canonicalHex` byte-for-byte.
+**Conformance suite.** The executable definition of these claims is the byte-pinned fixture set and SDK-independent reference verifiers at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance): 25 fixtures (baseline, hybrid, threshold cosignature, revocation by the credential's own flag and by revocation-list membership alone, expiry, issuer binding, tamper rejection, malformed schema, and the `v1_1-*` family covering JCS signing, signed-field integrity, the untrusted chain authority of §1.3 step 4 that contributes no eligible key even when named in the signed `issuerChain`, `declaredPurpose`, the rule-5 degenerate inputs — whitespace-empty object accepted as absent, injected non-object values rejected — and strict credential parse: duplicate object members rejected at any depth per RFC 8259 §4, and case-variant members that a last-wins JSON decoder would collapse rejected as `PARSE_ERROR`, and a hybrid credential carrying a forged ML-DSA-65 signature beside an intact Ed25519 one, rejected because every declared signature must verify, a hybrid credential carrying one ML-DSA-65 signature that verifies and no Ed25519 signature, rejected because §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry, and a credential that omits the optional `transparencyLogIndex`, which pins the field's optionality against a verifier that still requires it), each pinned by SHA-256 in its `MANIFEST.sha256`, plus the `jcs-vectors` cross-language byte-agreement gate. An implementation claiming issuer or verifier conformance MUST produce the pinned verdict on every fixture and, for v1.1 issuance, MUST reproduce every `jcs-vectors` `expected.canonicalHex` byte-for-byte.
 
-**Coverage.** The suite is the executable definition of the requirements it has fixtures for, and no more. It is not a complete test of this specification, and a requirement's absence from the suite is not evidence that an implementation satisfies it. Requirements stated normatively in this document that no fixture exercises include the distinct-signer-authority count of §1.3 step 7, the cosignature requirements of §7 (federation cosigning, and the root cosignature at trust level 4), revocation propagation timing (§3.3), and transparency-log monitor behavior (§6.4). No fixture carries signatures from more than one distinct authority, and the fixture format has no field for the required trust level that step 7's condition reads, so a verifier that omits step 7 entirely passes the suite. An implementation MUST self-attest these requirements against §1.3 step 7, §3.3, §6.4, and §7 until fixtures exist for them. The revocation-list check of §1.3 step 6 has no fixture of its own either: the suite's revocation fixture also carries `revoked: true` in its issuance envelope, outside the signed bytes, so a verifier that rejects on that field and never reads a revocation list produces the pinned verdict. The profile in `conformance.json` does not identify which requirement a given fixture exercises: every entry in it cites the same specification sections. Where this section and the suite's `notCovered` list disagree, both are incomplete; the requirement text in this document governs.
+**Coverage.** The suite is the executable definition of the requirements it has fixtures for, and no more. It is not a complete test of this specification, and a requirement's absence from the suite is not evidence that an implementation satisfies it. Requirements stated normatively in this document that no fixture exercises include the distinct-signer-authority count of §1.3 step 7, the k-of-n threshold issuance of §3.1 step 8 (cosignatures from 2 of 3 key holders), the cosignature requirements of §7 (federation cosigning, and the root cosignature at trust level 4), revocation propagation timing (§3.3), and transparency-log monitor behavior (§6.4). No fixture carries signatures from more than one distinct authority, and the fixture format has no field for the required trust level that step 7's condition reads, so a verifier that omits step 7 entirely passes the suite. The threshold cosignature fixture pins a credential carrying all three of its signatures, each of which must verify, and the fixture format has no field for the number of signatures the threshold requires, so a verifier that never counts signatures against a threshold, or that checks only the first signature, passes it. An implementation MUST self-attest these requirements against §1.3 step 7, §3.1 step 8, §3.3, §6.4, and §7 until fixtures exist for them. The revocation-list check of §1.3 step 6 has a fixture of its own, `revoked-crl-only`: its credential carries `revoked: false` in its issuance envelope, outside the signed bytes, while its agent is on the verifier's revocation list, so a verifier that rejects on that field and never reads a revocation list does not produce the pinned verdict. The suite's other revocation fixture carries `revoked: true`, and no fixture exercises the cache bound of §3.3. The profile in `conformance.json` does not identify which requirement a given fixture exercises: every entry in it cites the same specification sections. Where this section and the suite's `notCovered` list disagree, both are incomplete; the requirement text in this document governs.
 
 ---
 
@@ -726,9 +758,9 @@ This specification is not (yet) under IANA administration; the registries below 
 | Registry | Governed set | Change policy |
 |---|---|---|
 | ATX version numbers | `1.0` (frozen legacy), `1.1` (current) | Specification revision only. A new version number is REQUIRED whenever the canonical signing form changes (§1.3a); reusing a version for different bytes is forbidden. |
-| Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision via ATP version negotiation (§10). |
+| Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision only (§10). |
 | DID type prefixes (`did:opena2a`) | `registry`, `authority`, `publisher`, `agent`, `mcp_server`, `ai_tool`, `llm`, `skill` (`a2a_agent`: deprecated legacy alias of `agent`) | Registered in the [did:opena2a method specification](https://github.com/opena2a-standards/did-method-opena2a); additions by PR there, mirrored into §2 here. |
-| `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion` | Core set changes by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest class until reviewed (§1.5.3). |
+| `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion`, each with the breadth class and sensitivity class published in [`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json) | Core set and core classes change by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest, most sensitive class until reviewed (§1.5.3). |
 | `taskScope` namespaces | 17 reserved core namespaces (§1.5.3) | Same policy as categories; non-reserved namespaces are org-custom. |
 | Capability tokens | `namespace:action` grammar (AIP §4.1) | Namespaces are reserved in AIP §4.2; `capabilityJustification` keys MUST be a subset of the granted set (§1.5.2). |
 | Transparency-log entry types | Registered in ATP Section 5.1.1 ([`registries/transparency-entry-types.json`](https://github.com/opena2a-standards/agent-trust-protocol/blob/main/registries/transparency-entry-types.json)); ATX logs its entries (§6) under those types and defines none of its own | ATP-SPEC revision. |

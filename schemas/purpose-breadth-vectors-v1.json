@@ -1,0 +1,74 @@
+{
+  "title": "ATX declaredPurpose breadth vectors (vocab v1)",
+  "description": "Each vector is a declaredPurpose and the breadth that core.md section 1.5.4 computes for it against schemas/purpose-category-classes-v1.json: the distinct capability namespaces in capabilityJustification, their count, the breadth class that count maps to, the category's breadth class, and the effective breadth class, which is the broader of the two.",
+  "vocabVersion": "1",
+  "vectors": [
+    {
+      "name": "section-1-1-example-equals-its-category-class",
+      "description": "The declaredPurpose of the core.md section 1.1 example. Two namespaces compute to moderate, the class of financial-operations, so the effective class is the category's own.",
+      "declaredPurpose": {
+        "vocabVersion": "1",
+        "statement": "Processes customer billing inquiries and issues refunds up to a supervisor-set limit.",
+        "category": "financial-operations",
+        "taskScopes": ["billing:inquiry", "billing:refund"],
+        "capabilityJustification": {
+          "db:read": ["billing:inquiry"],
+          "api:call": ["billing:refund"]
+        },
+        "autonomy": "supervised",
+        "dataScopes": ["customer.billing", "customer.contact"],
+        "egressScopes": ["api.stripe.com", "hooks.internal.acme.com"]
+      },
+      "expected": {
+        "namespaces": ["api", "db"],
+        "namespaceCount": 2,
+        "computedBreadthClass": "moderate",
+        "categoryBreadthClass": "moderate",
+        "effectiveBreadthClass": "moderate"
+      }
+    },
+    {
+      "name": "narrow-sounding-scopes-raise-the-floor",
+      "description": "The core.md section 1.5.4 case: support-sounding taskScopes that justify secrets:read, network:connect and system:exec. Three namespaces compute to broad, above the moderate class of customer-support, so the effective class is raised to broad.",
+      "declaredPurpose": {
+        "vocabVersion": "1",
+        "statement": "Answers customer questions about order status.",
+        "category": "customer-support",
+        "taskScopes": ["support:ticket_lookup", "support:ticket_reply"],
+        "capabilityJustification": {
+          "secrets:read": ["support:ticket_lookup"],
+          "network:connect": ["support:ticket_lookup"],
+          "system:exec": ["support:ticket_reply"]
+        }
+      },
+      "expected": {
+        "namespaces": ["network", "secrets", "system"],
+        "namespaceCount": 3,
+        "computedBreadthClass": "broad",
+        "categoryBreadthClass": "moderate",
+        "effectiveBreadthClass": "broad"
+      }
+    },
+    {
+      "name": "one-namespace-never-lowers-a-broad-category",
+      "description": "Two capabilities in one namespace count once and compute to narrow. software-development is broad, and a computed breadth never lowers the floor, so the effective class stays broad.",
+      "declaredPurpose": {
+        "vocabVersion": "1",
+        "statement": "Reviews pull requests in one repository and reports style issues.",
+        "category": "software-development",
+        "taskScopes": ["dev:code_review"],
+        "capabilityJustification": {
+          "fs:read": ["dev:code_review"],
+          "fs:write": ["dev:code_review"]
+        }
+      },
+      "expected": {
+        "namespaces": ["fs"],
+        "namespaceCount": 1,
+        "computedBreadthClass": "narrow",
+        "categoryBreadthClass": "broad",
+        "effectiveBreadthClass": "broad"
+      }
+    }
+  ]
+}

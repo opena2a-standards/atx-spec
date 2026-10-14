@@ -10,6 +10,34 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_references.py` + `scripts/test_references.sh`: no Markdown file outside
+  `CHANGELOG.md` and `errata/` names `opena2a-org/<repo>`, in a URL or in link text, for a
+  repository that lives under `opena2a-standards`; a link whose text cites a version such as
+  `v1.0.0-rc1` and points at a GitHub repository points at that version's tag through
+  `/blob/<version>/` or `/tree/<version>`; and `atxVersion` appears only in a sentence that also
+  names the wire member `atcVersion`. Failures are reported as file and line, and a file that is
+  not UTF-8 is reported as a failure. The check exits 1 on a failure and 2 on a usage error,
+  needs only python3 and is not yet run by CI.
+- The breadth class and sensitivity class of each `declaredPurpose` core category. Section
+  1.5.3 said each of the 15 categories has both, and section 1.5.4 compares a computed breadth
+  with the category's class, but no class value was published anywhere, so the measure could
+  not be implemented from the text. Section 1.5.3 now tabulates both classes, and the same table
+  is the registry file `schemas/purpose-category-classes-v1.json`. Breadth classes are `narrow`,
+  `moderate` and `broad`; sensitivity classes are `standard`, `elevated` and `critical`; a custom
+  category stays at `broad` and `critical` until reviewed, and `security-operations` and
+  `device-control` are `broad`. Section 1.5.4 now states the measure in full: a capability's
+  namespace is everything before its colon, a count of 0 or 1 distinct namespaces is `narrow`, 2
+  is `moderate` and 3 or more is `broad`, and the effective class is the broader of that and the
+  category's class. `schemas/purpose-breadth-vectors-v1.json` pins three computed breadths: the
+  section 1.1 example kept at `moderate`, the section 1.5.4 declaration raised to `broad`, and a
+  one-namespace `software-development` declaration not lowered from `broad`. The breadth measure
+  is detection input and never an authorization input (section 1.5.1), so no verification verdict
+  changes. Neither reference verifier in atx-conformance computes breadth yet.
+- `scripts/test_purpose_classes.py`: asserts that the registry file, the section 1.5.3 table and
+  the schema's category enum list the same categories in the same order with the same classes,
+  that the custom default is the broadest and most sensitive class and the two dual-use
+  categories are not narrow, and that each vector's `declaredPurpose` is valid under the schema
+  and computes the breadth it pins. It needs python3 and `jsonschema` and is not yet run by CI.
 - `scanSummary.techniques`, an optional ATX 1.1 member: the Threat Matrix technique IDs
   (`T-NNNN`) that the summarized scan results reference. Section 11 commitment 2 said scan
   results embedded in ATX reference those IDs, but the credential had no member to carry them
@@ -38,6 +66,10 @@ identifier registered in `core.md` §14.
   untrusted issuer, so rewording that away fails rather than passing vacuously. Failures are
   reported as file and line, and a file that is not UTF-8 is reported as a failure. The check
   needs only python3 and is not yet run by CI.
+- `scripts/check_scalability.py` + `scripts/test_scalability.sh`: a check that recomputes some of
+  the figures `scalability.md` states and exits 1 when one of its rules fails. The rules are
+  listed under Rules in the script's docstring, which also names figures the check does not read
+  and three rewordings it does not catch. It needs only python3 and is not yet run by CI.
 - `scripts/check_latency.py` + `scripts/test_latency.sh`: every Markdown file outside
   `CHANGELOG.md` and `errata/` that states a verification latency total states the figure that
   `scalability.md` §2.1 breaks down: under 5 ms on a warm cache and under 50 ms on a cold one. A
@@ -100,12 +132,16 @@ identifier registered in `core.md` §14.
   authorization and `README.md`'s third use case, which must each name AAP as the layer that
   decides whether an agent may touch a resource. Those three also call nothing permitted in a
   sentence that does not name AAP. A bulleted list item ends at the next bullet, so AAP named in a
-  neighbouring bullet does not count. A missing document or section fails rather than passing
-  vacuously. The check also fails a sentence that names the forge lab at
-  specs.opena2a.org/lab/forge, by name or by URL, in any Markdown file outside `CHANGELOG.md` and
-  `errata/`, unless that same sentence says that what the lab signs is not an ATX credential,
-  since the lab does not verify `JCS(TBS)` of a real credential; a file that is not UTF-8 also
-  fails. The check needs only python3 and is not yet run by CI.
+  neighbouring bullet does not count. The HackMyAgent and AIM rows of the section 8 product
+  integration map must link the HackMyAgent README and AIP §6.1, which own the check counts and
+  the trust score factors, and state no count of checks, factors, payloads, rules or tests
+  themselves; a table row ends at its own line, so a link in the next row does not count. A
+  missing document or section fails rather than passing vacuously. The check also fails a
+  sentence that names the forge lab at specs.opena2a.org/lab/forge, by name or by URL, in any
+  Markdown file outside `CHANGELOG.md` and `errata/`, unless that same sentence says that what
+  the lab signs is not an ATX credential, since the lab does not verify `JCS(TBS)` of a real
+  credential; a file that is not UTF-8 also fails. The check needs only python3 and is not yet
+  run by CI.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
@@ -122,15 +158,44 @@ identifier registered in `core.md` §14.
   `scalability.md` must state both sizes, so rewording them away fails rather than passing
   vacuously. Failures are reported as file and line, and a file that is not UTF-8 is reported as
   a failure. The check needs only python3 and is not yet run by CI.
+- `scripts/check_atp_claims.py` + `scripts/test_atp_claims.sh`: no Markdown file outside
+  `CHANGELOG.md` and `errata/` may name a negotiation in a sentence that also names ATP or the
+  word version, because ATP-SPEC v1.0.0-rc1 defines no negotiation, and none may call a document
+  a working group draft (`Working Group draft`, `working-group Internet-Draft` or `WG draft`, in
+  any case), because no working group has adopted ATP. A sentence may wrap across lines but not
+  across a blank line. Each rule goes in the change that cites the ATP section or the adopted
+  draft that makes it obsolete. Failures are reported as file and line. The check needs only
+  python3 and is not yet run by CI.
 - `scripts/test_schema.py`: takes the §1.1 example credential, changes one member per case, and
   asserts that `schemas/atx-credential-v1.1.schema.json` accepts the result when `core.md` allows
   it and rejects it when `core.md` forbids it. The cases cover the taskScope and capability
   grammars, the keys and values of `capabilityJustification`, an absent, null or empty
   `declaredPurpose`, and the canonical empties of §1.3a.2 rules 1 and 2. It needs python3 and the
   `jsonschema` package, as `scripts/validate_examples.py` does, and is not yet run by CI.
+- `scripts/check_coverage_index.py` + `scripts/test_coverage_index.sh`: the sections the
+  `core.md` section 12 Coverage paragraph names (`§3.3`) must equal the sections the
+  atx-conformance `notCovered` items cite ("section 3.3"), as the family spec-drift check
+  `notcovered-index-agrees-with-spec` compares them, so the comparison runs with only the suite
+  checked out (`--suite <path>`). A `notCovered` item that cites no section fails, and so does a
+  missing Coverage paragraph, `conformance.json` or `notCovered` list. The tests build the
+  failing shapes in scratch trees and also run against a real suite checkout when
+  `ATX_CONFORMANCE_SUITE` names one. The check needs only python3 and is not yet run by CI.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **25** fixtures. atx-conformance added
+  `fixtures/revoked-crl-only.json`, a MUST-REJECT v1.0 credential whose own `revoked` flag is
+  false and whose agent is on the verifier's revocation list, so the §1.3 step 6 list check now
+  has a fixture of its own and a verifier that never reads the list fails it, and
+  `fixtures/v1_1-hybrid-pq-only.json`, a MUST-REJECT v1.1 credential carrying one ML-DSA-65
+  signature that verifies and no Ed25519 signature, which §13 rejects. `README.md` carried
+  "23 fixtures", "23 of 23 PASS", the verifier's summary line for 23 and, in its "Why you can
+  check this yourself" paragraph, "ships 23 byte-pinned fixtures", and said no fixture yet
+  rejects an agent on list membership alone; §12 carried "23 fixtures", said step 6 has no
+  fixture of its own, and in its Issuer paragraph said all but the three hybrid fixtures carry
+  Ed25519 signatures only, where four fixtures now carry an ML-DSA-65 signature, one of them
+  with no Ed25519 signature. All of those follow the suite, and both fixtures join both fixture
+  enumerations. No normative text changes.
 - `scalability.md` §6.2 and §6.3 describe the revocation list ATP-SPEC v1.0.0-rc1 §8.1 defines.
   §6.3 said the cached CRL is signed so that a stale one cannot be tampered with, but the §8.1
   response has no member for a signature and allows no additional members, and `core.md` §2
@@ -140,6 +205,70 @@ identifier registered in `core.md` §14.
   roughly 40 bytes and a million revocations at 40 MB; each entry has five required members, the
   §8.1 example entry is 227 bytes as compact JSON, and §6.2 now says roughly 227 bytes per entry
   and about 227 MB per million revocations before compression. No normative text changes.
+
+- Section 1.3a.2 rule 6 says that an issuer MUST NOT list the same technique ID twice in
+  `scanSummary.techniques`. The schema's `uniqueItems` and `scripts/test_schema.sh` already
+  rejected a repeated ID, but rule 6 said only that each item is a `T-NNNN` string and that a
+  verifier does not deduplicate, which read as if a repeated ID could be valid. A verifier still
+  signs a present value verbatim, including one that repeats an ID. This adds one BCP 14
+  statement. The schema's `transparencyLogIndex` description no longer says the field is omitted
+  when the issuer recorded no inclusion, the reading section 1.1 dropped; it says, as section 1.1
+  does, that omitting the field does not exempt the issuance from being logged before it takes
+  effect.
+- `scripts/test_schema.py` writes no `scripts/__pycache__/` when it imports
+  `validate_examples`, so running it leaves the working tree clean, and `scripts/test_schema.sh`
+  asserts that in a scratch copy.
+- Links to the ATP and AIP specifications and to the conformance suite's `jcs-vectors/` in
+  `README.md` and `core.md` sections 1.3a.3 and 10 name `opena2a-standards`, where those
+  repositories now live, instead of `opena2a-org`, which answers 301. The `core.md` header link to
+  ATP-SPEC v1.0.0-rc1 points at `ATP-SPEC.md` at the `v1.0.0-rc1` tag; the repository root shows
+  the next draft. Section 3.2 step 2 checks `atcVersion`, the wire member, where it said
+  `atxVersion`, which the schema rejects. The `README.md` scope cell for `scalability.md` says it
+  covers transparency log scaling and monitor cost and names `core.md` §6.4 for the monitor
+  verification cycle. No BCP 14 statement is added or removed.
+- `core.md` section 8, the product integration map, no longer states HackMyAgent's check counts
+  or the number of factors in AIM's trust score. It said 209 static checks and an 8 factor trust
+  score; the HackMyAgent README states 317 static checks and AIP §6.1 specifies a 9-factor
+  algorithm. The HackMyAgent row now links the README for the counts and the AIM row links AIP
+  §6.1, so the map cannot fall behind either source again. The section is informative and no
+  normative text changes.
+- `scalability.md` states figures that follow from the inputs it gives. Verifications per core
+  are about 277, not 1,000: the §2.1 steps sum to 3.611 ms, so a four-core verifier handles
+  about 1,100 a second and a billion a second needs about 900,000 verifiers, not 250,000. The
+  §2.1 warm cache total is 3.5 to 3.6 ms, the sum of its steps, where it said 1 to 4 ms, and the
+  ML-DSA-65 step is required rather than optional, since every credential carries that
+  signature (`core.md` §1.1). A credential is about 6 KB, not 1 to 4 KB averaging 2 KB: the
+  base64 ML-DSA-65 signature alone is 4,412 characters. The active set is therefore 6 TB for a
+  billion credentials and 600 MB for a 100,000 agent node, where it said 2 TB and 200 MB. A month
+  of log entries at 1,650 a second and 256 bytes is about 1.1 TB, not 4 TB, and the 100,000
+  agent node's yearly log mirror is about 1.3 GB, not 10 GB. The node's reissuance is about
+  1 KB a second on average and about 60 KB a second at the 10 issuances a second §10 suggests
+  for that population, where it said 150 KB a second with no rate to derive it from. §10 says
+  its capacity table is sizing guidance and not a conformance criterion, where it called the
+  figures the minimum capacities for ATP conformance: the conformance targets of `core.md` §12
+  state no capacity. The §1 summary says a 10 million entry log verifies in 24 hashes, where it
+  said 23: an RFC 6962 inclusion proof in a log of that size is at most 24 hashes, the base 2
+  logarithm of the entry count rounded up, as the §5.1 table counts it. §1 also names the
+  figures that are computed from the populations, rates, sizes and step costs the document
+  states, where it called the numbers direct consequences of the architectural commitments in
+  the core doc. No BCP 14 statement is added or removed.
+- `core.md` no longer cites an ATP version negotiation or an ATP working group draft, neither of
+  which exists. Section 10 and the signature suite row of the section 14 registry table said
+  additional suites are added via ATP version negotiation; ATP-SPEC v1.0.0-rc1 defines no
+  negotiation, so both now state the change policy as it is, specification revision. Section 2
+  said ATP is pushed into the IETF as a Working Group draft; no ATP Internet-Draft exists, and a
+  working group draft is one a working group has adopted, so section 2 now describes the IETF
+  work as intended: an individual Internet-Draft, as AIP and AAP already have, and then a request
+  to a working group to adopt it. A version negotiation, if one is added, is specified in ATP. No
+  BCP 14 statement is added or removed.
+- §12 Coverage names the k-of-n threshold issuance of §3.1 step 8 (cosignatures from 2 of 3 key
+  holders) among the requirements no fixture exercises, and adds §3.1 step 8 to the requirements
+  an implementation self-attests. The atx-conformance `notCovered` list cites §3.1 step 8 and the
+  paragraph did not, which the family spec-drift check `notcovered-index-agrees-with-spec`
+  reported. The threshold cosignature fixture pins a credential carrying all three signatures,
+  and the fixture format has no field for the number the threshold requires, so a verifier that
+  never counts signatures against a threshold, or checks only the first, passes it. No verdict
+  on any fixture changes.
 
 - `schemas/atx-credential-v1.1.schema.json` follows `core.md` in five places where the two
   disagreed. `taskScopes` tokens and the values of `capabilityJustification` follow the §1.5.2
