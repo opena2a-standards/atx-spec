@@ -192,6 +192,15 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `README.md` is shorter and opens with a link to `core.md` section 1.3, the algorithm every
+  verifier runs. Its reference text moved, as written, to three new pages it links:
+  `docs/status.md` takes the Status section (document version, wire format, which service
+  issues and which verifies ATX, the ATP and AIP specifications); `docs/conformance.md` takes
+  the conformance-suite paragraph with its fixture list and verifier counts; and
+  `docs/use-cases.md` takes the sentence comparing `fixtures/revoked.json` with
+  `fixtures/revoked-crl-only.json`. The README keeps the fixture count only in the reference
+  verifier's summary line, and `scripts/check_conformance_counts.py` now also checks the counts
+  in `docs/conformance.md`.
 - The stated conformance-suite count follows the suite to **25** fixtures. atx-conformance added
   `fixtures/revoked-crl-only.json`, a MUST-REJECT v1.0 credential whose own `revoked` flag is
   false and whose agent is on the verifier's revocation list, so the §1.3 step 6 list check now
