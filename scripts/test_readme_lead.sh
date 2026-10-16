@@ -15,6 +15,7 @@ set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAV='> **specs** · [ATP](https://example.org/atp) · **ATX**'
 DESC='Architecture specifications for the **ATX** credential format.'
+TAB="$(printf '\t')"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -159,6 +160,117 @@ $DESC
 ")"
 expect_fail "a heading inside a fenced code block does not end the lead" \
     "$T" lead "README.md:7"
+
+# A closing fence longer than the opening one closes the block: left open, the
+# block would hold the section heading and the README would fail as [missing].
+T="$(new_tree fence-longer-close "# spec
+
+\`\`\`sh
+## not a heading
+\`\`\`\`
+
+$DESC
+
+## Start here
+")"
+expect_fail "a closing fence longer than the opening one closes the block" \
+    "$T" lead "README.md:7"
+
+T="$(new_tree fence-indented-three "# spec
+
+   \`\`\`sh
+## not a heading
+   \`\`\`$TAB
+
+$DESC
+
+## Start here
+")"
+expect_fail "fences indented three spaces open and close a block, the closing one followed by a tab" \
+    "$T" lead "README.md:7"
+
+# Each block below stands above the title and ends on a line that closes it.
+# Were a line inside it taken as the closing fence, that last line would open a
+# new block running to the end of the file, and the title would be missed.
+T="$(new_tree fence-other-char "\`\`\`text
+~~~
+\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a tilde fence line does not close a backtick block" "$T"
+
+T="$(new_tree fence-shorter "\`\`\`\`md
+\`\`\`
+\`\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence shorter than the opening one does not close the block" "$T"
+
+T="$(new_tree fence-info-string "\`\`\`text
+\`\`\`sh
+\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence line with an info string does not close the block" "$T"
+
+T="$(new_tree fence-indented-close "\`\`\`
+    \`\`\`
+\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence line indented four spaces does not close the block" "$T"
+
+# Read as a fence, the first line would open a block running to the end of the
+# file, and the title would be missed.
+T="$(new_tree fence-indented-open "    \`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence line indented four spaces does not open a block" "$T"
+
+T="$(new_tree fence-tab-open "$TAB\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence line indented by a tab does not open a block" "$T"
+
+T="$(new_tree fence-backtick-info "\`\`\`a\`b
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a backtick run whose info string holds a backtick does not open a block" "$T"
 
 # --- missing ----------------------------------------------------------------
 

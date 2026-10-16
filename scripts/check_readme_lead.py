@@ -19,7 +19,12 @@ Two rules, checked on README.md at the top of the tree:
             and a description between them, so removing any of them cannot
             pass vacuously.
 
-A heading inside a fenced code block is not a heading. A sentence ends at ".",
+A heading inside a fenced code block is not a heading. As in CommonMark, a
+fence is a run of three or more backticks or tildes indented at most three
+spaces, and a backtick fence's info string holds no backtick; a block closes
+only on a fence of the same character, at least as long as the one that opened
+it, with nothing after it but white space. A line indented four or more spaces,
+or by a tab, neither opens nor closes a block. A sentence ends at ".",
 "!" or "?" followed by white space and a capital letter, a digit or the start
 of Markdown markup. A file that is not UTF-8 is reported as an [encoding]
 failure.
@@ -38,7 +43,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 README = "README.md"
 
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
+FENCE_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 H1_RE = re.compile(r"^#\s")
 H2_RE = re.compile(r"^##\s")
 IMAGE = r"!\[[^\]]*\]\([^)]*\)"
@@ -47,15 +52,36 @@ COMMENT_LINE_RE = re.compile(r"^\s*<!--.*-->\s*$")
 SENTENCE_END_RE = re.compile(r"[.!?](?=\s+[A-Z0-9*_`\[(])")
 
 
+def fence(line):
+    """(character, length, text after the run) when the line is a code fence, else None."""
+    body = line.lstrip(" \t")
+    # A tab advances to the next multiple of four columns, so a leading tab is
+    # already four columns of indentation.
+    if len(line[: len(line) - len(body)].expandtabs(4)) > 3:
+        return None
+    m = FENCE_RE.match(body)
+    if m is None:
+        return None
+    run, rest = m.groups()
+    if run[0] == "`" and "`" in rest:
+        return None
+    return run[0], len(run), rest
+
+
 def headings(lines):
     """(line number of the title, line number of the first section heading after it)."""
     title = section = None
-    fenced = False
+    opening = None  # (character, length) of the fence that opened the current block
     for number, line in enumerate(lines, 1):
-        if FENCE_RE.match(line):
-            fenced = not fenced
-            continue
-        if fenced:
+        found = fence(line)
+        if opening is None:
+            if found is not None:
+                opening = found[:2]
+                continue
+        else:
+            char, length, rest = found or (None, 0, "")
+            if char == opening[0] and length >= opening[1] and not rest.strip(" \t"):
+                opening = None
             continue
         if title is None and H1_RE.match(line):
             title = number
