@@ -2,11 +2,12 @@
 # Tests for scripts/check_conformance_counts.py.
 #
 # Each phrasing the check reads is built here in a scratch tree with a scratch
-# suite of a known size, and a stated count that differs from it is asserted to
-# exit 1 naming the file, the line and the kind of count. The delivered README.md,
-# docs/conformance.md and core.md are asserted to agree with each other: they
-# pass against a suite of the size core.md section 12 states. Shell rather than
-# pytest so it runs with nothing installed: bash and python3 are all this needs.
+# suite of a known size, and a stated count that differs from it, or a summary
+# line's fail count other than 0, is asserted to exit 1 naming the file, the
+# line and the kind of count. The delivered README.md, docs/conformance.md and
+# core.md are asserted to agree with each other: they pass against a suite of
+# the size core.md section 12 states. Shell rather than pytest so it runs with
+# nothing installed: bash and python3 are all this needs.
 #
 #   bash scripts/test_conformance_counts.sh
 #
@@ -154,6 +155,25 @@ expect_fail "a stale 'N pass, 0 fail' summary line fails" "$T" "$(suite 5)" \
 T="$(tree summary-fixtures $'# Title\n\n```\n# summary: 5 pass, 0 fail (7 fixtures)\n```')"
 expect_fail "a stale fixture count in a summary line fails" "$T" "$(suite 5)" \
     "README.md:4 states 7 (fixtures)"
+
+T="$(tree summary-ok $'# Title\n\n```\n# summary: 5 pass, 0 fail (5 fixtures)\n```')"
+expect_pass "a summary line stating every fixture passed and 0 failed passes, its fail count read" \
+    "$T" "$(suite 5)" "5 stated value(s) checked"
+
+T="$(tree summary-fail $'# Title\n\n```\n# summary: 5 pass, 1 fail (5 fixtures)\n```')"
+expect_fail "a summary line stating a failure fails" "$T" "$(suite 5)" \
+    "README.md:4 states 1 (fail) but a run that passes all 5 fixtures reports 0"
+
+T="$(tree summary-moved $'# Title\n\n```\n# summary: 4 pass, 1 fail (5 fixtures)\n```')"
+expect_fail "a summary line moving one fixture from pass to fail reports the pass count" \
+    "$T" "$(suite 5)" "README.md:4 states 4 (pass)"
+expect_fail "a summary line moving one fixture from pass to fail reports the fail count" \
+    "$T" "$(suite 5)" "README.md:4 states 1 (fail)"
+
+T="$(tree docs-summary-fail $'# Title\n\nThe suite ships 5 fixtures.' "$CORE" \
+    $'# Conformance\n\nThe suite ships 5 fixtures.\n\nThe verifier prints 5 pass, 2 fail.')"
+expect_fail "a fail count other than 0 in docs/conformance.md fails" "$T" "$(suite 5)" \
+    "docs/conformance.md:5 states 2 (fail)"
 
 T="$(tree core-stale $'# Title\n\nThe suite ships 5 fixtures.' $'# Core\n\n7 fixtures (baseline).')"
 expect_fail "a stale count in core.md fails" "$T" "$(suite 5)" "core.md:3 states 7 (fixtures)"
