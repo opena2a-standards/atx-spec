@@ -6,15 +6,17 @@ Architecture specifications for the **Agent Trust eXtension (ATX)** credential f
 
 ## Start here
 
-Read [`core.md`](core.md#13-local-verification-algorithm) first: section 1.3 is the algorithm every verifier runs, and section 1.1 the credential it checks. To check a verifier against the pinned fixtures, run the reference verifier shown under the [first use case](#a-strangers-agent-calls-you-and-you-cannot-phone-home-on-every-request).
+Read [`core.md`](core.md#13-local-verification-algorithm) first: section 1.3 is the algorithm every verifier runs, and section 1.1 the credential it checks.
 
-## Use cases
+To check a verifier against the pinned fixtures, run the reference verifier shown under the [first use case](#a-strangers-agent-calls-you-and-you-cannot-phone-home-on-every-request).
+
+## What it does
 
 ### A stranger's agent calls you and you cannot phone home on every request
 
-A partner's agent calls your service. You want to know who issued its credential, what it was attested to do and whether it is still trusted, and you want that on every request, which rules out calling a central server each time: that is slow, and the server becomes the one thing whose outage takes you down.
+ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile.
 
-ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile. A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms on a warm cache, and never queries the issuing node during verification.
+A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms on a warm cache, and never queries the issuing node during verification.
 
 What you can do today: run the reference verifier against the pinned fixtures from a clean clone.
 
@@ -25,37 +27,27 @@ go run . ../../fixtures
 # summary: 25 pass, 0 fail (25 fixtures)
 ```
 
-Or try to forge a signed object in your browser at [specs.opena2a.org/lab/forge](https://specs.opena2a.org/lab/forge): the lab signs a simplified object, not an ATX credential, so its verdicts are not conformance results.
+Where it stops today: an ATX is a bearer artifact.
 
-Where it stops today: an ATX is a bearer artifact. Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with a proof-of-possession channel such as the AIP challenge.
+Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with a proof-of-possession channel such as the AIP challenge.
 
 ### The agent you approved last week is not the one acting now
 
-An agent passed review once and kept its credential for a year. A new build shipped, or an instruction hidden in a page changed how it behaves, and nothing re-checked it. The people relying on the review are trusting a result that no longer describes the agent.
+An ATX lives for 7 days.
 
-An ATX lives for 7 days. Renewal runs the build plugin and the scan again, so a fresh credential describes the current build, and an agent that must be stopped sooner is placed on a revocation list that verifiers check on every verification.
+Renewal runs the build plugin and the scan again, so a fresh credential describes the current build, and an agent that must be stopped sooner is placed on a revocation list that verifiers check on every verification.
 
-What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object it signs, which is not an ATX credential.
-
-Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. No fixture exercises the five-minute bound or a request served on a stale list. The two revoked fixtures are compared in [`docs/use-cases.md`](docs/use-cases.md).
+Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list.
 
 ### An auditor asks what each agent was allowed to attempt, and what scanned it
 
-Your inventory of agents is a spreadsheet. The auditor asks for proof that the capabilities and scan results in it were not edited after the incident.
-
 ATX 1.1 signs capabilities, the scan summary and the declared purpose inside the credential's canonical bytes, so a field changed after signing fails verification instead of passing unnoticed.
 
-What you can do today: `fixtures/v1_1-tampered-capabilities.json`, whose capabilities were escalated to `system:exec` after signing, rejects with `SIGNATURE_INVALID` in both reference verifiers.
+Where it stops today: capabilities in an ATX describe what the build is attested to be able to do.
 
-Where it stops today: capabilities in an ATX describe what the build is attested to be able to do. They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
+They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
 
-Why you can check this yourself: [`core.md`](core.md) is the specification and [`schemas/atx-credential-v1.1.schema.json`](schemas/atx-credential-v1.1.schema.json) the machine-readable wire shape; [atx-conformance](https://github.com/opena2a-standards/atx-conformance) ships byte-pinned fixtures, Go and Python verifiers that each check both signature suites, and the `jcs-vectors/` canonical-bytes gate; OpenA2A AIM (Agent Identity Management) at [opena2a-org/agent-identity-management](https://github.com/opena2a-org/agent-identity-management) verifies ATX, and the OpenA2A Registry at `api.oa2a.org` issues it.
-
-## Contributing
-
-This specification is early and authored in the open. We are looking for co-authors, an independent second implementation, and cryptographic review before it goes to an external standards body. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Documents
+## Documentation
 
 | Doc | Scope |
 |---|---|
@@ -63,10 +55,9 @@ This specification is early and authored in the open. We are looking for co-auth
 | [`scalability.md`](scalability.md) | Scaling properties: revocation propagation, CRL caching, transparency log scaling and monitor cost (the monitor verification cycle is [`core.md`](core.md) §6.4) |
 | [`sovereign-federation.md`](sovereign-federation.md) | Multi-authority cosigning, sovereign-node operation, cross-org trust |
 | [`docs/status.md`](docs/status.md) | Document version, the normative wire format, which OpenA2A service issues ATX and which verifies it, the ATP and AIP specifications |
-
-## Conformance
-
-Byte-stable conformance fixtures and SDK-independent reference verifiers live at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance). Conformance targets (credential, issuer, verifier) are defined in [`core.md`](core.md) §12. [`docs/conformance.md`](docs/conformance.md) lists what the fixtures cover, the two reference verifiers and the JSON Schema of the credential wire shape.
+| [`docs/use-cases.md`](docs/use-cases.md) | Each use case in full, with what you can do today and where it stops |
+| [`docs/conformance.md`](docs/conformance.md) | Byte-stable fixtures and SDK-independent reference verifiers at [atx-conformance](https://github.com/opena2a-standards/atx-conformance), what they cover, the credential JSON Schema; conformance targets in [`core.md`](core.md) §12 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Early and authored in the open: co-authors, an independent second implementation and cryptographic review are wanted before an external standards body |
 
 To report a second-party implementation of ATX issuance or verification, open an issue on this repository.
 
