@@ -231,6 +231,11 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `README.md` is shorter. Its Use cases section, renamed What it does, keeps what ATX does in each
+  use case, where it stops (one sentence for the second) and the reference verifier's commands;
+  each use case in full, with its problem statement and the fixtures it names, is now in
+  `docs/use-cases.md`. The Contributing and Conformance sections are rows of the Documentation
+  table, formerly Documents, and `CONTRIBUTING.md` and `docs/conformance.md` hold what they said.
 - `scripts/check_readme_lead.py` excludes `pre`, `script`, `style` and `textarea` from the
   HTML block kind opened by a line holding only one tag for an open tag only, as CommonMark
   does. It excluded them for a closing tag as well, so a README whose `# ` line stood directly
