@@ -1,6 +1,10 @@
 # Use cases: reference detail
 
-Text that the use cases in the [README](../README.md) link to, kept here in full.
+Text moved out of the [README](../README.md), kept here in full: the summary that opened it, and the detail its use cases link to.
+
+## What ATX is
+
+ATX is a signed, self-contained credential carried by every AI agent. It is analogous to a TLS certificate but contains agent identity, scan results, capabilities, and behavioral profile. Local verification under 5ms. Ed25519 + ML-DSA-65 hybrid signatures mandatory at v1.
 
 ## The agent you approved last week is not the one acting now
 
