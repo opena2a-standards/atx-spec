@@ -320,6 +320,13 @@ identifier registered in `core.md` §14.
   under "What ATX is". The first use case now states its verification bound as "under 5 ms on a
   warm cache", the condition `core.md` §1.3 gives for it, so `README.md` still states the warm
   cache total that `scripts/check_latency.py` requires of it.
+- `scripts/check_conformance_counts.py` reads the fail count of the reference verifier's summary
+  line in `README.md` (`summary: 25 pass, 0 fail (25 fixtures)`) as well as its pass and fixture
+  counts: a fail count other than 0 exits 1 naming the file and line, since a run that passes
+  every fixture reports no failures. Before, a README stating `25 pass, 1 fail (25 fixtures)`
+  passed against a 25-fixture suite. `scripts/test_conformance_counts.sh` covers a summary line
+  stating a failure, one moving a fixture from pass to fail, and a fail count in
+  `docs/conformance.md`.
 - The stated conformance-suite count follows the suite to **25** fixtures. atx-conformance added
   `fixtures/revoked-crl-only.json`, a MUST-REJECT v1.0 credential whose own `revoked` flag is
   false and whose agent is on the verifier's revocation list, so the §1.3 step 6 list check now

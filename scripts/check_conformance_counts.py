@@ -2,10 +2,13 @@
 """Assert the conformance-suite fixture counts stated here match the suite.
 
 README.md, docs/conformance.md and core.md (section 12) each state how many
-fixtures the atx-conformance suite ships, and docs/conformance.md restates the
-pass count the reference verifiers report. Those are measurements taken in
-another repository, so they are checked here rather than maintained by hand:
-the count drifted to 18 while the suite shipped 20 and nothing caught it.
+fixtures the atx-conformance suite ships, docs/conformance.md restates the
+pass count the reference verifiers report, and the reference verifier's
+summary line in README.md states its pass and fail counts. Those are
+measurements taken in another repository, so they are checked here rather than
+maintained by hand: the count drifted to 18 while the suite shipped 20 and
+nothing caught it. A stated pass count must equal the number of fixtures and a
+stated fail count must be 0.
 
 This repository does not contain the fixtures, so the suite is supplied by the
 caller:
@@ -48,7 +51,7 @@ FIXTURES_RE = re.compile(
     r"\b(\d+)\s+(?:(?:" + "|".join(map(re.escape, WHOLE_SUITE_QUALIFIERS)) + r")\s+)?fixtures\b"
 )
 OF_PASS_RE = re.compile(r"\b(\d+)\s+of\s+(\d+)\s+PASS\b")
-SUMMARY_PASS_RE = re.compile(r"\b(\d+)\s+pass,\s+\d+\s+fail\b")
+SUMMARY_RE = re.compile(r"\b(\d+)\s+pass,\s+(\d+)\s+fail\b")
 NEWLINE_RE = re.compile(r"\n")
 
 
@@ -60,14 +63,14 @@ def line_of(newlines, offset):
 
 
 def stated_counts(text):
-    """Every fixture/pass count asserted in one document.
+    """Every fixture/pass/fail count asserted in one document.
 
     Matches the phrasings actually used:
       "The suite ships 18 fixtures"
       "ships 18 byte-pinned fixtures"
       "18 fixtures (baseline, hybrid, ...)"
       "Both verifiers report 18 of 18 PASS"
-      "# summary: 18 pass, 0 fail (18 fixtures)"
+      "# summary: 18 pass, 0 fail (18 fixtures)"  (the Go reference verifier's last line)
     """
     found = []
     for m in FIXTURES_RE.finditer(text):
@@ -75,8 +78,9 @@ def stated_counts(text):
     for m in OF_PASS_RE.finditer(text):
         found.append(("pass", int(m.group(1)), m.start()))
         found.append(("of", int(m.group(2)), m.start()))
-    for m in SUMMARY_PASS_RE.finditer(text):
+    for m in SUMMARY_RE.finditer(text):
         found.append(("pass", int(m.group(1)), m.start()))
+        found.append(("fail", int(m.group(2)), m.start()))
     return found
 
 
@@ -120,11 +124,19 @@ def main():
         newlines = [m.start() for m in NEWLINE_RE.finditer(text)]
         for kind, value, offset in claims:
             checked += 1
-            if value != actual:
+            # A run that passes every fixture reports no failures.
+            expected = 0 if kind == "fail" else actual
+            if value != expected:
                 line = line_of(newlines, offset)
-                failures.append(
-                    f"{name}:{line} states {value} ({kind}) but the suite ships {actual}"
-                )
+                if kind == "fail":
+                    failures.append(
+                        f"{name}:{line} states {value} ({kind}) but a run that passes "
+                        f"all {actual} fixtures reports 0"
+                    )
+                else:
+                    failures.append(
+                        f"{name}:{line} states {value} ({kind}) but the suite ships {actual}"
+                    )
 
     if failures:
         print("conformance counts are stale:\n", file=sys.stderr)
