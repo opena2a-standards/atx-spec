@@ -16,7 +16,7 @@ identifier registered in `core.md` §14.
   line and a second sentence at the line it starts on, and a README with no title, no section
   heading after it or no description between them fails instead of passing. The check exits 1
   on a failure and 2 on a usage error, needs only python3 and is not yet run by CI; the test
-  runs 13 cases with bash and python3.
+  runs 22 cases with bash and python3.
 - `scripts/check_validity_window.py` + `scripts/test_validity_window.sh`: a paragraph, list item,
   heading or table cell in a Markdown file outside `CHANGELOG.md` and `errata/` that names
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
@@ -231,6 +231,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_readme_lead.py` reads fenced code blocks as CommonMark does. It flipped its
+  fenced state on every line starting with ```` ``` ```` or `~~~` after any indentation, so a
+  block holding a `~~~` line, a shorter fence or a fence line with an info string ended there,
+  its last fence line opened a new block, and the title below was reported as missing. A fence
+  is now three or more backticks or tildes indented at most three spaces, a backtick fence's
+  info string holds no backtick, and a block closes only on a fence of the same character, at
+  least as long as the opening one, with nothing after it but white space; a line indented four
+  or more spaces, or by a tab, neither opens nor closes a block. `scripts/test_readme_lead.sh`
+  adds a case for each of those shapes, one for a closing fence longer than the opening one and
+  one for fences indented three spaces with a tab after the closing one. (#84)
 - `scripts/test_readme_lead.sh`: two cases now use a README whose verdict depends on the rule
   they are named for. In "badge lines and a comment line do not count as paragraphs" the comment
   line stood directly above the description, so read as text it would join the description's
