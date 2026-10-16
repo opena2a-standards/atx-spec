@@ -272,6 +272,127 @@ $DESC
 ")"
 expect_pass "a backtick run whose info string holds a backtick does not open a block" "$T"
 
+# --- HTML blocks ------------------------------------------------------------
+
+# A block opened by a block-level tag runs to the next blank line, so the "# "
+# line under it renders as text and the README has no title.
+T="$(new_tree html-block-tag "<div align=\"center\">
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_fail "a title directly under a block-level tag is not the title" \
+    "$T" missing "README.md:1"
+
+T="$(new_tree html-block-tag-blank "<div align=\"center\">
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a blank line closes a block opened by a block-level tag" "$T"
+
+T="$(new_tree html-block-tag-section "# spec
+
+$DESC
+
+<DETAILS>
+## Start here
+")"
+expect_fail "a section heading directly under an upper-case block-level tag is not the section heading" \
+    "$T" missing "README.md:1"
+
+T="$(new_tree html-comment "<!--
+# spec
+-->
+
+$DESC
+
+## Start here
+")"
+expect_fail "a title inside a comment that spans lines is not the title" \
+    "$T" missing "README.md:1"
+
+# Were the comment's closing searched for only below its opening line, the
+# block would run to the end of the file and the title would be missed.
+T="$(new_tree html-comment-one-line "<!-- navigation above -->
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a comment that closes on its opening line holds no line below it" "$T"
+
+T="$(new_tree html-pre-blank "<pre>
+
+# spec
+</pre>
+
+$DESC
+
+## Start here
+")"
+expect_fail "a blank line does not close a block opened by <pre>, so the title before </pre> is inside it" \
+    "$T" missing "README.md:1"
+
+T="$(new_tree html-lone-tag "<a href=\"https://example.org/atx\">
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_fail "a title directly under a line holding only an open tag is not the title" \
+    "$T" missing "README.md:1"
+
+# Under the navigation line the tag continues its paragraph, and the "# " line
+# below interrupts that paragraph as a heading.
+T="$(new_tree html-lone-tag-under-text "$NAV
+<br>
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a line holding only a tag opens no block directly under a line of text" "$T"
+
+T="$(new_tree html-inline-tag "<span>ATX</span> specifications
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a line with text after its tag opens no block" "$T"
+
+T="$(new_tree html-indented "    <div>
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a tag indented four spaces opens no block" "$T"
+
+# Read as a fence, the second line would open a code block running to the end
+# of the file, and the title would be missed.
+T="$(new_tree html-fence-inside "<div>
+\`\`\`
+
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a fence line inside an HTML block does not open a code block" "$T"
+
 # --- missing ----------------------------------------------------------------
 
 T="$(new_tree no-title "$DESC

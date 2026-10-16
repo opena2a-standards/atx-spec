@@ -24,10 +24,23 @@ fence is a run of three or more backticks or tildes indented at most three
 spaces, and a backtick fence's info string holds no backtick; a block closes
 only on a fence of the same character, at least as long as the one that opened
 it, with nothing after it but white space. A line indented four or more spaces,
-or by a tab, neither opens nor closes a block. A sentence ends at ".",
-"!" or "?" followed by white space and a capital letter, a digit or the start
-of Markdown markup. A file that is not UTF-8 is reported as an [encoding]
-failure.
+or by a tab, neither opens nor closes a fenced block.
+
+Nor is a heading inside an HTML block, which, as in CommonMark, opens on a line
+indented at most three spaces. A line starting with a "<pre", "<script",
+"<style" or "<textarea" tag opens one that closes on the line holding "</pre>",
+"</script>", "</style>" or "</textarea>"; "<!--" opens one closed by "-->",
+"<?" one closed by "?>", "<!" and a letter one closed by ">", and "<![CDATA["
+one closed by "]]>"; the closing line can be the opening one. A line starting
+with "<" or "</" and a block-level tag name such as div, details or p, or
+holding only one open or closing tag of any other name but those four, opens
+one that closes at the next blank line; the second shape opens none directly
+under a line of text, meaning a line outside any block that is neither blank
+nor a heading. Tag names match in any case.
+
+A sentence ends at ".", "!" or "?" followed by white space and a capital
+letter, a digit or the start of Markdown markup. A file that is not UTF-8 is
+reported as an [encoding] failure.
 
     python3 scripts/check_readme_lead.py [--root <tree>]
 
@@ -46,18 +59,52 @@ README = "README.md"
 FENCE_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 H1_RE = re.compile(r"^#\s")
 H2_RE = re.compile(r"^##\s")
+HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
+
+# The seven kinds of CommonMark HTML block, in its order: the pattern a line
+# opens each with, after at most three spaces of indentation, and the pattern a
+# line closes it with, or None when it closes at the first blank line.
+RAW_TAGS = r"(?:pre|script|style|textarea)"
+BLOCK_TAGS = (
+    r"(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd"
+    r"|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset"
+    r"|h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav"
+    r"|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th"
+    r"|thead|title|tr|track|ul)"
+)
+TAG_NAME = r"(?!" + RAW_TAGS + r"(?![A-Za-z0-9-]))[A-Za-z][A-Za-z0-9-]*"
+ATTRIBUTE = r"[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:[^ \t\"'=<>`]+|'[^']*'|\"[^\"]*\"))?"
+LONE_TAG = r"(?:<" + TAG_NAME + r"(?:" + ATTRIBUTE + r")*[ \t]*/?>|</" + TAG_NAME + r"[ \t]*>)[ \t]*$"
+HTML_BLOCKS = [
+    (re.compile(r"<" + RAW_TAGS + r"(?:[ \t>]|$)", re.I), re.compile(r"</" + RAW_TAGS + r">", re.I)),
+    (re.compile(r"<!--"), re.compile(r"-->")),
+    (re.compile(r"<\?"), re.compile(r"\?>")),
+    (re.compile(r"<![A-Za-z]"), re.compile(r">")),
+    (re.compile(r"<!\[CDATA\["), re.compile(r"\]\]>")),
+    (re.compile(r"</?" + BLOCK_TAGS + r"(?:[ \t>]|/>|$)", re.I), None),
+    # A lone open or closing tag of any other name; it cannot interrupt a paragraph.
+    (re.compile(LONE_TAG, re.I), None),
+]
 IMAGE = r"!\[[^\]]*\]\([^)]*\)"
 BADGE_LINE_RE = re.compile(r"^(?:\s*(?:\[" + IMAGE + r"\]\([^)]*\)|" + IMAGE + r"))+\s*$")
 COMMENT_LINE_RE = re.compile(r"^\s*<!--.*-->\s*$")
 SENTENCE_END_RE = re.compile(r"[.!?](?=\s+[A-Z0-9*_`\[(])")
 
 
-def fence(line):
-    """(character, length, text after the run) when the line is a code fence, else None."""
+def unindented(line):
+    """The line after its indentation, or None when that is more than three columns."""
     body = line.lstrip(" \t")
     # A tab advances to the next multiple of four columns, so a leading tab is
     # already four columns of indentation.
     if len(line[: len(line) - len(body)].expandtabs(4)) > 3:
+        return None
+    return body
+
+
+def fence(line):
+    """(character, length, text after the run) when the line is a code fence, else None."""
+    body = unindented(line)
+    if body is None:
         return None
     m = FENCE_RE.match(body)
     if m is None:
@@ -68,26 +115,54 @@ def fence(line):
     return run[0], len(run), rest
 
 
+def html_block(line, under_text):
+    """Index into HTML_BLOCKS of the kind of HTML block the line opens, or None."""
+    body = unindented(line)
+    if body is None:
+        return None
+    last = len(HTML_BLOCKS) - 1
+    for kind, (start, _) in enumerate(HTML_BLOCKS):
+        if start.match(body) and not (kind == last and under_text):
+            return kind
+    return None
+
+
 def headings(lines):
     """(line number of the title, line number of the first section heading after it)."""
     title = section = None
     opening = None  # (character, length) of the fence that opened the current block
+    html = None  # index into HTML_BLOCKS of the HTML block the line is in
+    under_text = False  # the line before is outside any block and neither blank nor a heading
     for number, line in enumerate(lines, 1):
-        found = fence(line)
-        if opening is None:
-            if found is not None:
-                opening = found[:2]
-                continue
-        else:
-            char, length, rest = found or (None, 0, "")
+        if opening is not None:
+            char, length, rest = fence(line) or (None, 0, "")
             if char == opening[0] and length >= opening[1] and not rest.strip(" \t"):
                 opening = None
+            continue
+        if html is not None:
+            close = HTML_BLOCKS[html][1]
+            if close.search(line) if close is not None else not line.strip(" \t"):
+                html = None
+            continue
+        found = fence(line)
+        if found is not None:
+            opening = found[:2]
+            under_text = False
+            continue
+        html = html_block(line, under_text)
+        if html is not None:
+            # The line that opens a block can also be the line that closes it.
+            close = HTML_BLOCKS[html][1]
+            if close is not None and close.search(line):
+                html = None
+            under_text = False
             continue
         if title is None and H1_RE.match(line):
             title = number
         elif title is not None and H2_RE.match(line):
             section = number
             break
+        under_text = bool(line.strip(" \t")) and not HEADING_RE.match(line)
     return title, section
 
 
@@ -128,7 +203,7 @@ def check(lines):
     """Failures as 'README.md:<line> [rule] message', and a summary for a pass."""
     title, section = headings(lines)
     if title is None:
-        return [f"{README}:1 [missing] no '# ' title outside a code block"], None
+        return [f"{README}:1 [missing] no '# ' title outside a code block or an HTML block"], None
     if section is None:
         return [f"{README}:{title} [missing] no '## ' section heading after the title"], None
 
