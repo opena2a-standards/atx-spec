@@ -16,7 +16,7 @@ identifier registered in `core.md` §14.
   line and a second sentence at the line it starts on, and a README with no title, no section
   heading after it or no description between them fails instead of passing. The check exits 1
   on a failure and 2 on a usage error, needs only python3 and is not yet run by CI; the test
-  runs 22 cases with bash and python3.
+  runs 33 cases with bash and python3.
 - `scripts/check_validity_window.py` + `scripts/test_validity_window.sh`: a paragraph, list item,
   heading or table cell in a Markdown file outside `CHANGELOG.md` and `errata/` that names
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
@@ -231,6 +231,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_readme_lead.py` reads HTML blocks as CommonMark does. It took any `# ` line
+  outside a fenced code block as the title, so a README whose `# ` line stood directly under
+  `<div align="center">`, where CommonMark reads it as part of an HTML block and renders no
+  heading, passed with a title. A `# ` or `## ` line inside an HTML block of any of CommonMark's
+  seven kinds is now not a heading: a block opened by a `<pre>`, `<script>`, `<style>` or
+  `<textarea>` tag, a comment, a processing instruction, a declaration or a CDATA section closes
+  on the line holding its end marker, and one opened by a block-level tag or by a line holding
+  only one tag closes at the next blank line; a line holding only a tag opens no block directly
+  under a line of text. A README with no title outside such blocks fails as `[missing]` at line
+  1, and the message now names HTML blocks. `scripts/test_readme_lead.sh` adds 11 cases. (#87)
 - `scripts/check_readme_lead.py` reads fenced code blocks as CommonMark does. It flipped its
   fenced state on every line starting with ```` ``` ```` or `~~~` after any indentation, so a
   block holding a `~~~` line, a shorter fence or a fence line with an info string ended there,
