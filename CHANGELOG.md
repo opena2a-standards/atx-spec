@@ -16,7 +16,7 @@ identifier registered in `core.md` §14.
   line and a second sentence at the line it starts on, and a README with no title, no section
   heading after it or no description between them fails instead of passing. The check exits 1
   on a failure and 2 on a usage error, needs only python3 and is not yet run by CI; the test
-  runs 33 cases with bash and python3.
+  runs 38 cases with bash and python3.
 - `scripts/check_validity_window.py` + `scripts/test_validity_window.sh`: a paragraph, list item,
   heading or table cell in a Markdown file outside `CHANGELOG.md` and `errata/` that names
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
@@ -231,6 +231,14 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_readme_lead.py` excludes `pre`, `script`, `style` and `textarea` from the
+  HTML block kind opened by a line holding only one tag for an open tag only, as CommonMark
+  does. It excluded them for a closing tag as well, so a README whose `# ` line stood directly
+  under a line holding only `</pre>`, where CommonMark reads both lines as one HTML block and
+  renders no heading, passed with a title on line 2; it now fails as `[missing]` at line 1. A
+  line holding only `</pre>` directly under a line of text still opens no block.
+  `scripts/test_readme_lead.sh` adds 5 cases: `</pre>`, `</SCRIPT>`, `</style >` and
+  `</TextArea>` above the title, and `</pre>` under the navigation line. (#89)
 - `scripts/check_readme_lead.py` reads HTML blocks as CommonMark does. It took any `# ` line
   outside a fenced code block as the title, so a README whose `# ` line stood directly under
   `<div align="center">`, where CommonMark reads it as part of an HTML block and renders no
