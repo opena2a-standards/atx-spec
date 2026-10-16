@@ -231,6 +231,15 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/test_readme_lead.sh`: two cases now use a README whose verdict depends on the rule
+  they are named for. In "badge lines and a comment line do not count as paragraphs" the comment
+  line stood directly above the description, so read as text it would join the description's
+  one-sentence paragraph; it now stands between blank lines, and the same README with a line of
+  text in its place fails at line 7. In "a heading inside a fenced code block does not end the
+  lead" the fence line below the description was reported as a second paragraph whether or not
+  the fence was honoured; the block now stands above the description, which is reported as the
+  second paragraph at line 7, and the same README with its fence markers replaced by text
+  passes. The test still runs 13 cases. (#81)
 - `scalability.md` §2.1 describes the expiry check as two comparisons against the verifier's
   clock. Its notes cell said "Single comparison", while `core.md` §1.3 step 2 compares that clock
   with the earlier of `expiresAt` and `issuedAt` plus the seven-day credential TTL, and with

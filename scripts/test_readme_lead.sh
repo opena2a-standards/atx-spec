@@ -87,11 +87,14 @@ $DESC
 ")"
 expect_pass "navigation line, title, one-sentence description and a section pass" "$T"
 
+# The comment line stands alone between blank lines: counted as text, it would
+# be a paragraph of its own and the description a second one.
 T="$(new_tree badges "# spec
 
 [![CI](https://example.org/ci.svg)](https://example.org/ci) ![License](https://example.org/l.svg)
 
 <!-- one sentence only -->
+
 $DESC
 
 ## Start here
@@ -140,18 +143,22 @@ credential format, version 1.1 of which is normative.
 ")"
 expect_pass "one sentence wrapped across a soft line break, with a decimal in it, passes" "$T"
 
+# The fenced block comes before the description: if its heading ended the lead,
+# the lead would be the fence line alone and the README would pass. Read as a
+# code block, the block is the lead's first paragraph and the description on
+# line 7 its second.
 T="$(new_tree fenced-heading "# spec
-
-$DESC
 
 \`\`\`sh
 ## not a heading
 \`\`\`
 
+$DESC
+
 ## Start here
 ")"
 expect_fail "a heading inside a fenced code block does not end the lead" \
-    "$T" lead "README.md:5"
+    "$T" lead "README.md:7"
 
 # --- missing ----------------------------------------------------------------
 
