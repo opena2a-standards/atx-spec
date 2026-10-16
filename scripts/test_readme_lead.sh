@@ -350,6 +350,21 @@ $DESC
 expect_fail "a title directly under a line holding only an open tag is not the title" \
     "$T" missing "README.md:1"
 
+# CommonMark excludes pre, script, style and textarea from this kind of block
+# for an open tag only, so a closing tag of each of them alone on its line opens
+# one, in any case.
+for tag in "</pre>" "</SCRIPT>" "</style >" "</TextArea>"; do
+    T="$(new_tree "html-lone-close-$(printf '%s' "$tag" | tr -cd 'A-Za-z')" "$tag
+# spec
+
+$DESC
+
+## Start here
+")"
+    expect_fail "a title directly under a line holding only $tag is not the title" \
+        "$T" missing "README.md:1"
+done
+
 # Under the navigation line the tag continues its paragraph, and the "# " line
 # below interrupts that paragraph as a heading.
 T="$(new_tree html-lone-tag-under-text "$NAV
@@ -361,6 +376,16 @@ $DESC
 ## Start here
 ")"
 expect_pass "a line holding only a tag opens no block directly under a line of text" "$T"
+
+T="$(new_tree html-lone-close-pre-under-text "$NAV
+</pre>
+# spec
+
+$DESC
+
+## Start here
+")"
+expect_pass "a line holding only </pre> opens no block directly under a line of text" "$T"
 
 T="$(new_tree html-inline-tag "<span>ATX</span> specifications
 # spec

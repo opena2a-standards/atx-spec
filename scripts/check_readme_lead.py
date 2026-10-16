@@ -33,10 +33,10 @@ indented at most three spaces. A line starting with a "<pre", "<script",
 "<?" one closed by "?>", "<!" and a letter one closed by ">", and "<![CDATA["
 one closed by "]]>"; the closing line can be the opening one. A line starting
 with "<" or "</" and a block-level tag name such as div, details or p, or
-holding only one open or closing tag of any other name but those four, opens
-one that closes at the next blank line; the second shape opens none directly
-under a line of text, meaning a line outside any block that is neither blank
-nor a heading. Tag names match in any case.
+holding only one closing tag of any name or one open tag of any other name but
+those four, opens one that closes at the next blank line; the second shape
+opens none directly under a line of text, meaning a line outside any block that
+is neither blank nor a heading. Tag names match in any case.
 
 A sentence ends at ".", "!" or "?" followed by white space and a capital
 letter, a digit or the start of Markdown markup. A file that is not UTF-8 is
@@ -72,9 +72,12 @@ BLOCK_TAGS = (
     r"|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th"
     r"|thead|title|tr|track|ul)"
 )
-TAG_NAME = r"(?!" + RAW_TAGS + r"(?![A-Za-z0-9-]))[A-Za-z][A-Za-z0-9-]*"
+TAG_NAME = r"[A-Za-z][A-Za-z0-9-]*"
+# CommonMark excludes the four raw tag names from kind 7 for an open tag only; a
+# closing tag such as "</pre>" opens kind 7 like a closing tag of any other name.
+OPEN_TAG_NAME = r"(?!" + RAW_TAGS + r"(?![A-Za-z0-9-]))" + TAG_NAME
 ATTRIBUTE = r"[ \t]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:[^ \t\"'=<>`]+|'[^']*'|\"[^\"]*\"))?"
-LONE_TAG = r"(?:<" + TAG_NAME + r"(?:" + ATTRIBUTE + r")*[ \t]*/?>|</" + TAG_NAME + r"[ \t]*>)[ \t]*$"
+LONE_TAG = r"(?:<" + OPEN_TAG_NAME + r"(?:" + ATTRIBUTE + r")*[ \t]*/?>|</" + TAG_NAME + r"[ \t]*>)[ \t]*$"
 HTML_BLOCKS = [
     (re.compile(r"<" + RAW_TAGS + r"(?:[ \t>]|$)", re.I), re.compile(r"</" + RAW_TAGS + r">", re.I)),
     (re.compile(r"<!--"), re.compile(r"-->")),
@@ -82,7 +85,8 @@ HTML_BLOCKS = [
     (re.compile(r"<![A-Za-z]"), re.compile(r">")),
     (re.compile(r"<!\[CDATA\["), re.compile(r"\]\]>")),
     (re.compile(r"</?" + BLOCK_TAGS + r"(?:[ \t>]|/>|$)", re.I), None),
-    # A lone open or closing tag of any other name; it cannot interrupt a paragraph.
+    # A lone closing tag of any name, or a lone open tag of any other name than
+    # the four raw ones; it cannot interrupt a paragraph.
     (re.compile(LONE_TAG, re.I), None),
 ]
 IMAGE = r"!\[[^\]]*\]\([^)]*\)"
