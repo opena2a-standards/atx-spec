@@ -10,6 +10,13 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_readme_lead.py` + `scripts/test_readme_lead.sh`: between its `# ` title and
+  its first `## ` heading, `README.md` holds one paragraph of one sentence, its description.
+  Badge lines and comment-only lines do not count; a second paragraph is reported at its first
+  line and a second sentence at the line it starts on, and a README with no title, no section
+  heading after it or no description between them fails instead of passing. The check exits 1
+  on a failure and 2 on a usage error, needs only python3 and is not yet run by CI; the test
+  runs 13 cases with bash and python3.
 - `scripts/check_validity_window.py` + `scripts/test_validity_window.sh`: a paragraph, list item,
   heading or table cell in a Markdown file outside `CHANGELOG.md` and `errata/` that names
   `expiresAt` and a check verb (check, verify, validate, compare or reject, in any form) also
@@ -307,6 +314,12 @@ identifier registered in `core.md` §14.
   `fixtures/revoked-crl-only.json`. The README keeps the fixture count only in the reference
   verifier's summary line, and `scripts/check_conformance_counts.py` now also checks the counts
   in `docs/conformance.md`.
+- `README.md` holds only its description between the title and the first section. The
+  paragraph that followed it (what an ATX is, the TLS certificate comparison, the local
+  verification bound and the two signature suites) moved, as written, to `docs/use-cases.md`
+  under "What ATX is". The first use case now states its verification bound as "under 5 ms on a
+  warm cache", the condition `core.md` §1.3 gives for it, so `README.md` still states the warm
+  cache total that `scripts/check_latency.py` requires of it.
 - The stated conformance-suite count follows the suite to **25** fixtures. atx-conformance added
   `fixtures/revoked-crl-only.json`, a MUST-REJECT v1.0 credential whose own `revoked` flag is
   false and whose agent is on the verifier's revocation list, so the §1.3 step 6 list check now

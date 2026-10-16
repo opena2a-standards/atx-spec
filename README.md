@@ -4,8 +4,6 @@
 
 Architecture specifications for the **Agent Trust eXtension (ATX)** credential format and the **Agent Trust Protocol (ATP)** that issues, verifies, and revokes it.
 
-ATX is a signed, self-contained credential carried by every AI agent. It is analogous to a TLS certificate but contains agent identity, scan results, capabilities, and behavioral profile. Local verification under 5ms. Ed25519 + ML-DSA-65 hybrid signatures mandatory at v1.
-
 ## Start here
 
 Read [`core.md`](core.md#13-local-verification-algorithm) first: section 1.3 is the algorithm every verifier runs, and section 1.1 the credential it checks. To check a verifier against the pinned fixtures, run the reference verifier shown under the [first use case](#a-strangers-agent-calls-you-and-you-cannot-phone-home-on-every-request).
@@ -16,7 +14,7 @@ Read [`core.md`](core.md#13-local-verification-algorithm) first: section 1.3 is 
 
 A partner's agent calls your service. You want to know who issued its credential, what it was attested to do and whether it is still trusted, and you want that on every request, which rules out calling a central server each time: that is slow, and the server becomes the one thing whose outage takes you down.
 
-ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile. A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms, and never queries the issuing node during verification.
+ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile. A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms on a warm cache, and never queries the issuing node during verification.
 
 What you can do today: run the reference verifier against the pinned fixtures from a clean clone.
 
