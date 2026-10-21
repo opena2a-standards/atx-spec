@@ -36,6 +36,7 @@ Exit 0 when every file passes, 1 otherwise.
 """
 
 import argparse
+import bisect
 import pathlib
 import re
 import sys
@@ -43,12 +44,15 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 VERSION_RE = re.compile(r"\b(?:CRL|revocation[\s-]+list)\s+version\b", re.IGNORECASE)
-# agentId, then the list later in the same sentence: no sentence end (., ! or ?
-# before whitespace) and no blank line between them.
-KEY_RE = re.compile(
-    r"\bagentId\b(?:(?![.!?](?:\s|$))(?!\n[ \t]*\n)[\s\S])*?"
-    r"\b(?i:CRL|revocation[\s-]+list)\b"
-)
+# The crl-key rule: agentId, then the list later in the same sentence, with no
+# sentence end (., ! or ? before whitespace or the end of the text) and no blank
+# line between them. Each part is found once per file and key_offsets pairs
+# them; one regex spanning the sentence scanned the rest of it again for every
+# agentId in it.
+AGENT_ID_RE = re.compile(r"\bagentId\b")
+LIST_RE = re.compile(r"\b(?i:CRL|revocation[\s-]+list)\b")
+SENTENCE_STOP_RE = re.compile(r"[.!?](?=\s|$)|\n(?=[ \t]*\n)")
+NEWLINE_RE = re.compile(r"\n")
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -68,22 +72,57 @@ def markdown_files(root):
     return found
 
 
-def line_of(text, offset):
-    return text.count("\n", 0, offset) + 1
+def newline_offsets(text):
+    """Where each newline of text stands, found once per file."""
+    return [m.start() for m in NEWLINE_RE.finditer(text)]
+
+
+def line_of(newlines, offset):
+    """The line offset sits on, found by bisecting the newline offsets.
+    Counting newlines from the start of the file for each failure took time
+    quadratic in the number of failures."""
+    return bisect.bisect_left(newlines, offset) + 1
+
+
+def key_offsets(text):
+    """Where each crl-key match starts: an agentId whose first list after it
+    comes before the next sentence stop. The next match is looked for from the
+    end of that list, as re.finditer resumes after a match, so the agentIds, the
+    lists and the stops are each walked once."""
+    lists = [(m.start(), m.end()) for m in LIST_RE.finditer(text)]
+    stops = [m.start() for m in SENTENCE_STOP_RE.finditer(text)]
+    found = []
+    next_list = next_stop = resume = 0
+    for m in AGENT_ID_RE.finditer(text):
+        if m.start() < resume:
+            continue
+        while next_list < len(lists) and lists[next_list][0] < m.end():
+            next_list += 1
+        if next_list == len(lists):
+            break
+        while next_stop < len(stops) and stops[next_stop] < m.end():
+            next_stop += 1
+        list_start, list_end = lists[next_list]
+        if next_stop < len(stops) and stops[next_stop] < list_start:
+            continue
+        found.append(m.start())
+        resume = list_end
+    return found
 
 
 def check_file(rel, text):
+    newlines = newline_offsets(text)
     failures = [
-        f"{rel}:{line_of(text, m.start())} [crl-version] {' '.join(m.group(0).split())!r} "
+        f"{rel}:{line_of(newlines, m.start())} [crl-version] {' '.join(m.group(0).split())!r} "
         f"cannot be carried by the ATP section 8.1 revocation response; name the "
         f"nextSince cursor instead"
         for m in VERSION_RE.finditer(text)
     ]
     failures.extend(
-        f"{rel}:{line_of(text, m.start())} [crl-key] agentId is looked up in the revocation "
+        f"{rel}:{line_of(newlines, offset)} [crl-key] agentId is looked up in the revocation "
         f"list, whose ATP section 8.1 entries carry agentDid and no agentId; name agentDid "
         f"instead"
-        for m in KEY_RE.finditer(text)
+        for offset in key_offsets(text)
     )
     return failures
 

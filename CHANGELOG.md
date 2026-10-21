@@ -287,6 +287,42 @@ identifier registered in `core.md` §14.
   `thresholdKeySets`, `members` and `threshold`; a tree without a §1.3b heading fails as
   `[definition]`. `scripts/test_pointers.sh` adds 7 cases, and the paragraph of its case for a
   reference wrapped across lines now also cites §1.3b. (#74)
+- `core.md` section 12, Coverage, names the treatment of `scanSummary.techniques` under the
+  signature (§1.3a.2 rule 6) among the requirements no conformance fixture exercises, and its
+  self-attestation requirement names §1.3a.2 rule 6, so an implementation self-attests it until a
+  fixture exercises it. No BCP 14 statement is added or removed. A fixture that pins the member's
+  bytes, and the reference verifiers' handling of the member, belong in atx-conformance and are
+  not part of this change. (#55)
+- `docs/use-cases.md` says, as `core.md` section 12 does, that a verifier that rejects on the
+  `revoked` field and never reads the revocation list still rejects `fixtures/revoked.json`. It
+  said a verifier that never reads the list still rejects it, leaving out the field that verifier
+  rejects on. (#55)
+- `sovereign-federation.md` §7.2 said a verifier reconstructs the inclusion proof of a sovereign
+  issued ATX from cached data. The proof's audit path is in none of the ATX, the DID document or
+  the STH, so step 3 now says the verifier fetches the proof from the sovereign's transparency log
+  by the index the ATX carries and caches it, and that an ATX without `transparencyLogIndex` gives
+  it no index to fetch the proof by, so the steps do not establish that ATX's inclusion, and the
+  missing index is not evidence that its issuance went unlogged. The section now says the checks
+  run without contacting the sovereign and fetching a proof does contact it, and that a more
+  recent STH needs a proof of its own from the log. (#55)
+- `sovereign-federation.md` §5.2 said a sovereign can mark a credential sovereign only and a
+  revocation "details classified". The credential schema has no member for the first, and the
+  ATP-SPEC v1.0.0-rc1 §8.1 entry has none for the second: its five members are `agentDid`,
+  `revokedAt`, `reason`, `transparencyLogIndex` and `revokedByKeyId`, and it admits no other. The
+  table now says a sovereign keeps a classified agent's credential inside its perimeter by not
+  presenting it outside, and keeps the details behind a revocation inside its perimeter while it
+  publishes the revocation as an §8.1 entry. (#55)
+- `scripts/check_revocation_cursor.py` finds each `agentId`, each CRL or revocation list and each
+  sentence end or blank line once per file and pairs them in one pass, and finds a failure's line
+  by bisecting the file's newline offsets. One regex from `agentId` to the list scanned the rest of
+  a sentence again for every `agentId` in it, so a sentence naming `agentId` many times with no
+  list after it took time quadratic in its length, 0.37 s at 16 KB and 1.47 s at 32 KB, and
+  counting newlines from the start of the file for each failure took 6.45 s for 40,000 failing
+  lines. Measured in-process after the change, each doubling of such a sentence from 256 KB to
+  4 MB, and of a file of failing lines from 80,000 to 640,000 lines, roughly doubled the time.
+  `scripts/test_revocation_cursor.sh` checks that the one pass reports the matches the regex
+  reported on 5000 generated texts, and that a 256 KB sentence and a file of 80,000 failing lines
+  are each checked within 10 s. (#55)
 - `README.md` is shorter. Its Use cases section, renamed What it does, keeps what ATX does in each
   use case, where it stops (one sentence for the second) and the reference verifier's commands;
   each use case in full, with its problem statement and the fixtures it names, is now in
@@ -559,8 +595,8 @@ identifier registered in `core.md` §14.
   schema cannot express. Every atx-conformance fixture validates as it did before; the suite's
   vendored schema copy moves in its own atx-conformance change, as does a fixture and a verifier
   check for the subset rule. No normative text changes.
-- `scalability.md` and `sovereign-federation.md` describe only credential members and mechanisms
-  that the schema and `core.md` define. `scalability.md` §9.1 said the build plugin mints ATX
+- `scalability.md` and `sovereign-federation.md` drop the members and mechanisms below, which
+  neither the schema nor `core.md` defines. `scalability.md` §9.1 said the build plugin mints ATX
   during an issuing-node outage under a 30 day delegated signing certificate; core.md defines no
   delegated signing, so builds now queue and are issued when the node recovers. §9.3 said ATX
   issued while the log is down are marked "log pending", and that a missing log index is

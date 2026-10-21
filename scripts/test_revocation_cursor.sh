@@ -37,6 +37,18 @@ run_check() {  # run_check <root>
     python3 -B "$REPO/scripts/check_revocation_cursor.py" --root "$1" > "$OUT" 2>&1
 }
 
+run_check_within() {  # run_check_within <seconds> <root>: exit 124 when it takes longer
+    python3 -B - "$1" "$REPO/scripts/check_revocation_cursor.py" "$2" > "$OUT" 2>&1 <<'PYEOF'
+import subprocess, sys
+limit, script, root = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+try:
+    sys.exit(subprocess.run([sys.executable, "-B", script, "--root", root], timeout=limit).returncode)
+except subprocess.TimeoutExpired:
+    print(f"still running after {limit:g} s")
+    sys.exit(124)
+PYEOF
+}
+
 new_tree() {  # new_tree <name> -> path to an empty scratch tree
     mkdir -p "$TMP/$1"
     printf '%s' "$TMP/$1"
@@ -153,6 +165,95 @@ printf 'Clean.\n' > "$T/core.md"
 printf -- '- Step 6 no longer says Check agentId against locally cached CRL.\n' > "$T/CHANGELOG.md"
 printf 'oldText: |\n  6. Check agentId against locally cached CRL.\n' > "$T/errata/ATX-E-0001.md"
 expect_pass "CHANGELOG.md and errata quoting the old lookup are not checked" "$T"
+
+# --- one scan ---------------------------------------------------------------
+
+# The crl-key rule finds each agentId, each list and each sentence end once per
+# file and pairs them in one pass. It must report what the single regex it
+# replaced reported, kept here as the reference: agentId, then the list later
+# in the same sentence, with no sentence end and no blank line between them,
+# the next match looked for after the end of that list.
+python3 -B - "$REPO/scripts" > "$OUT" 2>&1 <<'PYEOF'
+import random, re, sys
+sys.path.insert(0, sys.argv[1])
+import check_revocation_cursor as check
+
+REFERENCE = re.compile(
+    r"\bagentId\b(?:(?![.!?](?:\s|$))(?!\n[ \t]*\n)[\s\S])*?"
+    r"\b(?i:CRL|revocation[\s-]+list)\b"
+)
+PIECES = [
+    "agentId", "agentId", "agentId", "AgentId", "agentIds", "xagentId", "agentId_",
+    "CRL", "crl", "CRLs", "xCRL", "revocation", "Revocation", "list", "LIST",
+    "revocation list", "revocation-list", "Revocation - List", "revocation\nlist",
+    "revocation\n\nlist", " ", " ", " ", "\t", "\xa0", "\n", "\n\n", "\n \t\n", "\n  ",
+    ".", "!", "?", ". ", ".\n", "e.g", "v1.0", "-", "x", "the ", "\xe9",
+]
+SEPARATORS = ["", " ", " ", "\n"]
+rng = random.Random(1)
+matched = several = unmatched = 0
+for n in range(5000):
+    text = "".join(rng.choice(PIECES) + rng.choice(SEPARATORS) for _ in range(rng.randint(1, 30)))
+    want = [m.start() for m in REFERENCE.finditer(text)]
+    got = check.key_offsets(text)
+    if got != want:
+        print(f"text {n} {text!r}: the regex reports {want}, the one scan {got}")
+        sys.exit(1)
+    if want:
+        matched += 1
+        several += len(want) > 1
+    elif "agentId" in text:
+        unmatched += 1
+print(f"{matched} texts with a match, {several} of them with more than one, and "
+      f"{unmatched} with agentId and no match agree")
+sys.exit(0 if several and unmatched else 1)
+PYEOF
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    ok "the one scan reports the matches of the single regex on 5000 generated texts: $(tail -n 1 "$OUT")"
+else
+    not_ok "the one scan reports the matches of the single regex on 5000 generated texts" \
+        "$(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
+# --- time -------------------------------------------------------------------
+
+# The single regex scanned the rest of the sentence again for every agentId in
+# it, so a sentence naming agentId many times with no list after it took time
+# quadratic in its length: run from the command line, 0.39 s at 16 KB, 1.49 s at
+# 32 KB and 5.89 s at 64 KB.
+T="$(new_tree large)"
+python3 -B - "$T/large.md" <<'PYEOF'
+import sys
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Large\n\n" + "agentId " * 32768 + "\n")
+PYEOF
+run_check_within 10 "$T"
+rc=$?
+if [ "$rc" -eq 0 ]; then
+    ok "a 256 KB sentence naming agentId 32768 times with no list after it is checked in time"
+else
+    not_ok "a 256 KB sentence naming agentId 32768 times with no list after it is checked in time" \
+        "expected exit 0 within 10 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
+# Each failure's line was found by counting newlines from the start of the
+# file, which took time quadratic in the number of failures.
+T="$(new_tree many-failures)"
+python3 -B - "$T/many.md" <<'PYEOF'
+import sys
+with open(sys.argv[1], "w", encoding="utf-8") as f:
+    f.write("# Many\n\n" + "Check agentId against the CRL.\n" * 80000)
+PYEOF
+run_check_within 10 "$T"
+rc=$?
+if [ "$rc" -eq 1 ] && grep -qF "many.md:80002 [crl-key]" "$OUT" \
+    && [ "$(grep -cF '[crl-key]' "$OUT")" -eq 80000 ]; then
+    ok "a file of 80000 failing lines is checked in time, each failure on its own line"
+else
+    not_ok "a file of 80000 failing lines is checked in time, each failure on its own line" \
+        "expected exit 1 within 10 s reporting many.md:80002 and 80000 failures, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
+fi
 
 # --- vacuous pass -----------------------------------------------------------
 
