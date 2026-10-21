@@ -140,7 +140,7 @@ Any party verifying an ATX runs this sequence locally. Steps 1 through 5 require
 4. Verify the Ed25519 signature against the cached public key. Sub millisecond on any modern CPU.
    - Key eligibility. The key a signature is verified against MUST have been resolved, as in step 3, for an authority the verifier trusts for this credential: the authority named by `issuerDid`, or, under `atcVersion` 1.1 only, an authority that the signed `issuerChain` names and that is a trusted issuer under the verifier's federation trust list (§7). A chain DID that is not a trusted issuer contributes no eligible key: the chain is signed by the very key whose eligibility is in question, so it cannot vouch for that key (§13, Delegation and chain abuse). Under `atcVersion` 1.0 `issuerChain` is unsigned (§1.3a.1) and contributes no eligible key. A signature that verifies only against some other key the verifier holds is a signature failure (`SIGNATURE_INVALID`), not an issuer failure.
 5. Verify every remaining declared signature, the ML-DSA-65 signature included, under the family signature gate (§13, Cryptographic agility; AAP §9.4): a declared signature that does not verify, or whose suite this verifier does not implement, is a signature failure. ML-DSA-65 adds about three milliseconds.
-   - Threshold key sets. An authority MAY hold a threshold key set: n keys, each producing its own signature, of which at least m sign every credential. The member keys and the threshold m are the ones the authority's DID document declares, as resolved in step 3. Neither a threshold stated in the credential nor the number of signatures it carries is the threshold, because the credential is signed by the keys whose sufficiency is in question. When a signature has verified under a key that this DID document declares a member of a threshold key set, the verifier MUST reject the credential unless signatures under at least m distinct member keys of that set have verified over the canonical signed bytes. Fewer is a signature failure: a credential that carries one of the three signatures of a two-of-three set is rejected although the one it carries verifies. Two signatures that verify under the same member key count once. A threshold scheme whose shares combine into one signature under one public key presents a single key here and is not a threshold key set in this sense; its threshold is enforced where it signs.
+   - Threshold key sets. An authority MAY hold a threshold key set: n keys, each producing its own signature, of which at least m sign every credential. The member keys and the threshold m are the ones the authority's DID document, as resolved in step 3, declares in its `thresholdKeySets` member (§1.3b). Neither a threshold stated in the credential nor the number of signatures it carries is the threshold, because the credential is signed by the keys whose sufficiency is in question. When a signature has verified under a key that this DID document declares a member of a threshold key set, the verifier MUST reject the credential unless signatures under at least m distinct member keys of that set have verified over the canonical signed bytes. Fewer is a signature failure: a credential that carries one of the three signatures of a two-of-three set is rejected although the one it carries verifies. Two signatures that verify under the same member key count once. A threshold scheme whose shares combine into one signature under one public key presents a single key here and is not a threshold key set in this sense; its threshold is enforced where it signs.
 6. Check `agentDid` against locally cached CRL, the ATP-SPEC v1.0.0-rc1 §8.1 revocation response, whose entries name the revoked agent by `agentDid`. If listed, reject. If cache is stale beyond 5 minutes, refresh asynchronously but allow this request using the cached version. The issuance envelope's `revoked` field is outside the signed bytes (§1.3a.2), so it does not stand in for this check.
 7. Count distinct signer authorities. If trust level 3 or higher is required, the verifier MUST reject the credential unless at least two distinct authorities have each produced a signature that this verifier has itself verified over the credential's canonical signed bytes (the form selected in step 1).
    - The authority behind a signature is the DID its `keyId` names: the `keyId` up to the first `#`, or the whole value if it contains none. A signature counts only after the verifier has resolved that DID as in step 3, confirmed the verifying key is published in the resulting DID document, and confirmed the authority is one it accepts under its federation trust list (§7).
@@ -300,6 +300,62 @@ verifiers MAY reject `1.0` for capability-gated decisions per §1.3a.4. The
 `atcVersion` value is itself inside the v1.1 TBS, so an attacker cannot strip a
 `1.1` credential down to the `1.0` form: the legacy verifier would recompute a
 pipe string the v1.1 signature never covered, and verification fails closed.
+
+### 1.3b Threshold key set declaration
+
+An authority declares the threshold key sets that §1.3 step 5 checks in a
+`thresholdKeySets` member of its DID document, which this section defines. A DID
+document whose `thresholdKeySets` member is absent or an empty array declares
+none. §1.3 step 5 reads the member from the DID document resolved for the
+authority as in §1.3 step 3, and a credential cannot supply it. A verifier reads
+the member from that document's JSON, and no processing step it runs first may
+remove it.
+
+```json
+{
+  "id": "did:opena2a:authority:opena2a.org",
+  "thresholdKeySets": [
+    {
+      "members": [
+        "did:opena2a:authority:opena2a.org#key-1",
+        "did:opena2a:authority:opena2a.org#key-2",
+        "did:opena2a:authority:opena2a.org#key-3"
+      ],
+      "threshold": 2
+    }
+  ]
+}
+```
+
+The illustration leaves out the document's `verificationMethod` entries, which
+publish the three keys, and its other members. It declares `#key-1` to `#key-3`
+a two-of-three set: a credential whose only signature under the set verifies
+under `#key-2` is rejected, and one with verifying signatures under `#key-1` and
+`#key-3` meets the threshold.
+
+1. `thresholdKeySets` is an array of set objects, one per threshold key set. A
+   set object has exactly two members, `members` and `threshold`.
+2. `members` lists the set's n member keys: a non-empty array of strings, each
+   the `id` of a verification method that the DID document publishes. A string
+   or an `id` that begins with `#` is read with the document's `id` in front of
+   it, so `#key-1` and `did:opena2a:authority:opena2a.org#key-1` name the same
+   verification method.
+3. `threshold` is the threshold m, an integer from 1 to n.
+4. No two strings in the document's sets, whether in one set or in two, name
+   verification methods that carry the same public key. A member key is the
+   public key that a member's verification method carries, not the method's
+   `id`: a signature that verifies under that public key is a signature under the
+   member key whichever verification method its `keyId` names, as §1.3 step 7
+   counts keys, not `keyId` values. Each member key therefore belongs to one
+   set, and the n member keys of a set are distinct.
+
+A verifier MUST check a `thresholdKeySets` member, wherever a DID document it
+resolves as in §1.3 step 3 carries one, against rules 1 to 4. If the member
+breaks any of them, a signature under any key that document publishes is a
+signature failure (`SIGNATURE_INVALID`), whether or not it verifies. A verifier
+MUST NOT treat a member that breaks a rule as absent, and MUST NOT set aside only
+the set that breaks it: either would let a key the authority meant to be a
+member verify a credential alone.
 
 ### 1.4 ATX versus TLS certificate
 
@@ -763,6 +819,7 @@ This specification is not (yet) under IANA administration; the registries below 
 | ATX version numbers | `1.0` (frozen legacy), `1.1` (current) | Specification revision only. A new version number is REQUIRED whenever the canonical signing form changes (§1.3a); reusing a version for different bytes is forbidden. |
 | Signature algorithm suites | `Ed25519`, `ML-DSA-65` | Specification revision only (§10). |
 | DID type prefixes (`did:opena2a`) | `registry`, `authority`, `publisher`, `agent`, `mcp_server`, `ai_tool`, `llm`, `skill` (`a2a_agent`: deprecated legacy alias of `agent`) | Registered in the [did:opena2a method specification](https://github.com/opena2a-standards/did-method-opena2a); additions by PR there, mirrored into §2 here. |
+| DID document members defined by ATX | `thresholdKeySets` (§1.3b), whose set objects hold exactly `members` and `threshold` | Specification revision only. |
 | `declaredPurpose` category vocabulary | 15 core values (§1.5.3), versioned via `vocabVersion`, each with the breadth class and sensitivity class published in [`schemas/purpose-category-classes-v1.json`](./schemas/purpose-category-classes-v1.json) | Core set and core classes change by specification revision with a `vocabVersion` bump; `<org>.<name>` custom values need no registration but default to the broadest, most sensitive class until reviewed (§1.5.3). |
 | `taskScope` namespaces | 17 reserved core namespaces (§1.5.3) | Same policy as categories; non-reserved namespaces are org-custom. |
 | Capability tokens | `namespace:action` grammar (AIP §4.1) | Namespaces are reserved in AIP §4.2; `capabilityJustification` keys MUST be a subset of the granted set (§1.5.2). |

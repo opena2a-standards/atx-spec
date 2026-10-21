@@ -20,6 +20,17 @@ identifier registered in `core.md` §14.
   shapes in scratch trees and in scratch suites made from the §1.1 example, and also run against
   a real suite checkout when `ATX_CONFORMANCE_SUITE` names one. The check needs python3 and the
   `jsonschema` package and is not yet run by CI.
+- `core.md` §1.3b defines how an authority's DID document declares the threshold key sets that
+  §1.3 step 5 checks: a `thresholdKeySets` member, an array of set objects that each hold exactly
+  `members`, the `id`s of the verification methods whose public keys are the set's n member keys,
+  and `threshold`, the threshold m, an integer from 1 to n. No public key appears twice across a
+  document's sets, and a signature that verifies under a member's public key is a signature under
+  that member key whatever verification method its `keyId` names. A verifier that finds the
+  member malformed treats a signature under any key of that DID document as a signature failure,
+  and never reads the member as absent. §1.3 step 5 and `sovereign-federation.md` §2.3 cite
+  §1.3b, and §14 registers the member. A DID document without the member declares no threshold
+  key set, and the threshold rule of step 5 then rejects nothing. The rejecting one-of-three
+  fixture belongs in atx-conformance and is not part of this change. (#74)
 - `scripts/check_readme_lead.py` + `scripts/test_readme_lead.sh`: between its `# ` title and
   its first `## ` heading, `README.md` holds one paragraph of one sentence, its description.
   Badge lines and comment-only lines do not count; a second paragraph is reported at its first
@@ -270,6 +281,12 @@ identifier registered in `core.md` §14.
   "verified by the root's key" passes. `scripts/test_mediation.sh` covers the passive, active,
   wrapped and table-row forms that fail and the negated, issuance and root-key sentences that
   pass.
+- `scripts/check_pointers.py` checks that the §1.3 step 5 threshold bullet of `core.md` and the
+  threshold paragraph of `sovereign-federation.md` §2.3, which say the authority's DID document
+  declares the key set, cite §1.3b, where that declaration is defined, and that §1.3b names
+  `thresholdKeySets`, `members` and `threshold`; a tree without a §1.3b heading fails as
+  `[definition]`. `scripts/test_pointers.sh` adds 7 cases, and the paragraph of its case for a
+  reference wrapped across lines now also cites §1.3b. (#74)
 - `README.md` is shorter. Its Use cases section, renamed What it does, keeps what ATX does in each
   use case, where it stops (one sentence for the second) and the reference verifier's commands;
   each use case in full, with its problem statement and the fixtures it names, is now in

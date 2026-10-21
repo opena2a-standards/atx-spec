@@ -94,7 +94,10 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # stay put; the check finds a section by its opening line, wherever it sits. In
 # the section 8 table the HackMyAgent row is line 36 and the AIM row line 38.
 # Section 3.1 item 8, on line 44, and section 4.2 item 4, on line 49, cite the
-# threshold step; a test that needs one bare rewrites that line. A tree with no README.md, docs/conformance.md or
+# threshold step; a test that needs one bare rewrites that line. The section 1.3
+# step 5 threshold bullet, on line 55, cites section 1.3b, whose heading is line
+# 58 and whose paragraph, line 60, names the terms it defines; a test that needs
+# either without them rewrites that line. A tree with no README.md, docs/conformance.md or
 # sovereign-federation.md also gets the default one from write_readme,
 # write_conformance or write_sovereign.
 write_core() {
@@ -154,6 +157,16 @@ $purpose
 
 4. **ATX issuance request.** Issuing node issues the ATX, signs with threshold keys (§1.3 step 5 says when a verifier checks their threshold), logs issuance.
 5. **After issuance.** The threshold is checked in §1.3 step 5, cited outside item 4.
+
+### 1.3 Local verification algorithm
+
+5. Verify every remaining declared signature.
+   - Threshold key sets. The member keys and the threshold m are the ones the authority's DID document declares in its \`thresholdKeySets\` member (§1.3b).
+6. Check agentDid. The declaration is defined in §1.3b, cited outside the bullet.
+
+### 1.3b Threshold key set declaration
+
+An authority's DID document declares its threshold key sets in a \`thresholdKeySets\` member. Each set lists its member keys in \`members\` and its threshold m in \`threshold\`.
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
     [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
@@ -162,11 +175,12 @@ EOF
 
 # write_sovereign <root> [<text after the threshold paragraph's first sentence>]
 #                 [<section 2.2 HSM item>]
-# Section 2.4 cites the threshold step outside the paragraph, so a paragraph
-# that leaves it out fails on its own. Section 2.2 follows it, so the paragraph
-# stays on line 5; its HSM item is line 13, and the item after it cites the
-# step, so an HSM item that leaves it out fails on its own.
-SOVEREIGN_REST="A verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5)."
+# Section 2.4 cites the threshold step and the declaration's section outside the
+# paragraph, so a paragraph that leaves either out fails on its own. Section 2.2
+# follows it, so the paragraph stays on line 5; its HSM item is line 13, and the
+# item after it cites the step, so an HSM item that leaves it out fails on its
+# own.
+SOVEREIGN_REST="Its DID document declares the key set and its threshold (core.md §1.3b), and a verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5)."
 write_sovereign() {
     local rest="${2-$SOVEREIGN_REST}"
     local hsm="${3-* 3 HSMs (2 of 3 threshold signing; core.md §1.3 step 5 says when a verifier checks the threshold)}"
@@ -179,7 +193,7 @@ Threshold signing means that no single HSM holds the full signing capability. $r
 
 ### 2.4 Identity binding to the sovereign
 
-The threshold is checked in core.md §1.3 step 5, cited outside the paragraph.
+The threshold is checked in core.md §1.3 step 5 and declared as core.md §1.3b defines, cited outside the paragraph.
 
 ### 2.2 Minimum viable sovereign deployment
 
@@ -487,7 +501,7 @@ expect_fail "the sovereign section 2.2 HSM item stating 2 of 3 without the verif
 
 T="$(new_tree sovereign-threshold-wrapped)"
 write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
-write_sovereign "$T" "A verifier rejects fewer signatures than the threshold (core.md §1.3
+write_sovereign "$T" "Its DID document declares the set (core.md §1.3b), and a verifier rejects fewer signatures than the threshold (core.md §1.3
 step 5)."
 expect_pass "the threshold step may wrap across a soft line break" "$T"
 
@@ -496,6 +510,56 @@ write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; sch
 rm "$T/sovereign-federation.md"
 expect_fail "a tree with no sovereign-federation.md fails instead of passing vacuously" \
     "$T" pointer "sovereign-federation.md"
+
+# --- threshold key set declaration ------------------------------------------
+
+T="$(new_tree step5-declaration-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^   - Threshold key sets\..*$/   - Threshold key sets. The member keys and the threshold m are the ones the DID document of the authority declares (§1.3 step 3)./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "the section 1.3 step 5 threshold bullet without the declaration's section fails, even when item 6 cites it" \
+    "$T" pointer "core.md:55"
+
+T="$(new_tree no-step5-bullet)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+grep -v '^   - Threshold key sets\.' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "a core.md with no section 1.3 step 5 threshold bullet fails instead of passing vacuously" \
+    "$T" pointer "core.md"
+
+T="$(new_tree sovereign-declaration-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_sovereign "$T" "Its DID document declares the key set and its threshold, and a verifier rejects a credential that carries too few of its signatures (core.md §1.3 step 5)."
+expect_fail "the sovereign threshold paragraph citing the verifier's step but not the declaration's section fails, even when section 2.4 cites it" \
+    "$T" pointer "sovereign-federation.md:5"
+
+T="$(new_tree declaration-no-threshold)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^An authority.s DID document declares its threshold key sets.*$/An authority declares its sets in a `thresholdKeySets` member. Each set lists its member keys in `members`./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "section 1.3b that names \`thresholdKeySets\` but not \`threshold\` fails" \
+    "$T" definition "core.md:58"
+
+T="$(new_tree declaration-no-members)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^An authority.s DID document declares its threshold key sets.*$/An authority declares its sets in a `thresholdKeySets` member, each with a `threshold`./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+printf '\n### 1.4 ATX versus TLS certificate\n\nThe `members` of a set are named here, outside section 1.3b.\n' >> "$T/core.md"
+expect_fail "section 1.3b not naming \`members\` fails, even when the next section names it" \
+    "$T" definition "core.md:58"
+
+T="$(new_tree declaration-no-member-name)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^An authority.s DID document declares its threshold key sets.*$/Each set lists its member keys in `members` and its threshold m in `threshold`./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "section 1.3b not naming the \`thresholdKeySets\` member fails" \
+    "$T" definition "core.md:58"
+
+T="$(new_tree no-declaration-section)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^### 1\.3b Threshold key set declaration$/### Threshold key set declaration/' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "a core.md with no section 1.3b fails, although the bullet and section 2.3 cite it" \
+    "$T" definition "core.md"
 
 # --- vacuous pass -----------------------------------------------------------
 
