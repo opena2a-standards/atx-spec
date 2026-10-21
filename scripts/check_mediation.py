@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Assert the specification never has a verifier ask for a cosignature, and
-writes every issuerChain that names the root with the root first.
+"""Assert the specification never has a verifier ask for a cosignature or the
+root verify, and writes every issuerChain that names the root with the root
+first.
 
 core.md section 9 keeps every node off the verification path: a verifier makes
 no network call to the issuing node, the root node or any other authority while
@@ -29,6 +30,17 @@ Rules, each failure reported as file:line with its rule in brackets:
                 applies in a block (a run of non-blank lines, so a whole list or
                 a whole paragraph) that names a verifier or verification;
                 elsewhere the request is an issuance step by context.
+  root-verifies a sentence that has the root verify: "verified by the root",
+                "unverified by root", "the root node verifies" or "the root
+                validates". The root cosigns at issuance (core.md section 7
+                rule 4) and a verifier checks the signatures a credential
+                carries without contacting it, so no credential or cosignature
+                is verified, or left unverified, by the root. A sentence passes
+                when a negation stands before the participle or the root, read
+                as verify-path reads one ("not verified by the root", "no root
+                node verifies"), or when it says it is at issuance. "Verified
+                by the root's key" and "verified by the root key" name a key,
+                not a step the root takes, and pass.
   chain-order   an issuerChain written out as a list, `issuerChain = [...]` in
                 prose or `"issuerChain": [...]` in JSON, that names the root
                 authority did:opena2a:authority:opena2a.org together with other
@@ -76,6 +88,16 @@ ACTOR_RE = re.compile(
 )
 # A phrase that places the request at issuance wherever it stands.
 ISSUANCE_TIME_RE = re.compile(r"\b(?:at|during|upon|on)\s+issuance\b", re.IGNORECASE)
+# The root as the one that verifies, passive ("unverified by root") or active
+# ("the root node verifies"). The passive form does not match a key ("the
+# root's key", with a straight or curly apostrophe, or "the root public key"). A
+# negation is looked for before the first word of the match: the participle
+# ("not verified by the root") or the root ("no root node verifies").
+ROOT_VERIFIES_RE = re.compile(
+    r"\b(?:un)?verified\s+by\s+(?:the\s+)?root\b(?!['’]s\b|\s+(?:public\s+)?keys?\b)"
+    r"|\broot(?:\s+(?:node|authority))?\s+(?:verif(?:y|ies)|validates?)\b",
+    re.IGNORECASE,
+)
 NEGATIONS = {"not", "never", "nor", "cannot", "can't", "no", "without",
              "don't", "doesn't", "didn't", "won't", "mustn't", "shouldn't"}
 # Words that may stand between a negation and the verb it negates: auxiliaries,
@@ -186,6 +208,31 @@ def verify_path_failures(rel, text, newlines):
     return failures
 
 
+def root_verifies_failures(rel, text, newlines):
+    failures = []
+    for block_start, block in pieces(text, BLOCK_SPLIT_RE):
+        if not ROOT_VERIFIES_RE.search(block):
+            continue
+        for s_start, sentence in sentences(block):
+            matches = list(ROOT_VERIFIES_RE.finditer(sentence))
+            if not matches or ISSUANCE_TIME_RE.search(sentence):
+                continue
+            tokens = list(TOKEN_RE.finditer(sentence))
+            token_starts = [t.start() for t in tokens]
+            for m in matches:
+                if negated(tokens, bisect.bisect_left(token_starts, m.start())):
+                    continue
+                line = line_of(newlines, block_start + s_start + m.start())
+                failures.append(
+                    f"{rel}:{line} [root-verifies] {' '.join(sentence.split())!r} has the root "
+                    f"verify; the root cosigns at issuance (core.md section 7 rule 4) and a "
+                    f"verifier checks the signatures a credential carries without contacting "
+                    f"it (core.md section 9)"
+                )
+                break
+    return failures
+
+
 def chain_order_failures(rel, text, newlines):
     failures = []
     for m in CHAIN_RE.finditer(text):
@@ -224,6 +271,7 @@ def main():
         texts[rel] = text
         newlines = newline_offsets(text)
         failures.extend(verify_path_failures(rel, text, newlines))
+        failures.extend(root_verifies_failures(rel, text, newlines))
         failures.extend(chain_order_failures(rel, text, newlines))
 
     for rel in REQUIRED:
@@ -241,7 +289,8 @@ def main():
         return 1
 
     print(f"mediation ok: {len(files)} Markdown file(s) checked, no verifier asks for a "
-          f"cosignature and every chain naming the root puts it first")
+          f"cosignature, no sentence has the root verify and every chain naming the root "
+          f"puts it first")
     return 0
 
 

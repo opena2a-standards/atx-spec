@@ -10,6 +10,16 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_schema_refusals.py` + `scripts/test_schema_refusals.sh`: the sentences of the
+  `core.md` §12 Issuer paragraph that say the credential schema refuses account for every
+  atx-conformance fixture the schema refuses on its `signatures` member, an Ed25519-only fixture
+  that declares `atcVersion` 1.1 through the phrase "Ed25519-only fixtures that declare
+  `atcVersion` 1.1" and any other by name, and describe no refusal the suite does not have
+  (`--suite <path>`). A missing `core.md`, Issuer paragraph or schema fails, as do a suite with no
+  fixtures and a fixture that is not JSON or has no `atx` object. The tests build the failing
+  shapes in scratch trees and in scratch suites made from the §1.1 example, and also run against
+  a real suite checkout when `ATX_CONFORMANCE_SUITE` names one. The check needs python3 and the
+  `jsonschema` package and is not yet run by CI.
 - `scripts/check_readme_lead.py` + `scripts/test_readme_lead.sh`: between its `# ` title and
   its first `## ` heading, `README.md` holds one paragraph of one sentence, its description.
   Badge lines and comment-only lines do not count; a second paragraph is reported at its first
@@ -231,6 +241,35 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §12 Issuer says which conformance fixtures the credential schema refuses: the
+  Ed25519-only fixtures that declare `atcVersion` 1.1, which lack the ML-DSA-65 signature §1.1
+  requires, and `v1_1-hybrid-pq-only`, which lacks the Ed25519 one. It said "Those of them that
+  declare `atcVersion` 1.1" after a clause about the fixtures that carry Ed25519 signatures only,
+  which reads as every fixture that declares 1.1, while `v1_1-baseline-valid-hybrid` and
+  `v1_1-hybrid-mldsa-tampered` declare 1.1, carry both suites and validate, and it did not name
+  `v1_1-hybrid-pq-only`. Copied over the suite's vendored schema in atx-conformance at 2ac8f91,
+  this schema fails 13 of the suite's 25 fixtures in `scripts/schema_validation.py`
+  (`summary: 12 pass, 13 fail (25 fixtures)`): the twelve Ed25519-only fixtures that declare 1.1,
+  four of them pinned ACCEPT and eight pinned REJECT, and `v1_1-hybrid-pq-only`, pinned REJECT.
+  `docs/conformance.md` said the schema is CI-validated against the suite's fixture set; it now
+  says the suite validates its fixtures against a copy it vendors from a pinned revision of this
+  repository, and points to §12 for the fixtures the schema refuses. At 2ac8f91 that copy is the
+  schema as of e89bed9, which has no two-suite rule. The schema's description of the two-suite
+  rule names the ML-DSA-65-only form beside the Ed25519-only one. Moving the suite's vendored copy
+  to this schema needs each of those 13 fixtures to carry both suites or the suite's schema check
+  to expect its refusal, an atx-conformance change that is not part of this one. No normative
+  text changes.
+- `scalability.md` §9.2 places the root's cosignature at issuance, as `core.md` §7 and
+  `sovereign-federation.md` §3.2 do. It said cross node cosignatures for a partitioned node
+  degrade to "unverified by root" until the partition heals, which has the root take a step when
+  a credential is verified; it now says the root cosigns at issuance and, while the partition
+  lasts, cannot cosign what the node issues, so the node issues nothing at trust level 4 until the
+  partition heals. `scripts/check_mediation.py` gains the rule `root-verifies`: a sentence in
+  which the root verifies ("verified by the root", "unverified by root", "the root node
+  verifies") fails unless a negation stands before it or the sentence says it is at issuance, and
+  "verified by the root's key" passes. `scripts/test_mediation.sh` covers the passive, active,
+  wrapped and table-row forms that fail and the negated, issuance and root-key sentences that
+  pass.
 - `README.md` is shorter. Its Use cases section, renamed What it does, keeps what ATX does in each
   use case, where it stops (one sentence for the second) and the reference verifier's commands;
   each use case in full, with its problem statement and the fixtures it names, is now in
