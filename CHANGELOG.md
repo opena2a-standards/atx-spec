@@ -22,6 +22,18 @@ identifier registered in `core.md` §14.
   `CHANGELOG.md` and `errata/` are read. The check exits 1 on a failure and 2 on a usage error,
   needs only python3 and is not yet run by CI; the test runs 39 cases with bash and python3, one
   of them against a real suite checkout when `ATX_CONFORMANCE_SUITE` names one. (#96)
+- `scripts/check_revocation_fixture_key.py` + `scripts/test_revocation_fixture_key.sh`: when the
+  revocation list (`verifierState.crl`) of an atx-conformance fixture names the revoked agent by
+  a member other than the one `core.md` §1.3 step 6 looks up, a sentence of the §12 Coverage
+  paragraph names both in backticks, or the check fails as `[unnamed]` (`--suite <path>`). It
+  fails as `[stale]` when a Coverage sentence that names the step 6 member also names, in
+  backticks, an agent member that no fixture's list uses. A missing step 6 member, Coverage
+  paragraph or `fixtures/*.json`, a suite in which no fixture carries a revocation list, a
+  fixture that is not JSON and a list whose entries are not an array of objects each fail.
+  Against atx-conformance at af921e5 the check reports `[unnamed]` for `agentId` on the previous
+  `core.md` and passes on this one. Of the test's 20 cases, one runs the delivered `core.md`
+  against a real suite checkout and is skipped unless `ATX_CONFORMANCE_SUITE` names one; the
+  others use scratch suites. The check needs only python3 and is not yet run by CI. (#55)
 - `scripts/check_schema_refusals.py` + `scripts/test_schema_refusals.sh`: the sentences of the
   `core.md` §12 Issuer paragraph that say the credential schema refuses account for every
   atx-conformance fixture the schema refuses on its `signatures` member, an Ed25519-only fixture
@@ -289,6 +301,18 @@ identifier registered in `core.md` §14.
   because rule 5 includes a non-object `declaredPurpose` in the TBS verbatim and the suite's
   `v1_1-declared-purpose-number-injected` fixture carries the number 1.5 there. The rest of the
   sentence is unchanged, and no BCP 14 statement is added or removed. (#96)
+- `core.md` section 12, Coverage, says that both revocation fixtures give the verifier a
+  revocation list, in the suite's own fixture format, whose entries name the revoked agent by the
+  credential's `agentId`, the key §1.3 step 6 looked up in the revision of `core.md` the fixtures
+  cite (e89bed9), and that the format has no entry member for `agentDid`, the key step 6 now looks
+  up. A verifier that looks the agent up by `agentDid` alone, as step 6 says, finds no entry for it
+  there, so `revoked-crl-only` pins the verdict of a lookup by `agentId` and not that of the step 6
+  lookup. In atx-conformance at af921e5, `revoked` and `revoked-crl-only` are the two fixtures
+  whose verifier state carries a revocation list, the fixture schema admits `agentId`,
+  `revokedAt` and `reason` in an entry and no other member, and both reference verifiers compare
+  an entry's `agentId` with the credential's `agentId`. No BCP 14 statement is added or removed.
+  Keying the fixtures' list by `agentDid` belongs in atx-conformance and is not part of this
+  change. (#55)
 - The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
   `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
   with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,
