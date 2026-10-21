@@ -10,6 +10,18 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_tbs_numbers.py` + `scripts/test_tbs_numbers.sh`: a sentence that names the TBS
+  and says which JSON numbers it holds and no others ("the only JSON numbers in the TBS", "no
+  JSON numbers other than") names in backticks each TBS member that
+  `schemas/atx-credential-v1.1.schema.json` types as integer or number, `trustScore` apart, and
+  names no member the TBS does not hold as a JSON number, other than an object that holds one.
+  The members are read from the included-keys block of `core.md` §1.3a.2 and typed from the
+  schema, so a numeric member the schema adds joins them, and §1.3a.2 has to hold such a
+  sentence. With `--suite`, the `expected.canonicalHex` of each atx-conformance `jcs-vectors`
+  vector is parsed, and a JSON number at any other member fails. Markdown files outside
+  `CHANGELOG.md` and `errata/` are read. The check exits 1 on a failure and 2 on a usage error,
+  needs only python3 and is not yet run by CI; the test runs 39 cases with bash and python3, one
+  of them against a real suite checkout when `ATX_CONFORMANCE_SUITE` names one. (#96)
 - `scripts/check_schema_refusals.py` + `scripts/test_schema_refusals.sh`: the sentences of the
   `core.md` §12 Issuer paragraph that say the credential schema refuses account for every
   atx-conformance fixture the schema refuses on its `signatures` member, an Ed25519-only fixture
@@ -252,6 +264,31 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **28** fixtures. atx-conformance added
+  `fixtures/threshold-1of3-cosignature.json`, a MUST-REJECT v1.0 credential: the threshold
+  cosignature credential cut to one of its three signatures, the primary's, under a verifier state
+  that holds the issuer's three Ed25519 keys and requires two of them. The one signature verifies,
+  so a verifier that checks only that every declared signature verifies, and reads no threshold,
+  wrongly accepts; §1.3 step 5 rejects the credential unless signatures under at least m distinct
+  member keys of the threshold key set verify. `README.md` carried the verifier's summary line for
+  27; `docs/conformance.md` carried "27 fixtures" and "27 of 27 PASS"; §12 carried "27 fixtures".
+  Each follows the suite, and the fixture joins both fixture enumerations beside the threshold
+  cosignature case it is cut from. Against atx-conformance at 3d73f18 both reference verifiers
+  report `summary: 28 pass, 0 fail (28 fixtures)` and reject the new fixture as
+  `SIGNATURE_INVALID` with the reason `signature threshold not met`. No normative text changes.
+- `core.md` §1.3a.2 rule 3 names the JSON numbers the TBS holds once `trustScore` is
+  string-encoded: the integers `trustLevel`, `scanSummary.criticalFindings` and
+  `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays` unless
+  `behavioralProfile` is `null` (rule 1). It called `trustLevel` the only JSON number in the TBS,
+  while rule 2 puts two integer members in every TBS `scanSummary`, §12 says rule 2 brings
+  `criticalFindings` into the TBS as an integer, and the schema types
+  `behavioralProfile.observationDays` as an integer. In atx-conformance at ca1ee3e each of the
+  eight `jcs-vectors` canonical TBS holds three or four JSON numbers: `trustLevel` and the two
+  `scanSummary` integers in all eight, and `behavioralProfile.observationDays` in the four whose
+  `behavioralProfile` is an object. The sentence speaks of the TBS of a conforming credential,
+  because rule 5 includes a non-object `declaredPurpose` in the TBS verbatim and the suite's
+  `v1_1-declared-purpose-number-injected` fixture carries the number 1.5 there. The rest of the
+  sentence is unchanged, and no BCP 14 statement is added or removed. (#96)
 - The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
   `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
   with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,
