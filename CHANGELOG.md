@@ -252,6 +252,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **26** fixtures. atx-conformance added
+  `fixtures/v1_1-declared-purpose-number-injected.json`, a MUST-REJECT v1.1 credential signed
+  with no `declaredPurpose` that carries the number 1.5, which is not an integer, as a
+  `declaredPurpose` appended after signing. §1.3a.2 rule 5 includes a non-object value in the TBS
+  verbatim, so the recomputed canonical bytes no longer match the Ed25519 signature and the
+  credential is rejected as a signature failure. `README.md` carried the verifier's summary line
+  for 25; `docs/conformance.md` carried "25 fixtures" and "25 of 25 PASS" and named array and
+  string values among the injected values rejected; §12 carried "25 fixtures". Each follows the
+  suite, and `docs/conformance.md` names number values as well; §12's "injected non-object
+  values rejected" already covers the fixture. No normative text changes.
 - `scripts/check_schema_refusals.py` reads every name in backticks in a sentence of the `core.md`
   §12 Issuer paragraph that says the schema refuses as a fixture name, apart from `atcVersion` in
   the phrase "Ed25519-only fixtures that declare `atcVersion` 1.1", and fails as `[stale]` when
