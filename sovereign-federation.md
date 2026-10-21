@@ -68,7 +68,7 @@ Sovereign signing keys must be controlled by the sovereign. Three patterns are v
 | Sovereign cloud HSM | Keys in cloud HSM under sovereign cloud account | Regulated industry, allied nation |
 | Shared custody | Threshold split between sovereign and external party | Bilateral consortium, regional bloc |
 
-Threshold signing means that no single HSM holds the full signing capability. The sovereign defines the threshold (typically 2 of 3 or 3 of 5). Compromise of any single HSM does not compromise the sovereign's ability to sign. Where each HSM's key produces its own signature, the sovereign's DID document declares the key set and its threshold, and once a signature under one of those keys verifies, a verifier rejects the credential unless signatures under at least the threshold number of distinct keys of the set verify ([core.md §1.3 step 5](core.md#13-local-verification-algorithm)).
+Threshold signing means that no single HSM holds the full signing capability. The sovereign defines the threshold (typically 2 of 3 or 3 of 5). Compromise of any single HSM does not compromise the sovereign's ability to sign. Where each HSM's key produces its own signature, the sovereign's DID document declares the key set and its threshold in its `thresholdKeySets` member ([core.md §1.3b](core.md#13b-threshold-key-set-declaration)), and once a signature under one of those keys verifies, a verifier rejects the credential unless signatures under at least the threshold number of distinct keys of the set verify ([core.md §1.3 step 5](core.md#13-local-verification-algorithm)).
 
 ### 2.4 Identity binding to the sovereign
 
@@ -221,12 +221,12 @@ Every byte of credential metadata has a defined residency. The architecture is e
 
 | Data | Sharing default | Sovereign override |
 |---|---|---|
-| ATX credential body (hash, signatures, public fields) | Shared (travels with the agent) | Can be marked sovereign only for classified agents |
+| ATX credential body (hash, signatures, public fields) | Shared (travels with the agent) | A sovereign can keep a classified agent's credential inside its perimeter by not presenting it outside; the [credential schema](schemas/atx-credential-v1.1.schema.json) has no member that marks a credential sovereign only |
 | Build attestation body | Sovereign only | Can be selectively shared with cosigning party |
 | Scan result detail | Sovereign only | Summary fields are shared in the ATX scanSummary |
 | Behavioral profile detail | Sovereign only | Checksum is shared in the ATX behavioralProfile |
 | Transparency log entries | STH and inclusion proofs are public; full entries may be sovereign only | Sovereign decides per entry type |
-| CRL entries | Public by default (revocation is public information) | Sovereign can mark a revocation as "details classified" while still publishing the revocation |
+| CRL entries | Public by default (revocation is public information) | A sovereign can keep the details behind a revocation inside its perimeter while still publishing the revocation, as an ATP-SPEC v1.0.0-rc1 §8.1 entry that carries `agentDid`, `revokedAt`, `reason`, `transparencyLogIndex` and `revokedByKeyId` and no other member ([scalability.md §6.2](scalability.md#62-crl-size)) |
 
 The pattern: signatures and verification anchors are public. Full underlying data is sovereign controlled. A verifier outside the jurisdiction can confirm "this ATX was validly issued and is not revoked" without seeing the sovereign's internal data.
 
@@ -288,13 +288,13 @@ The sovereign decides who can mirror. The mirror cannot tamper with the log. The
 
 ### 7.2 Independent verifiability without dependency
 
-A verifier can verify a sovereign issued ATX without ever contacting the sovereign or OpenA2A:
+A verifier can verify a sovereign issued ATX, and check that its issuance was logged, without contacting the sovereign or OpenA2A while it does either:
 
 1. The ATX may carry `transparencyLogIndex`, the index the sovereign's log assigned to its issuance entry ([core.md §1.1](core.md#11-atx-schema)). It carries no STH, and the index is the lookup key for the inclusion proof, not evidence of inclusion.
 2. The verifier holds the sovereign's published DID document (cached) and a recent STH (cached).
-3. The verifier reconstructs the inclusion proof locally from cached data.
+3. The verifier checks the entry's inclusion proof against the cached STH. The proof's audit path, the hashes needed to recompute the STH's root hash from the entry's leaf hash (RFC 6962), is in none of the ATX, the DID document or the STH, so it cannot be reconstructed from them. The verifier fetches the proof by the index of step 1 from the sovereign's transparency log (§2.1), where the full log lives and which other parties query as needed ([scalability.md §5.3](scalability.md#53-storage-of-the-log-itself)), and caches it. An ATX that carries no `transparencyLogIndex` gives the verifier no index to fetch it by, so these steps do not establish its inclusion, and the missing index is not evidence that the issuance went unlogged ([core.md §1.1](core.md#11-atx-schema)).
 
-If the verifier wants to confirm against a more recent STH, the STH stream is a 1 KB per 5 minute feed that any mirror serves. No live query to the sovereign is required.
+If the verifier wants to confirm against a more recent STH, the STH stream is a 1 KB per 5 minute feed that any mirror serves, and the proof that ties the entry to it, an audit path for its tree size or a consistency proof from the cached STH's tree, comes from the sovereign's transparency log as in step 3. Neither check queries the sovereign while it runs; only fetching a proof does.
 
 ---
 

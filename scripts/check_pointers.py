@@ -33,6 +33,14 @@ of its key set, so it pins that each one verifies and not the threshold, and a
 threshold signing, such as the core.md section 1.2 lifecycle table, are not
 checked.
 
+The member keys and the threshold that step reads are the ones the authority's
+DID document declares, in the thresholdKeySets member that core.md section
+1.3b defines. The section 1.3 step 5 threshold bullet and sovereign-federation.md's
+section 2.3 threshold paragraph each say that the DID document declares them,
+and each names section 1.3b. Section 1.3b in turn names thresholdKeySets and
+the two members of each set object, members and threshold ([definition]), so a
+pointer to it cannot name a section that does not define the declaration.
+
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
 table row is one line. References may wrap across lines, since Markdown renders
@@ -53,9 +61,10 @@ subject ("checks what you signed") or used as a noun ("a sign of progress").
 
     python3 scripts/check_pointers.py [--root <tree>]
 
-Exit 0 when every section carries its references and every sentence naming the
-forge lab carries its caveat, 1 otherwise. A document or opening line that is
-missing also fails, so a renamed section cannot pass vacuously.
+Exit 0 when every section carries its references, every section in DEFINITIONS
+names what it defines and every sentence naming the forge lab carries its
+caveat, 1 otherwise. A document or opening line that is missing also fails, so
+a renamed section cannot pass vacuously.
 """
 
 import argparse
@@ -73,6 +82,7 @@ HMA_README = "https://github.com/opena2a-org/hackmyagent/blob/main/README.md"
 AIP_TRUST = "AIP §6.1"
 AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
 THRESHOLD = "§1.3 step 5"
+THRESHOLD_DECLARATION = "§1.3b"
 
 HMA_ROW = "| HackMyAgent |"
 AIM_ROW = "| AIM |"
@@ -89,7 +99,14 @@ POINTERS = [
     ("core.md", "4. **ATX issuance request.**", (THRESHOLD,)),
     ("docs/conformance.md", "Byte-stable conformance fixtures", (THRESHOLD,)),
     ("sovereign-federation.md", "* 3 HSMs", (THRESHOLD,)),
-    ("sovereign-federation.md", "Threshold signing means", (THRESHOLD,)),
+    ("sovereign-federation.md", "Threshold signing means", (THRESHOLD, THRESHOLD_DECLARATION)),
+    ("core.md", "   - Threshold key sets.", (THRESHOLD_DECLARATION,)),
+]
+
+# Sections that a pointer above cites as where something is defined, and the
+# terms each one names.
+DEFINITIONS = [
+    ("core.md", "### 1.3b ", ("`thresholdKeySets`", "`members`", "`threshold`")),
 ]
 
 LAB_RE = re.compile(r"lab/forge|\bforge\s+lab\b", re.IGNORECASE)
@@ -137,19 +154,27 @@ def section(lines, start):
     return lines[start:end]
 
 
+def find_section(root, rel, opening):
+    """The index of the line that opens the section and the section's text, its
+    lines joined by single spaces. Raises LookupError saying why there is none."""
+    path = root / rel
+    if not path.is_file():
+        raise LookupError(f"file not found; it should hold {opening!r}")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith(opening)), None)
+    if start is None:
+        raise LookupError(f"no line opens with {opening!r}")
+    return start, " ".join(" ".join(section(lines, start)).split())
+
+
 def check(root):
     failures = []
     for rel, opening, references in POINTERS:
-        path = root / rel
-        if not path.is_file():
-            failures.append(f"{rel} [pointer] file not found; it should hold {opening!r}")
+        try:
+            start, body = find_section(root, rel, opening)
+        except LookupError as exc:
+            failures.append(f"{rel} [pointer] {exc}")
             continue
-        lines = path.read_text(encoding="utf-8").splitlines()
-        start = next((i for i, line in enumerate(lines) if line.startswith(opening)), None)
-        if start is None:
-            failures.append(f"{rel} [pointer] no line opens with {opening!r}")
-            continue
-        body = " ".join(" ".join(section(lines, start)).split())
         for ref in references:
             if ref not in body:
                 failures.append(
@@ -171,6 +196,18 @@ def check(root):
                     f"{rel}:{start + 1} [permission] the section opened by {opening!r} calls "
                     f"something permitted without naming {AUTHORIZATION}: {sentence[:100]!r}; "
                     f"say what the credential attests, or that {AUTHORIZATION} decides it"
+                )
+    for rel, opening, terms in DEFINITIONS:
+        try:
+            start, body = find_section(root, rel, opening)
+        except LookupError as exc:
+            failures.append(f"{rel} [definition] {exc}")
+            continue
+        for term in terms:
+            if term not in body:
+                failures.append(
+                    f"{rel}:{start + 1} [definition] the section opened by {opening!r} does not "
+                    f"name {term}, which a pointer cites it for; define it there"
                 )
     return failures
 
@@ -277,8 +314,8 @@ def main():
     failures += lab_failures
     if failures:
         print(
-            "sections do not name where what they describe is specified, "
-            "or a sentence overstates the forge lab:\n",
+            "sections do not name where what they describe is specified, a cited section "
+            "does not name what it defines, or a sentence overstates the forge lab:\n",
             file=sys.stderr,
         )
         for f in failures:
@@ -287,6 +324,7 @@ def main():
 
     print(
         f"pointers ok: {len(POINTERS)} section(s) name where what they describe is specified; "
+        f"{len(DEFINITIONS)} cited section(s) name what they define; "
         f"{lab_mentions} sentence(s) naming the forge lab say it signs {LAB_CAVEAT!r}"
     )
     return 0

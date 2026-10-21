@@ -169,6 +169,42 @@ cat > "$T/notes.md" <<'EOF'
 EOF
 expect_pass "a table row is its own sentence, so a query and a cosign in two rows pass" "$T"
 
+# --- root-verifies ----------------------------------------------------------
+
+T="$(new_tree unverified-by-root)"
+cat > "$T/notes.md" <<'EOF'
+### 9.2 Federation node partition
+
+* Cross node cosignatures for the partitioned node degrade to "unverified by root" until the partition heals.
+EOF
+expect_fail "a cosignature left \"unverified by root\" during a partition fails" \
+    "$T" root-verifies "notes.md:3"
+
+T="$(new_tree root-node-verifies)"
+printf 'During a partition the root node verifies each cross node cosignature.\n' > "$T/notes.md"
+expect_fail "a root node that verifies a cosignature fails" "$T" root-verifies "notes.md:1"
+
+T="$(new_tree verified-by-the-root)"
+printf 'A credential from an unlisted issuer is accepted once it is\nverified by the root.\n' > "$T/notes.md"
+expect_fail "a credential verified by the root, wrapped onto the next line, fails on that line" \
+    "$T" root-verifies "notes.md:2"
+
+T="$(new_tree root-validates)"
+printf 'Intro.\n\n| Step | Who |\n|---|---|\n| 3 | The root validates the cosignature |\n' > "$T/notes.md"
+expect_fail "a table row in which the root validates fails" "$T" root-verifies "notes.md:5"
+
+T="$(new_tree root-not-verifying)"
+cat > "$T/notes.md" <<'EOF'
+The root does not verify credentials, and a credential is never verified by the root.
+
+No root node verifies a credential.
+
+At issuance the root verifies the issuing node's request before it cosigns.
+
+A cosignature verified by the root's key is checked locally. So is one verified by the root’s key. So is one verified by the root public key. So is one verified by the root key.
+EOF
+expect_pass "a negated root verification, one at issuance and a root key pass" "$T"
+
 # --- chain-order ------------------------------------------------------------
 
 T="$(new_tree root-last)"
