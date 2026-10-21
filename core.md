@@ -222,9 +222,12 @@ credential that verifies across implementations and one that does not:
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
    (printf `%.6f`), e.g. `"87.500000"`. The wire credential keeps `trustScore`
-   as a JSON number; the projection performs the conversion. This makes
-   `trustLevel` (an integer) the only JSON number in the TBS, which removes the
-   RFC 8785 ECMAScript number-formatting path from cross-language scope entirely.
+   as a JSON number; the projection performs the conversion. This makes the
+   integers `trustLevel`, `scanSummary.criticalFindings` and
+   `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays`
+   unless `behavioralProfile` is `null` (rule 1), the only JSON numbers in the
+   TBS of a conforming credential, which removes the RFC 8785 ECMAScript
+   number-formatting path from cross-language scope entirely.
 4. **`issuerChain` is root-first and order-significant.** Element 0 is the root
    authority. JCS preserves array order and never sorts arrays, so reordering the
    chain changes the signed bytes.
