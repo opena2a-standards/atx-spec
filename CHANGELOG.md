@@ -252,6 +252,21 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
+  `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
+  with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,
+  written after signing. §1.3a.2 rule 2 brings `criticalFindings` into the TBS as an integer, so
+  no signature covers a string there and the credential is rejected as a signature failure; a
+  verifier that leaves a member it cannot decode at its zero value projects the signed 0 and
+  accepts it. `README.md` carried the verifier's summary line for 26; `docs/conformance.md`
+  carried "26 fixtures" and "26 of 26 PASS"; §12 carried "26 fixtures". Each follows the suite,
+  and the fixture joins both fixture enumerations. Against atx-conformance at ca1ee3e both
+  reference verifiers report `summary: 27 pass, 0 fail (27 fixtures)`. No normative text changes.
+- `scripts/test_conformance_counts.sh` also runs the delivered `README.md`, `docs/conformance.md`
+  and `core.md` against a real suite checkout when `ATX_CONFORMANCE_SUITE` names one, as
+  `scripts/test_coverage_index.sh` and `scripts/test_schema_refusals.sh` do, and skips that case
+  otherwise. Against atx-conformance at ca1ee3e the case fails on the documents that stated 26
+  fixtures and passes on these.
 - The stated conformance-suite count follows the suite to **26** fixtures. atx-conformance added
   `fixtures/v1_1-declared-purpose-number-injected.json`, a MUST-REJECT v1.1 credential signed
   with no `declaredPurpose` that carries the number 1.5, which is not an integer, as a

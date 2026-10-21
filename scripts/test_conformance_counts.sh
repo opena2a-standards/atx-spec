@@ -11,7 +11,10 @@
 #
 #   bash scripts/test_conformance_counts.sh
 #
-# Output is TAP-ish: one line per leaf test. Exit 0 when every test passes.
+# Set ATX_CONFORMANCE_SUITE to a checkout of opena2a-standards/atx-conformance
+# to also run the delivered README.md, docs/conformance.md and core.md against
+# the real suite; it is skipped otherwise. Output is TAP-ish: one line per leaf
+# test. Exit 0 when every test passes.
 
 set -u
 
@@ -23,6 +26,7 @@ OUT="$TMP/out.txt"
 
 COUNT=0
 FAILED=0
+SKIPPED=0
 
 ok() {  # ok <leaf test name>
     COUNT=$((COUNT + 1))
@@ -34,6 +38,12 @@ not_ok() {  # not_ok <leaf test name> <why>
     FAILED=$((FAILED + 1))
     printf 'not ok %d - %s\n' "$COUNT" "$1"
     printf '  ---\n  reason: %s\n  ---\n' "$2"
+}
+
+skip() {  # skip <leaf test name> <why>
+    COUNT=$((COUNT + 1))
+    SKIPPED=$((SKIPPED + 1))
+    printf 'ok %d - %s # SKIP %s\n' "$COUNT" "$1" "$2"
 }
 
 run_check() {  # run_check <root> <suite>
@@ -123,6 +133,14 @@ else
         "$REPO" "$(suite $((STATED + 2)))" "README.md:$SUMMARY_LINE states $STATED (fixtures)"
     expect_fail "the delivered tree fails on its summary pass count against a suite that has moved" \
         "$REPO" "$(suite $((STATED + 2)))" "README.md:$SUMMARY_LINE states $STATED (pass)"
+fi
+
+if [ -n "${ATX_CONFORMANCE_SUITE-}" ]; then
+    expect_pass "README.md, docs/conformance.md and core.md state the count the real suite ships" \
+        "$REPO" "$ATX_CONFORMANCE_SUITE"
+else
+    skip "README.md, docs/conformance.md and core.md state the count the real suite ships" \
+        "ATX_CONFORMANCE_SUITE not set"
 fi
 
 # --- phrasings --------------------------------------------------------------
@@ -220,4 +238,4 @@ if [ "$FAILED" -ne 0 ]; then
     printf '# %d of %d test(s) failed\n' "$FAILED" "$COUNT"
     exit 1
 fi
-printf '# %d test(s) passed\n' "$COUNT"
+printf '# %d test(s) passed, %d skipped\n' "$((COUNT - SKIPPED))" "$SKIPPED"
