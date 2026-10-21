@@ -212,12 +212,38 @@ credential that verifies across implementations and one that does not:
 
 1. **Canonical empties are always present.** An absent optional string
    (`publisherDid`, `buildAttestation`) MUST be the empty string `""`. An absent
-   `behavioralProfile` MUST be JSON `null`. An absent `capabilities` or
+   `behavioralProfile` MUST be JSON `null`. A `behavioralProfile` whose value is
+   the JSON literal `null` is absent. Any other value is present, and a present
+   `behavioralProfile` is well formed only when it is a JSON object whose member
+   names are exactly `checksum`, `generatedAt` and `observationDays`, compared
+   exactly (a name that differs in case is a different member), in which
+   `checksum` is a JSON string, `generatedAt` is a JSON string in the RFC 3339
+   `date-time` form decided as the verifier decides `issuedAt` and `expiresAt`
+   (§1.3 step 2), and `observationDays` is a JSON number the verifier reads as
+   an integer, decided as it reads `trustLevel`. A well-formed profile is
+   projected as an object of exactly those three members, with `generatedAt`
+   written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`). A verifier MUST
+   reject a credential whose `behavioralProfile` is present and not well formed:
+   the projection cannot represent it, so no signature covers it, and the
+   verifier reports a signature failure (`SIGNATURE_INVALID`), exactly as it
+   does for a `scanSummary` member outside its type (rule 2). A verifier MUST
+   NOT project a present `behavioralProfile` to the absent form (JSON `null`)
+   and MUST NOT coerce an unreadable member to a zero value, because either
+   projection signs a value other than the one the credential carries and lets
+   unsigned profile content ride a valid signature. This rule tests form, not
+   the schema's value constraints: the `sha256:` prefix of `checksum` and a
+   non-negative `observationDays` bind the issuer (§12), and a verifier MUST NOT
+   reject a credential on them. An absent `capabilities` or
    `issuerChain` MUST be the empty array `[]`, never `null`.
 2. **`scanSummary` is always a full object.** All six members
    (`hma`, `criticalFindings`, `highFindings`, `secretless`, `cryptoServe`,
    `oasbLevel`) MUST be present, zero-valued where unknown (`""` for the string
    members, `0` for the integer members). `scanSummary` MUST NOT be `null`.
+   A verifier MUST reject a credential whose `scanSummary` is not an object, or
+   holds any of the six members outside its type, as a signature failure
+   (`SIGNATURE_INVALID`): such a member has no value in the projection, so no
+   signature covers the credential. An absent or `null` member is the zero value
+   (above); this rule bites only a member that is present and the wrong type.
    Its optional `techniques` member is not one of the six; rule 6 governs it.
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
@@ -793,7 +819,7 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 Attack techniques are cited by agent-threat-matrix ID ([threats.opena2a.org](https://threats.opena2a.org)) per architectural commitment 2.
 
-**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document.
+**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document. Under v1.1, a present `behavioralProfile` that is not well formed, and a `scanSummary` that is not an object or holds one of its six members outside its type, are signature failures (`SIGNATURE_INVALID`), never silently dropped or zeroed when the verifier rebuilds the signed bytes: the projection cannot represent them, so no signature covers them (§1.3a.2 rules 1 and 2).
 
 **Stolen credentials replay (T-5004 Credential Reuse).** An ATX is a bearer artifact: presenting it proves what was attested about an agent build, not that the presenter is that agent. Exfiltrated credentials replay until expiry — the 7-day TTL (§1.2) and the CRL (§3.3) bound the window, and deep verification (`contentHash` check, §3.2 step 7; runtime self-attestation, §5), where performed, binds the credential to the running artifact. Deployments where impersonation matters MUST pair ATX presentation with a proof-of-possession channel (AIP identity keys); ATX alone does not provide one.
 

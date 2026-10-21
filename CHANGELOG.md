@@ -365,6 +365,23 @@ identifier registered in `core.md` §14.
   `scripts/test_coverage_index.sh` and `scripts/test_schema_refusals.sh` do, and skips that case
   otherwise. Against atx-conformance at ca1ee3e the case fails on the documents that stated 26
   fixtures and passes on these.
+- `core.md` §1.3a.2 rule 1: a present `behavioralProfile` that is not the canonical
+  `{checksum,generatedAt,observationDays}` object is a signature failure (`SIGNATURE_INVALID`), as a
+  present-but-outside-type `scanSummary` member is under rule 2. The JSON literal `null` is the
+  absent form and any other value is present. A present profile is well formed only as a JSON object
+  whose member names are exactly those three, compared exactly, with `checksum` a JSON string,
+  `generatedAt` a JSON string in the RFC 3339 `date-time` form decided as `issuedAt` and `expiresAt`
+  are, and `observationDays` a JSON number read as an integer as `trustLevel` is. A well-formed
+  profile is projected as an object of exactly those three members, with `generatedAt` in UTC to
+  whole seconds. A verifier rejects a present profile that is not well formed, and never projects it
+  to JSON `null` or coerces an unreadable member to a zero value; the `sha256:` prefix of `checksum`
+  and a non-negative `observationDays` bind the issuer (§12) and are not grounds for a verifier to
+  reject. Rule 2 states the matching `scanSummary` rule: a `scanSummary` that is not an object, or
+  that holds one of its six members outside its type, is a signature failure (`SIGNATURE_INVALID`),
+  while an absent or `null` member stays the zero value. §13 cross-references both rules. An absent
+  or `null` profile and a well-formed one project to the bytes they projected to before, so no byte
+  vector changes. The conformance fixtures for the `behavioralProfile` rule belong in
+  atx-conformance and are not part of this change.
 - The stated conformance-suite count follows the suite to **26** fixtures. atx-conformance added
   `fixtures/v1_1-declared-purpose-number-injected.json`, a MUST-REJECT v1.1 credential signed
   with no `declaredPurpose` that carries the number 1.5, which is not an integer, as a
