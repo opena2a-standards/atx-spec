@@ -216,6 +216,24 @@ write_tree "$T" "$GOOD The credential schema refuses \`v1_1-baseline-valid-hybri
 expect_fail "a refusal sentence naming a fixture the schema accepts fails" \
     "$T" "$S" "core.md:5" stale "fixtures/v1_1-baseline-valid-hybrid.json"
 
+S6="$(new_dir renamed-suite)"
+write_fixture "$S6" v1_1-baseline-valid 1.1 Ed25519
+write_fixture "$S6" v1_1-baseline-valid-hybrid 1.1 Ed25519,ML-DSA-65
+T="$(new_dir names-missing)"
+write_tree "$T" "$GOOD"
+expect_fail "a refusal sentence naming a fixture the suite does not ship fails" \
+    "$T" "$S6" "core.md:5" stale "refuses fixtures/v1_1-hybrid-pq-only.json; the suite ships no such fixture"
+
+T="$(new_dir names-missing-word)"
+write_tree "$T" "$GOOD The credential schema refuses \`revoked\` as well."
+expect_fail "a one-word name the suite does not ship fails, though the schema has a member of that name" \
+    "$T" "$S" "core.md:5" stale "refuses fixtures/revoked.json; the suite ships no such fixture"
+
+T="$(new_dir names-member)"
+write_tree "$T" "The Ed25519-only fixtures that declare \`atcVersion\` 1.1 lack the ML-DSA-65 entry §1.1 requires in \`signatures\` and \`v1_1-hybrid-pq-only\` lacks the Ed25519 one, so the credential schema refuses each of them."
+expect_fail "a member name in backticks outside the Ed25519-only phrase is read as a fixture name" \
+    "$T" "$S" "core.md:5" stale "refuses fixtures/signatures.json; the suite ships no such fixture"
+
 # --- missing and fixture ----------------------------------------------------
 
 T="$(new_dir no-anchor)"

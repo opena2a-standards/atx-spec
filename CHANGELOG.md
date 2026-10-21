@@ -252,6 +252,14 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_schema_refusals.py` reads every name in backticks in a sentence of the `core.md`
+  §12 Issuer paragraph that says the schema refuses as a fixture name, apart from `atcVersion` in
+  the phrase "Ed25519-only fixtures that declare `atcVersion` 1.1", and fails as `[stale]` when
+  the suite ships no fixture of that name. It compared only the names that were suite fixtures, so
+  a refusal sentence naming `v1_1-hybrid-pq-only` passed against a suite that does not ship it,
+  and a name the suite removed or renamed went unreported. A member name such as `signatures` in
+  backticks in such a sentence, outside that phrase, now fails as well.
+  `scripts/test_schema_refusals.sh` adds 3 cases.
 - `core.md` §12 Issuer says which conformance fixtures the credential schema refuses: the
   Ed25519-only fixtures that declare `atcVersion` 1.1, which lack the ML-DSA-65 signature §1.1
   requires, and `v1_1-hybrid-pq-only`, which lacks the Ed25519 one. It said "Those of them that

@@ -24,8 +24,12 @@ that opens with **Issuer.** that say the schema refuses ("schema refuses",
                `atcVersion` 1.1"; any other is named in backticks.
   stale        those sentences describe only refusals the suite has: the
                phrase stands only while a fixture that declares 1.1 and
-               carries Ed25519 signatures only is refused, and a fixture they
-               name in backticks is refused on its signatures member.
+               carries Ed25519 signatures only is refused, and every other
+               name they give in backticks, with or without .json, is read
+               as a fixture name, so the suite ships that fixture and the
+               schema refuses it on its signatures member. A fixture the
+               suite removed or renamed fails, and so does a member name
+               such as `signatures` in backticks outside the phrase.
   missing      core.md, its section 12 Issuer line, the schema or a
                fixtures/*.json in the suite is missing, so a renamed anchor or
                a wrong --suite path cannot pass vacuously.
@@ -147,8 +151,9 @@ def check(root, suite):
 
     claims = [s for s in SENTENCE_SPLIT_RE.split(para) if REFUSES_RE.search(s)]
     has_phrase = any(ED25519_ONLY_RE.search(s) for s in claims)
+    # The phrase's `atcVersion` is a member name; every other name in backticks is a fixture name.
     named = {n[: -len(".json")] if n.endswith(".json") else n
-             for s in claims for n in NAME_RE.findall(s)}
+             for s in claims for n in NAME_RE.findall(ED25519_ONLY_RE.sub(" ", s))}
     ed25519_only = {name for name, (version, algs) in refused.items()
                     if version == "1.1" and algs == ["Ed25519"]}
 
@@ -173,6 +178,12 @@ def check(root, suite):
         failures.append(
             f"{where} [stale] the Issuer paragraph says the schema refuses fixtures/{name}.json; "
             f"the schema does not refuse it on its signatures member"
+        )
+    for name in sorted(named - fixture_names):
+        failures.append(
+            f"{where} [stale] the Issuer paragraph says the schema refuses fixtures/{name}.json; "
+            f"the suite ships no such fixture (a name in backticks in a sentence that says the "
+            f"schema refuses is read as a fixture name)"
         )
     return failures
 
