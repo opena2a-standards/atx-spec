@@ -264,6 +264,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **28** fixtures. atx-conformance added
+  `fixtures/threshold-1of3-cosignature.json`, a MUST-REJECT v1.0 credential: the threshold
+  cosignature credential cut to one of its three signatures, the primary's, under a verifier state
+  that holds the issuer's three Ed25519 keys and requires two of them. The one signature verifies,
+  so a verifier that checks only that every declared signature verifies, and reads no threshold,
+  wrongly accepts; §1.3 step 5 rejects the credential unless signatures under at least m distinct
+  member keys of the threshold key set verify. `README.md` carried the verifier's summary line for
+  27; `docs/conformance.md` carried "27 fixtures" and "27 of 27 PASS"; §12 carried "27 fixtures".
+  Each follows the suite, and the fixture joins both fixture enumerations beside the threshold
+  cosignature case it is cut from. Against atx-conformance at 3d73f18 both reference verifiers
+  report `summary: 28 pass, 0 fail (28 fixtures)` and reject the new fixture as
+  `SIGNATURE_INVALID` with the reason `signature threshold not met`. No normative text changes.
 - `core.md` §1.3a.2 rule 3 names the JSON numbers the TBS holds once `trustScore` is
   string-encoded: the integers `trustLevel`, `scanSummary.criticalFindings` and
   `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays` unless
