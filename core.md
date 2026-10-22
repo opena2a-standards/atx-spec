@@ -217,12 +217,11 @@ credential that verifies across implementations and one that does not:
    `behavioralProfile` is well formed only when it is a JSON object whose member
    names are exactly `checksum`, `generatedAt` and `observationDays`, compared
    exactly (a name that differs in case is a different member), in which
-   `checksum` is a JSON string, `generatedAt` is a JSON string in the RFC 3339
-   `date-time` form decided as the verifier decides `issuedAt` and `expiresAt`
-   (§1.3 step 2), and `observationDays` is a JSON number the verifier reads as
-   an integer, decided as it reads `trustLevel`. A well-formed profile is
-   projected as an object of exactly those three members, with `generatedAt`
-   written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`). A verifier MUST
+   `checksum` is a JSON string, `generatedAt` is a JSON string in the date-time
+   form and `observationDays` is a JSON number in the integer form, both stated
+   in the bullets below. A well-formed profile is projected as an object of
+   exactly those three members, with `generatedAt` written in UTC to whole
+   seconds (`YYYY-MM-DDTHH:MM:SSZ`) as the third bullet states. A verifier MUST
    reject a credential whose `behavioralProfile` is present and not well formed:
    the projection cannot represent it, so no signature covers it, and the
    verifier reports a signature failure (`SIGNATURE_INVALID`), exactly as it
@@ -235,6 +234,35 @@ credential that verifies across implementations and one that does not:
    non-negative `observationDays` bind the issuer (§12), and a verifier MUST NOT
    reject a credential on them. An absent `capabilities` or
    `issuerChain` MUST be the empty array `[]`, never `null`.
+   - The date-time form. `generatedAt` matches the `date-time` production of
+     RFC 3339 §5.6 written with an upper-case `T` and `Z` and a second from
+     `00` to `59` (RFC 3339 also admits a lower-case `t` and `z`, and a leap
+     second `60`): a date `YYYY-MM-DD` that is a day of the Gregorian calendar
+     (RFC 3339 §5.7), `T`, a time `HH:MM:SS` whose hour is from `00` to `23`
+     and whose minute is from `00` to `59`, optionally a full stop and one or
+     more digits of fractional seconds, and then `Z` or a numeric offset
+     `+HH:MM` or `-HH:MM` whose hour is from `00` to `23` and whose minute is
+     from `00` to `59`. `2026-05-19T02:00:00.9+02:00` is in this form, and
+     `2026-05-19t00:00:00z`, `2026-05-19T00:00:60Z` and `2026-05-19 00:00:00Z`
+     are not.
+   - The integer form. `observationDays` is a JSON number written with neither
+     a fraction part nor an exponent part (RFC 8259 §6), so an optional minus
+     sign followed by digits: `14` is in this form, and `14.0`, `1.4e1` and
+     `14E0` are not, although each has the value 14. The verifier decides the
+     form from the number as the credential's JSON text writes it, not from the
+     value a JSON parser returns for it. The credential schema's `integer` type
+     tests the value, so it accepts `14.0`.
+   - The projection of `generatedAt`. The TBS holds the instant `generatedAt`
+     names, in UTC and to whole seconds, as `YYYY-MM-DDTHH:MM:SSZ`: a numeric
+     offset is subtracted from the local time it follows (RFC 3339 §4.2), and
+     fractional seconds are dropped, not rounded, so
+     `2026-05-19T02:00:00.9+02:00` is projected as `2026-05-19T00:00:00Z`. The
+     signature therefore covers that second and not how the credential writes
+     it: a holder can rewrite `generatedAt` as another string in the date-time
+     form that names an instant in the same second, with another offset or
+     other fractional digits, and the signature still verifies. A
+     `generatedAt` whose instant falls outside the years `0000` to `9999` in
+     UTC is not well formed, because `YYYY-MM-DDTHH:MM:SSZ` cannot write it.
 2. **`scanSummary` is always a full object.** All six members
    (`hma`, `criticalFindings`, `highFindings`, `secretless`, `cryptoServe`,
    `oasbLevel`) MUST be present, zero-valued where unknown (`""` for the string
