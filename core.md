@@ -275,9 +275,21 @@ credential that verifies across implementations and one that does not:
    (`SIGNATURE_INVALID`): such a member has no value in the projection, so no
    signature covers the credential. An integer member whose absolute value is
    greater than 9007199254740991 is outside its type (rule 3). An absent or
-   `null` member is the zero value (above); this rule bites only a member that
-   is present and outside its type.
+   `null` member is the zero value (above); the type test bites only a member
+   that is present and outside its type.
    Its optional `techniques` member is not one of the six; rule 6 governs it.
+   The member names a `scanSummary` may hold are exactly `hma`,
+   `criticalFindings`, `highFindings`, `secretless`, `cryptoServe`, `oasbLevel`
+   and `techniques`, compared exactly (a name that differs in case is a
+   different member), and an issuer MUST NOT emit a `scanSummary` member with
+   any other name. A verifier MUST reject a credential whose `scanSummary`
+   holds a member with any other name as a signature failure
+   (`SIGNATURE_INVALID`), as it does for a `behavioralProfile` whose member
+   names are not exactly its three (rule 1): the TBS `scanSummary` carries only
+   the six members and, when present, `techniques`, so no signature covers any
+   other member. A verifier MUST NOT drop such a member when it rebuilds the
+   signed bytes, because a member it dropped would ride a valid signature
+   unsigned.
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
    (printf `%.6f`), e.g. `"87.500000"`. The wire credential keeps `trustScore`
@@ -891,7 +903,7 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 Attack techniques are cited by agent-threat-matrix ID ([threats.opena2a.org](https://threats.opena2a.org)) per architectural commitment 2.
 
-**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document. Under v1.1, a present `behavioralProfile` that is not well formed, and a `scanSummary` that is not an object or holds one of its six members outside its type, are signature failures (`SIGNATURE_INVALID`), never silently dropped or zeroed when the verifier rebuilds the signed bytes: the projection cannot represent them, so no signature covers them (§1.3a.2 rules 1 and 2).
+**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document. Under v1.1, a present `behavioralProfile` that is not well formed, and a `scanSummary` that is not an object, holds one of its six members outside its type or holds a member named other than those six and `techniques`, are signature failures (`SIGNATURE_INVALID`), never silently dropped or zeroed when the verifier rebuilds the signed bytes: the projection cannot represent them, so no signature covers them (§1.3a.2 rules 1 and 2).
 
 **Stolen credentials replay (T-5004 Credential Reuse).** An ATX is a bearer artifact: presenting it proves what was attested about an agent build, not that the presenter is that agent. Exfiltrated credentials replay until expiry — the 7-day TTL (§1.2) and the CRL (§3.3) bound the window, and deep verification (`contentHash` check, §3.2 step 7; runtime self-attestation, §5), where performed, binds the credential to the running artifact. Deployments where impersonation matters MUST pair ATX presentation with a proof-of-possession channel (AIP identity keys); ATX alone does not provide one.
 

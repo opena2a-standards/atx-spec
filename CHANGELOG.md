@@ -10,6 +10,19 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_tbs_member_names.py` + `scripts/test_tbs_member_names.sh`: each TBS key that
+  `schemas/atx-credential-v1.1.schema.json` types as an object with `additionalProperties` false
+  (a closed object) has a sentence of `core.md` §1.3a.2 that names it and each member the schema
+  lists for it in backticks and says "exactly", "none of", "no other" or "any other", or the check
+  fails as `[unstated]`; the rule that holds that sentence also has a sentence that names the
+  object and says "reject" and `SIGNATURE_INVALID`, or "verbatim", or the check fails as
+  `[outcome]`. The keys are read from the included-keys block of §1.3a.2 and typed from the
+  schema, so a closed object the schema adds to the TBS joins them; in this tree they are
+  `behavioralProfile` and `scanSummary`. A schema that types no TBS key as a closed object fails
+  as `[none]`. Against the `core.md` of dff1236 the check reports `[unstated]` for `scanSummary`
+  and exits 1; it passes on this tree. It exits 2 on a usage error, needs only python3 and is not
+  yet run by CI. The test runs 30 cases with bash and python3; against the `core.md` of dff1236 1
+  of them fails, the case that reads the delivered tree. (#113)
 - `scripts/check_tbs_timestamps.py` + `scripts/test_tbs_timestamps.sh`: each TBS member, at any
   depth, that `schemas/atx-credential-v1.1.schema.json` types with format `date-time` is named in
   backticks in a sentence of `core.md` §1.3a.2 that says "UTC" and "whole second" or "whole
@@ -360,6 +373,19 @@ identifier registered in `core.md` §14.
   case it is cut from. Against atx-conformance at a825ec2 both reference verifiers report
   `summary: 29 pass, 0 fail (29 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
   normative text changes.
+- `core.md` §1.3a.2 rule 2: the member names a `scanSummary` may hold are exactly the six members
+  and `techniques`, compared exactly, so a name that differs in case is a different member. An
+  issuer MUST NOT emit a `scanSummary` member with any other name, and a verifier MUST reject a
+  credential whose `scanSummary` holds one as a signature failure (`SIGNATURE_INVALID`), as rule 1
+  does for a `behavioralProfile` whose member names are not exactly its three, and MUST NOT drop
+  it when it rebuilds the signed bytes. Rule 2 rejected a `scanSummary` that is not an object or
+  holds one of the six outside its type, and gave no outcome for a member with another name; the
+  TBS `scanSummary` carries only the six and `techniques`, so such a member is in no signed byte,
+  and a verifier that drops it accepts a credential carrying a member no signature covers. The
+  schema's `additionalProperties` false on `scanSummary` already refused such a member, but rule 2
+  did not require a verifier to. §13 names the case beside the other `scanSummary` signature
+  failures. The projection of a `scanSummary` that holds only those members is unchanged. The
+  reference verifiers and fixtures in atx-conformance are not part of this change. (#113)
 - `core.md` §1.3a.2 rule 7: a wire value of `issuedAt`, `expiresAt` or
   `behavioralProfile.generatedAt` whose instant falls in UTC outside the years 0000 to 9999 has no
   `YYYY-MM-DDTHH:MM:SSZ` form, and a verifier MUST reject a credential that carries one rather than
