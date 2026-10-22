@@ -329,6 +329,20 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
+  it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
+  node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it
+  held: a schema whose root has a `$ref` and a `properties` of 5, true, false or null stopped the
+  check with a `TypeError` traceback and exit 1, and a `properties` of `["atcVersion"]` or
+  `"atcVersion agentId"` was searched as a list or a string, so the check reported `[keys]` for 17
+  or 16 of the 18 included keys and none for the keys that list or string holds. Each of those
+  shapes now stops the check with one line, as it already did at a root without a `$ref`, such as
+  `schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema: the schema root has
+  "properties": 5, which is not an object`, and exit 1. The delivered tree still passes.
+  `scripts/test_tbs_numbers.sh` adds 5 cases, a root `properties` of 5, null and `["atcVersion"]`
+  beside a `$ref`, and a one-line count for 5 with and without a `$ref`, and runs 68, one of them
+  skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of e212bad, 4 of
+  them fail. (#119)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the

@@ -156,6 +156,31 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
 }
 
+# schema_root_ref <tree> <JSON value>: move the root properties of the tree's schema
+# to $defs.rootTarget, give the root a $ref to it, and set the root's own properties
+# to the value.
+schema_root_ref() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" <<'PYEOF'
+import json, sys
+path, value = sys.argv[1], json.loads(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+schema.setdefault("$defs", {})["rootTarget"] = {"type": "object", "properties": schema["properties"]}
+schema["$ref"] = "#/$defs/rootTarget"
+schema["properties"] = value
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+}
+
+one_line() {  # one_line <leaf name>: the last run printed exactly one line
+    if [ "$(grep -c '' "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
+}
+
 vector() {  # vector <suite> <name> <canonical TBS as JSON>: a jcs-vectors/vectors/<name>.json
     mkdir -p "$1/jcs-vectors/vectors"
     python3 -B -c '
@@ -454,6 +479,28 @@ T="$(tree root-properties "$NAMED")"
 schema_set "$T" '5' properties
 expect_fail "a properties at the schema root that is a number fails" "$T" - \
     "$UNREADABLE"' the schema root has "properties": 5, which is not an object' '!Traceback'
+one_line "a properties at the schema root that is a number is reported on one line"
+
+# The walk reads no other keyword of a node that has a $ref, so the root's own
+# properties, where the included keys are looked up, is checked apart from the walk.
+T="$(tree root-ref-properties "$NAMED")"
+schema_root_ref "$T" '5'
+expect_fail "a properties at the schema root that is a number fails when the root has a \$ref" \
+    "$T" - "$UNREADABLE"' the schema root has "properties": 5, which is not an object' \
+    '!Traceback' '![keys]'
+one_line "a properties at the schema root that is a number beside a \$ref is reported on one line"
+
+T="$(tree root-ref-null "$NAMED")"
+schema_root_ref "$T" 'null'
+expect_fail "a properties at the schema root that is null fails when the root has a \$ref" \
+    "$T" - "$UNREADABLE"' the schema root has "properties": null, which is not an object' \
+    '!Traceback'
+
+T="$(tree root-ref-array "$NAMED")"
+schema_root_ref "$T" '["atcVersion"]'
+expect_fail "a properties at the schema root that is an array fails when the root has a \$ref, instead of being read as a list of keys" \
+    "$T" - "$UNREADABLE"' the schema root has "properties": ["atcVersion"], which is not an object' \
+    '![keys]'
 
 T="$(tree member-properties "$NAMED")"
 schema_set "$T" '[]' properties scanSummary properties
