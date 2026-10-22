@@ -319,6 +319,15 @@ identifier registered in `core.md` §14.
   members in that form, so no byte vector changes, and none of its 28 fixtures carries a numeric
   offset or a fractional second in them; fixtures that do belong in atx-conformance and are not
   part of this change. (#106)
+- `schemas/atx-credential-v1.1.schema.json` accepts a `behavioralProfile` whose value is `null`,
+  which `core.md` §1.3a.2 rule 1 treats as absent, as the schema accepts a `null`
+  `scanSummary.techniques` (rule 6) and a `null` `declaredPurpose` (rule 5). The schema typed the
+  member as an object only, so the §1.1 example with `"behavioralProfile": null` failed
+  validation on its type, while the same example with the member omitted validated. The object
+  constraints are unchanged, and the member now carries a description that says `null` is
+  treated as absent. `scripts/test_schema.py` adds a case that accepts the `null` and two that
+  reject an empty object and the string `"null"`; run against the schema at 6a7c32a, 1 of its 42
+  cases fails, and all 42 pass on this tree. No normative text changes. (#107)
 - `scripts/check_review_marker.py` reads a run of whitespace in an item of a `[denied]` list, line
   breaks included, as one space. Its pattern matched "test suite" and "test suites" only with one
   space between the words, so a `.pre-push-review-not-required` with "There is no test" at the
