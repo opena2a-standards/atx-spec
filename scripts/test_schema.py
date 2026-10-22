@@ -4,13 +4,13 @@
 Each case takes the section 1.1 example credential from core.md, changes one
 member, and asserts that the schema accepts the result when the text allows it
 and rejects it when the text forbids it. The cited rules are core.md section
-1.3a.2 rules 1, 2 and 5 (canonical empties, the full scanSummary, an absent
-declaredPurpose), section 1.5.2 (the taskScope grammar, capabilityJustification
-keys), section 14 (capability tokens in the AIP section 4.1 grammar) and section
-1.1 (an atcVersion 1.1 credential carries both signature suites; frozen 1.0 is
-not held to that). The last cases check the JSON Patch `test` and `remove`
-operations that scripts/validate_examples.py applies to build the mustReject
-variants of schemas/examples-map.json.
+1.3a.2 rules 1, 2 and 5 (canonical empties and a null behavioralProfile, the
+full scanSummary, an absent declaredPurpose), section 1.5.2 (the taskScope
+grammar, capabilityJustification keys), section 14 (capability tokens in the
+AIP section 4.1 grammar) and section 1.1 (an atcVersion 1.1 credential carries
+both signature suites; frozen 1.0 is not held to that). The last cases check
+the JSON Patch `test` and `remove` operations that scripts/validate_examples.py
+applies to build the mustReject variants of schemas/examples-map.json.
 
     python3 scripts/test_schema.py
 
@@ -96,6 +96,7 @@ ACCEPT = [
     ("declaredPurpose empty object (rule 5)", member(declaredPurpose={})),
     ("publisherDid empty string (rule 1)", member(publisherDid="")),
     ("buildAttestation empty string (rule 1)", member(buildAttestation="")),
+    ("behavioralProfile null (rule 1 treats it as absent)", member(behavioralProfile=None)),
     ("scanSummary.oasbLevel empty string (rule 2)", scan(oasbLevel="")),
     ("scanSummary fully zero-valued (rule 2)",
      scan(hma="", criticalFindings=0, highFindings=0, secretless="", cryptoServe="",
@@ -129,6 +130,10 @@ REJECT = [
      purpose(capabilityJustification={"db:read": ["9-x:Foo.Bar"]})),
     ("declaredPurpose array (rule 5 forbids a non-object)", member(declaredPurpose=[])),
     ("declaredPurpose string (rule 5 forbids a non-object)", member(declaredPurpose="billing")),
+    ("behavioralProfile empty object (rule 1: present, and not well formed)",
+     member(behavioralProfile={})),
+    ("behavioralProfile string \"null\" (rule 1: only the JSON literal null is absent)",
+     member(behavioralProfile="null")),
     ("publisherDid that is neither a DID nor empty", member(publisherDid="acme-corp")),
     ("scanSummary.oasbLevel L10", scan(oasbLevel="L10")),
     ("scanSummary null (rule 2)", member(scanSummary=None)),

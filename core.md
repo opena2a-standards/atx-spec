@@ -292,6 +292,18 @@ credential that verifies across implementations and one that does not:
    because a value it dropped would ride a valid signature unsigned. When
    present it is the last member of the canonical `scanSummary`, after
    `secretless`.
+7. **`issuedAt` and `expiresAt` are written in UTC to whole seconds.** In the
+   TBS, `issuedAt` and `expiresAt` MUST each be the instant its value in the
+   credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`),
+   as rule 1 writes `behavioralProfile.generatedAt`. For all three members the
+   projection applies a time-zone offset instead of keeping it and drops a
+   fractional second instead of rounding it: `2026-05-19T02:00:00.900+02:00`
+   and `2026-05-18T23:30:00-00:30` are each projected as
+   `2026-05-19T00:00:00Z`. A wire value written with a numeric offset (`+00:00`
+   included) or with a fractional second is therefore not carried into the TBS
+   verbatim, and two wire values that fall in the same UTC second have the same
+   projection, so the signature covers these members to the second and not the
+   text of the wire value.
 
 The Ed25519 threshold signatures and the ML-DSA-65 hybrid signature are all
 computed over the **same** `JCS(TBS)` bytes. JCS itself sorts object member names

@@ -10,6 +10,21 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_tbs_timestamps.py` + `scripts/test_tbs_timestamps.sh`: each TBS member, at any
+  depth, that `schemas/atx-credential-v1.1.schema.json` types with format `date-time` is named in
+  backticks in a sentence of `core.md` §1.3a.2 that says "UTC" and "whole second" or "whole
+  seconds", or the check fails as `[missing]`. The members are read from the included-keys block
+  of §1.3a.2 and typed from the schema, so a timestamp the schema adds to the TBS joins them; in
+  this tree they are `issuedAt`, `expiresAt` and `behavioralProfile.generatedAt`. A sentence
+  outside §1.3a.2 does not count, and a schema that types no TBS member as a `date-time` fails as
+  `[none]`. With `--suite`, the `expected.canonicalHex` of each atx-conformance `jcs-vectors`
+  vector is parsed, and a value of one of those members that is not a `YYYY-MM-DDTHH:MM:SSZ`
+  string fails as `[vector]`, as does a TBS that leaves out one that is a top-level key. Against
+  the `core.md` of 6a7c32a the check reports `[missing]` for `issuedAt` and `expiresAt`; it passes
+  on this tree, and against atx-conformance at 4bdeb7f it reads 20 such values in the 8 vectors.
+  The check exits 1 on a failure and 2 on a usage error, needs only python3 and is not yet run by
+  CI; the test runs 39 cases with bash and python3, one of them against a real suite checkout when
+  `ATX_CONFORMANCE_SUITE` names one. (#106)
 - `scripts/check_tbs_numbers.py` + `scripts/test_tbs_numbers.sh`: a sentence that names the TBS
   and says which JSON numbers it holds and no others ("the only JSON numbers in the TBS", "no
   JSON numbers other than") names in backticks each TBS member that
@@ -286,6 +301,33 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2 rule 7: in the TBS, `issuedAt` and `expiresAt` are each the instant its value
+  in the credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`), as rule 1
+  writes `behavioralProfile.generatedAt`. For all three the projection applies a time-zone offset
+  and drops a fractional second instead of rounding it, so two wire values in the same UTC second
+  have the same projection and the signature covers these members to the second. The section
+  listed `issuedAt` and `expiresAt` among the TBS keys and stated no form for them. Built from the
+  `tbs` of atx-conformance's `01-baseline` vector, a TBS that carries the wire value verbatim
+  differs from the pinned bytes when that value is `2026-05-23T02:00:00.900+02:00`,
+  `2026-05-23T02:00:00+02:00` or `2026-05-23T00:00:00.5Z` in `issuedAt`, or the same three shapes
+  in `expiresAt`, and the UTC whole-second projection of each reproduces them. In atx-conformance
+  at 4bdeb7f the Go verifier writes the three members with `UTC().Format(time.RFC3339)` and the
+  Python verifier with `_format_rfc3339`; Go's `time.Parse(time.RFC3339)` followed by that format,
+  and the Python verifier's `_parse_rfc3339` followed by `_format_rfc3339`, each map
+  `2026-05-19T02:00:00.900+02:00`, `2026-05-19T00:00:00.999999999Z` and
+  `2026-05-18T23:30:00-00:30` to `2026-05-19T00:00:00Z`. The suite's 8 `jcs-vectors` hold these
+  members in that form, so no byte vector changes, and none of its 28 fixtures carries a numeric
+  offset or a fractional second in them; fixtures that do belong in atx-conformance and are not
+  part of this change. (#106)
+- `schemas/atx-credential-v1.1.schema.json` accepts a `behavioralProfile` whose value is `null`,
+  which `core.md` §1.3a.2 rule 1 treats as absent, as the schema accepts a `null`
+  `scanSummary.techniques` (rule 6) and a `null` `declaredPurpose` (rule 5). The schema typed the
+  member as an object only, so the §1.1 example with `"behavioralProfile": null` failed
+  validation on its type, while the same example with the member omitted validated. The object
+  constraints are unchanged, and the member now carries a description that says `null` is
+  treated as absent. `scripts/test_schema.py` adds a case that accepts the `null` and two that
+  reject an empty object and the string `"null"`; run against the schema at 6a7c32a, 1 of its 42
+  cases fails, and all 42 pass on this tree. No normative text changes. (#107)
 - `scripts/check_review_marker.py` reads a run of whitespace in an item of a `[denied]` list, line
   breaks included, as one space. Its pattern matched "test suite" and "test suites" only with one
   space between the words, so a `.pre-push-review-not-required` with "There is no test" at the
