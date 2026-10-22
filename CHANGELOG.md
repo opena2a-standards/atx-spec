@@ -329,6 +329,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **30** fixtures. atx-conformance added
+  `fixtures/v1_1-integer-outside-exact-range.json` at 7e1542e, a MUST-REJECT v1.1 credential that
+  carries `scanSummary.criticalFindings` 9007199254740993 under an Ed25519 signature over the bytes
+  an RFC 8785 serializer that reads each number as an IEEE 754 double writes for it, with
+  9007199254740992 in that member, so the signature does not cover the count the credential
+  carries. §1.3a.2 rule 3 has a verifier reject that member above 9007199254740991 (2^53 - 1) as a
+  signature failure. `README.md` carried the verifier's summary line for 29; `docs/conformance.md`
+  carried "29 fixtures" and "29 of 29 PASS"; §12 carried "29 fixtures". Each follows the suite, and
+  the fixture joins both fixture enumerations as the last entry of the `v1_1-*` family. Against
+  atx-conformance at 7e1542e both reference verifiers report
+  `summary: 30 pass, 0 fail (30 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
+  normative text changes.
 - `core.md` §1.3a.2 rule 3 bounds the integers it names as the only JSON numbers of the TBS
   (`trustLevel`, `scanSummary.criticalFindings`, `scanSummary.highFindings` and
   `behavioralProfile.observationDays`) to an absolute value of at most 9007199254740991

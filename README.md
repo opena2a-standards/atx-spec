@@ -24,7 +24,7 @@ What you can do today: run the reference verifier against the pinned fixtures fr
 git clone https://github.com/opena2a-standards/atx-conformance
 cd atx-conformance/verifiers/go
 go run . ../../fixtures
-# summary: 29 pass, 0 fail (29 fixtures)
+# summary: 30 pass, 0 fail (30 fixtures)
 ```
 
 Where it stops today: an ATX is a bearer artifact.
