@@ -316,6 +316,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **29** fixtures. atx-conformance added
+  `fixtures/hybrid-pq-only.json` at 50cbe67, a MUST-REJECT v1.0 credential: the v1.0 hybrid
+  baseline with its Ed25519 signature removed, so it carries one ML-DSA-65 signature that verifies
+  and no Ed25519 signature. §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry and
+  names no `atcVersion`; until this fixture the suite pinned that rule only under `atcVersion` 1.1,
+  with `fixtures/v1_1-hybrid-pq-only.json`. `README.md` carried the verifier's summary line for 28;
+  `docs/conformance.md` carried "28 fixtures" and "28 of 28 PASS"; §12 carried "28 fixtures" and,
+  in its Issuer paragraph, "the four fixtures that carry an ML-DSA-65 signature", where five now
+  do. Each follows the suite, and the fixture joins both fixture enumerations beside the hybrid
+  case it is cut from. Against atx-conformance at a825ec2 both reference verifiers report
+  `summary: 29 pass, 0 fail (29 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
+  normative text changes.
 - `core.md` §1.3a.2 rule 7: in the TBS, `issuedAt` and `expiresAt` are each the instant its value
   in the credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`), as rule 1
   writes `behavioralProfile.generatedAt`. For all three the projection applies a time-zone offset
