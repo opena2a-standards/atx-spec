@@ -43,7 +43,7 @@ identifier registered in `core.md` §14.
   `[denied]`. A tree without the file passes. Against the tree at 6d8bd98 the check reports
   `[denied]` for "test suite" and `[unnamed]` for each of the 41 files under `scripts/`; it passes
   on this tree. The check exits 1 on a failure and 2 on a usage error, needs only python3 and is
-  not yet run by CI; the test runs 32 cases with bash and python3. (#99)
+  not yet run by CI; the test runs 40 cases with bash and python3. (#99)
 - `scripts/check_schema_refusals.py` + `scripts/test_schema_refusals.sh`: the sentences of the
   `core.md` §12 Issuer paragraph that say the credential schema refuses account for every
   atx-conformance fixture the schema refuses on its `signatures` member, an Ed25519-only fixture
@@ -286,6 +286,14 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_review_marker.py` reads a run of whitespace in an item of a `[denied]` list, line
+  breaks included, as one space. Its pattern matched "test suite" and "test suites" only with one
+  space between the words, so a `.pre-push-review-not-required` with "There is no test" at the
+  end of one line and "suite here." at the start of the next passed, as did one with two spaces
+  between "test" and "suite" on one line; each now fails as `[denied]` for 'test suite'. The
+  delivered file still passes. `scripts/test_review_marker.sh` adds 3 cases: a line break and two
+  spaces between "test" and "suite", and a line break and an indent between "test" and "suites".
+  (#102)
 - The stated conformance-suite count follows the suite to **28** fixtures. atx-conformance added
   `fixtures/threshold-1of3-cosignature.json`, a MUST-REJECT v1.0 credential: the threshold
   cosignature credential cut to one of its three signatures, the primary's, under a verifier state
@@ -340,8 +348,8 @@ identifier registered in `core.md` §14.
   exited 0, while "There are no tests." exited 1. Each now exits 1 with `[denied]` for "tests",
   and "There are no runnable files and no executables." reports `[denied]` for "executables" as
   well as for "runnable". The delivered `.pre-push-review-not-required` passes.
-  `scripts/test_review_marker.sh` adds 5 cases; run with the check at fa77e5a, 4 of its 37 cases
-  fail, and all 37 pass on this tree. (#101)
+  `scripts/test_review_marker.sh` adds 5 cases; run with the check at fa77e5a, 7 of its 40 cases
+  fail, and all 40 pass on this tree. (#101)
 - The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
   `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
   with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,

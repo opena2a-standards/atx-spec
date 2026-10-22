@@ -24,7 +24,10 @@ other part names an entry exactly, case included. Three rules:
                suite", "test suites", "scripts", "checks", "runnable",
                "executable" or "executables". The list runs to the end of its
                clause (".", ";", ":" or a parenthesis) and splits at commas and
-               at "and", "or" and "nor"; backticked spans are not read as words.
+               at "and", "or" and "nor". In an item, a run of whitespace, line
+               breaks included, is read as one space, so a term the file wraps
+               between "test" and "suite" is still read; backticked spans are
+               not read as words.
                A negation inside the list of another opens a list of its own,
                so "no package and no tests" denies "tests".
 
@@ -129,7 +132,7 @@ def check(root):
     if scripts:
         masked = CODE_RE.sub(lambda m: "#" * len(m.group(0)), text)
         for m in NEGATION_RE.finditer(masked):
-            items = (item.strip() for item in ITEM_SPLIT_RE.split(m.group("list")))
+            items = (" ".join(item.split()) for item in ITEM_SPLIT_RE.split(m.group("list")))
             term = next((hit.group(0) for hit in map(DENIED_RE.match, items) if hit), None)
             if term is not None:
                 clause = " ".join(masked[m.start() : m.end("list")].split())

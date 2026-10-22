@@ -227,6 +227,21 @@ write_marker "$T" "$NAMES"' There are no tests and no scripts.'
 expect_fail "a second denial in the list of the first is reported as well" \
     "$T" "$MARKER:1" denied "'no scripts' denies 'scripts'"
 
+T="$(new_tree wrapped-term)"
+write_marker "$T" "$NAMES"' There is no test'$'\n''suite here.'
+expect_fail "a line break between test and suite is read as one space" \
+    "$T" "$MARKER:1" denied "denies 'test suite'"
+
+T="$(new_tree spaced-term)"
+write_marker "$T" "$NAMES"' There is no test  suite here.'
+expect_fail "two spaces between test and suite are read as one" \
+    "$T" "$MARKER:1" denied "denies 'test suite'"
+
+T="$(new_tree indented-term)"
+write_marker "$T" "$NAMES"$'\n''- There are no test'$'\n''  suites to run.'
+expect_fail "a line break and an indent between test and suites are read as one space" \
+    "$T" "$MARKER:2" denied "denies 'test suites'"
+
 T="$(new_tree singular)"
 write_marker "$T" "$NAMES"' No test needs network access.'
 expect_pass "no test followed by a verb is not a denial" "$T"
