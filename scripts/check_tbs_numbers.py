@@ -64,11 +64,13 @@ A tree fails with a message that says why when core.md is missing, is not UTF-8
 or has no section 1.3a.2 heading, and when the schema is missing, is not JSON or
 cannot be walked: a node the walk reaches has a type that is neither a string
 nor an array of strings, a oneOf, anyOf or allOf that is not an array, or a
-properties that is not an object. That message names the member whose schema
-holds the node, or the schema root, and the keyword with its value written as
-JSON, cut to 60 characters. Every other failure is reported with its rule in
-brackets, as file:line, or as the file alone for a vector, for the schema and for
-a file that is not UTF-8.
+properties that is not an object. The walk reads no other keyword of a node that
+has a $ref, so the schema root's own properties, where the included keys are
+looked up, is checked apart from it and fails the same way. That message names
+the member whose schema holds the node, or the schema root, and the keyword with
+its value written as JSON, cut to 60 characters. Every other failure is reported
+with its rule in brackets, as file:line, or as the file alone for a vector, for
+the schema and for a file that is not UTF-8.
 
     python3 scripts/check_tbs_numbers.py [--root <tree>] [--suite <atx-conformance>]
 
@@ -268,7 +270,8 @@ def schema_members(schema):
     every member the schema defines, at any depth; a member defined in several places has
     a node for each. unreadable says, once per place, where a node the walk reaches has a
     type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not allow
-    there, and what it holds."""
+    there, and what it holds. The walk reads no other keyword of a node that has a $ref,
+    so the root's own properties, which main() reads, is checked apart from the walk."""
     found, nodes, unreadable = {}, {}, []
 
     def resolve(node, seen):
@@ -317,6 +320,10 @@ def schema_members(schema):
                 walk(node[key], path, seen)
 
     walk(schema, "", frozenset())
+    # main() looks the TBS keys up in the root's own properties, which the walk does
+    # not read when the root has a $ref.
+    if isinstance(schema, dict) and not isinstance(schema.get("properties", {}), dict):
+        wrong("", "properties", schema["properties"], "an object")
     return found, nodes, unreadable
 
 
