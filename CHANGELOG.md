@@ -329,6 +329,22 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
+  `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
+  and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the
+  root `properties` the same way, so a schema that set the `type` of `scanSummary.highFindings` to
+  5 or null, or the `oneOf` of `scanSummary` to 5, stopped the check with a `TypeError` traceback
+  and exit 1. A `type` that is neither a string nor an array of strings, a `oneOf`, `anyOf` or
+  `allOf` that is not an array, or a `properties` that is not an object now stops the check, as a
+  schema that is not JSON does, with one line per place that names the schema, the member whose
+  schema holds the node (or the schema root) and the keyword with its value, and exit 1. Four
+  shapes the check passed before now fail the same way: a `type` of `["integer", 5]` at
+  `scanSummary.highFindings`, a `type` of 5 at the schema root, a `oneOf` of `"abc"` at
+  `scanSummary`, and a `properties` of `scanSummary` that is an array, which left
+  `scanSummary.criticalFindings` and `scanSummary.highFindings` out of the check. The delivered
+  tree still passes. `scripts/test_tbs_numbers.sh` adds 7 cases and runs 63, one of them skipped
+  unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of 7ada649, 7 of them
+  fail. (#117)
 - `scripts/check_tbs_numbers.py` reads a `minimum`, `exclusiveMinimum`, `maximum` or
   `exclusiveMaximum` that the schema writes as an integer as the exact int Python's `json` module
   parses, without converting it to a float. It passed each one to `math.isfinite`, which converts

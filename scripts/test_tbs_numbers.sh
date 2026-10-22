@@ -414,6 +414,52 @@ printf '{"properties": \n' > "$T/schemas/atx-credential-v1.1.schema.json"
 expect_fail "a schema that is not JSON fails" "$T" - \
     "schemas/atx-credential-v1.1.schema.json cannot be read as JSON"
 
+# A type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not
+# allow there stops the check with a message that names the member, not with a
+# traceback.
+UNREADABLE='schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema:'
+
+T="$(tree type-number "$NAMED")"
+schema_set "$T" '5' properties scanSummary properties highFindings type
+expect_fail "a type that is a number fails naming the schema and the member" "$T" - \
+    "$UNREADABLE"' `scanSummary.highFindings` has "type": 5, which is not a string or an array of strings' \
+    '!Traceback' '![not-a-number]'
+
+T="$(tree type-null "$NAMED")"
+schema_set "$T" 'null' properties scanSummary properties highFindings type
+expect_fail "a type that is null fails naming the schema and the member" "$T" - \
+    "$UNREADABLE"' `scanSummary.highFindings` has "type": null, which is not a string or an array of strings' \
+    '!Traceback'
+
+T="$(tree type-array-number "$NAMED")"
+schema_set "$T" '[5]' properties scanSummary properties highFindings type
+expect_fail "a type that is an array holding a number fails naming the schema and the member" "$T" - \
+    "$UNREADABLE"' `scanSummary.highFindings` has "type": [5], which is not a string or an array of strings' \
+    '!Traceback'
+
+T="$(tree one-of-number "$NAMED")"
+schema_set "$T" '5' properties scanSummary oneOf
+expect_fail "a oneOf that is a number fails naming the schema and the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "oneOf": 5, which is not an array' '!Traceback'
+
+T="$(tree any-all-of "$NAMED")"
+schema_set "$T" '{}' properties behavioralProfile anyOf
+schema_set "$T" 'null' allOf
+expect_fail "an anyOf and an allOf that are not arrays are each reported, the root's as the schema root" \
+    "$T" - \
+    "$UNREADABLE"' `behavioralProfile` has "anyOf": {}, which is not an array' \
+    "$UNREADABLE"' the schema root has "allOf": null, which is not an array' '!Traceback'
+
+T="$(tree root-properties "$NAMED")"
+schema_set "$T" '5' properties
+expect_fail "a properties at the schema root that is a number fails" "$T" - \
+    "$UNREADABLE"' the schema root has "properties": 5, which is not an object' '!Traceback'
+
+T="$(tree member-properties "$NAMED")"
+schema_set "$T" '[]' properties scanSummary properties
+expect_fail "a properties that is an array fails instead of leaving that member's integers unchecked" \
+    "$T" - "$UNREADABLE"' `scanSummary` has "properties": [], which is not an object'
+
 # --- --suite: the jcs-vectors -----------------------------------------------
 
 T="$(tree vectors "$NAMED")"
