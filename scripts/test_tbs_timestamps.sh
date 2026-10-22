@@ -127,15 +127,25 @@ RULE7='**`issuedAt` and `expiresAt` are written in UTC to whole seconds.** In th
    and `2026-05-18T23:30:00-00:30` are each projected as
    `2026-05-19T00:00:00Z`.'
 
-MISSING='[missing] section 1.3a.2 does not say how the TBS writes'
+# The rule 7 sentence that states the outcome for a timestamp outside the years
+# 0000 to 9999 in UTC, as core.md states it.
+RANGE='A wire value whose instant falls in UTC outside the years 0000 to 9999
+   has no `YYYY-MM-DDTHH:MM:SSZ` form, and a verifier MUST reject a credential
+   that carries one in any of these members rather than write a year of more
+   than four digits, or a negative year, into the TBS.'
 
-# tree <name> <rule 7 statement, or empty for none> [included keys] [rule 1 text]
+MISSING='[missing] section 1.3a.2 does not say how the TBS writes'
+RANGE_FAIL='[range] section 1.3a.2 does not say what becomes of a timestamp'
+
+# tree <name> <rule 7 statement, or empty for none> [included keys] [rule 1 text] [range text]
 #   -> path to a scratch tree
 # core.md: the section 1.3a.2 heading on line 3, the included keys on lines 8-11
-# (behavioralProfile, issuedAt and expiresAt on line 10), rule 1 on line 14 and
-# rule 7 after it; section 1.3a.3 follows. An empty rule 1 text leaves rule 1 out.
+# (behavioralProfile, issuedAt and expiresAt on line 10), rule 1 on line 14,
+# rule 7 after it and the range text in a paragraph after that; section 1.3a.3
+# follows. An empty rule 1 text leaves rule 1 out; an empty range text leaves
+# the paragraph out.
 tree() {
-    local t="$TMP/$1" keys="${3:-$KEYS}" rule1="${4-$RULE1}"
+    local t="$TMP/$1" keys="${3:-$KEYS}" rule1="${4-$RULE1}" range="${5-$RANGE}"
     mkdir -p "$t/schemas"
     cp "$REPO/schemas/atx-credential-v1.1.schema.json" "$t/schemas/"
     {
@@ -148,6 +158,9 @@ tree() {
         fi
         if [ -n "$2" ]; then
             printf '7. %s\n' "$2"
+        fi
+        if [ -n "$range" ]; then
+            printf '\n%s\n' "$range"
         fi
         printf '\n#### 1.3a.3 Cross-implementation byte agreement\n\nThe vectors pin the bytes.\n'
     } > "$t/core.md"
@@ -253,6 +266,45 @@ expect_fail "a statement in a fenced code block is not read" "$T" - \
 T="$(tree table $'Timestamps:\n\n| Member | Zone | Precision |\n|---|---|---|\n| `issuedAt` and `expiresAt` | UTC | whole seconds |')"
 expect_fail "a table cell is read as a sentence of its own" "$T" - \
     "core.md:10 $MISSING"' `issuedAt`' "core.md:10 $MISSING"' `expiresAt`'
+
+# --- range: a timestamp outside the years 0000 to 9999 in UTC --------------
+
+T="$(tree no-range "$RULE7" '' "$RULE1" '')"
+expect_fail "a section that states the projection but no outcome for a year outside 0000 to 9999, as core.md did before, fails" \
+    "$T" - "core.md:3 $RANGE_FAIL" "!$MISSING"
+
+T="$(tree range-in-rule7 "$RULE7 $RANGE" '' "$RULE1" '')"
+expect_pass "the range sentence inside rule 7 is read" "$T"
+
+T="$(tree range-no-reject "$RULE7" '' "$RULE1" \
+    'A wire value whose instant falls in UTC outside the years 0000 to 9999 is written with five digits.')"
+expect_fail "a range sentence that does not say reject states no refusal" "$T" - "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-no-utc "$RULE7" '' "$RULE1" \
+    'A verifier MUST reject a value outside the years 0000 to 9999.')"
+expect_fail "a range sentence that does not say UTC does not count, since the wire year can be in range" \
+    "$T" - "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-one-end "$RULE7" '' "$RULE1" \
+    'A verifier MUST reject a value whose instant falls in UTC after the year 9999.')"
+expect_fail "a range sentence that names one end of the years alone does not count" "$T" - \
+    "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-five-digits "$RULE7" '' "$RULE1" \
+    'A verifier MUST reject a value whose instant falls in UTC outside the years 00000 to 99999.')"
+expect_fail "years 00000 and 99999 are not the years 0000 and 9999" "$T" - "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-split "$RULE7" '' "$RULE1" \
+    'A value in UTC outside the years 0000 to 9999 has no such form. A verifier MUST reject it.')"
+expect_fail "UTC and the years in one sentence and reject in the next do not count" "$T" - \
+    "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-outside "$RULE7" '' "$RULE1" '')"
+printf '\n%s\n' "$RANGE" >> "$T/core.md"
+expect_fail "a range sentence outside section 1.3a.2 does not count" "$T" - "core.md:3 $RANGE_FAIL"
+
+T="$(tree range-fenced "$RULE7" '' "$RULE1" $'```\nA verifier MUST reject a value in UTC outside the years 0000 to 9999.\n```')"
+expect_fail "a range sentence in a fenced code block is not read" "$T" - "core.md:3 $RANGE_FAIL"
 
 # --- the schema and the included keys decide the members --------------------
 

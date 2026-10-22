@@ -328,6 +328,20 @@ identifier registered in `core.md` §14.
   case it is cut from. Against atx-conformance at a825ec2 both reference verifiers report
   `summary: 29 pass, 0 fail (29 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
   normative text changes.
+- `core.md` §1.3a.2 rule 7: a wire value of `issuedAt`, `expiresAt` or
+  `behavioralProfile.generatedAt` whose instant falls in UTC outside the years 0000 to 9999 has no
+  `YYYY-MM-DDTHH:MM:SSZ` form, and a verifier MUST reject a credential that carries one rather than
+  write a year of more than four digits, or a negative year, into the TBS. An `issuedAt` or
+  `expiresAt` that is such a value does not parse, and the credential is rejected at §1.3 step 1;
+  a `generatedAt` that is such a value makes the `behavioralProfile` not well formed (rule 1), a
+  signature failure (`SIGNATURE_INVALID`). An issuer MUST NOT emit such a value. A numeric offset
+  carries a valid RFC 3339 value there: `9999-12-31T23:59:59-01:00` is 10000-01-01T00:59:59 in UTC
+  and `0000-01-01T00:00:00+01:00` falls in the year before 0000, and rule 7 stated no outcome for
+  either. `scripts/check_tbs_timestamps.py` adds a `[range]` rule: a sentence of §1.3a.2 says
+  "UTC", "0000", "9999" and "reject", or the check fails. Against the `core.md` of 0fa8214 it
+  reports `[range]`, and it passes on this tree; `scripts/test_tbs_timestamps.sh` adds 9 cases for
+  the rule and runs 48, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout.
+  The reference verifiers in atx-conformance are not part of this change. (#109)
 - `core.md` §1.3a.2 rule 7: in the TBS, `issuedAt` and `expiresAt` are each the instant its value
   in the credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`), as rule 1
   writes `behavioralProfile.generatedAt`. For all three the projection applies a time-zone offset
