@@ -329,6 +329,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py` reads a `minimum`, `exclusiveMinimum`, `maximum` or
+  `exclusiveMaximum` that the schema writes as an integer as the exact int Python's `json` module
+  parses, without converting it to a float. It passed each one to `math.isfinite`, which converts
+  an int to a float and raises `OverflowError` for one too large to convert, so a schema that set
+  the `maximum` of `behavioralProfile.observationDays` to 1 followed by 400 zeros stopped the
+  check with a traceback and exit 1; it now reports `[unbounded]` for that member and exits 1. The
+  delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 3 cases, a `maximum`, a
+  `minimum`, and an `exclusiveMinimum` with an `exclusiveMaximum`, each 1 followed by 400 zeros or
+  its negative, and runs 56, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout; with the check of e3c39fe, 3 of them fail. (#115)
 - The stated conformance-suite count follows the suite to **30** fixtures. atx-conformance added
   `fixtures/v1_1-integer-outside-exact-range.json` at 7e1542e, a MUST-REJECT v1.1 credential that
   carries `scanSummary.criticalFindings` 9007199254740993 under an Ed25519 signature over the bytes

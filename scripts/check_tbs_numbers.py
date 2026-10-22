@@ -282,9 +282,16 @@ def schema_members(schema):
 
 
 def finite(value):
-    """value when it is a finite JSON number, else None; a boolean is not a number."""
+    """value when it is a finite JSON number, else None; a boolean is not a number.
+
+    An int is returned as it is: json reads an integer literal as an exact int, and
+    math.isfinite would convert it to a float, which raises OverflowError for an int
+    too large to convert, such as 1 followed by 400 zeros.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
+    if isinstance(value, int):
+        return value
     return value if math.isfinite(value) else None
 
 
