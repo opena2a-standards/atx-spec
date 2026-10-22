@@ -357,6 +357,21 @@ identifier registered in `core.md` §14.
   passes against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 5 cases and runs
   27, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of
   e212bad, 5 of them fail. (#120)
+- `scripts/check_tbs_member_names.py` counts a sentence as the outcome for a closed object only
+  when it is also about a member outside the set: it states the set itself, says "none of", "no
+  other" or "any other", or says "not" and the one to three words between "is" and "only when" or
+  "only if" in a sentence of the same rule that states the set; the `[outcome]` message names
+  these. It counted a sentence of that rule that names the object in backticks and says "reject"
+  and `SIGNATURE_INVALID`, or "verbatim", whatever it rejected, so the sentence of `core.md`
+  §1.3a.2 rule 2 that rejects a `scanSummary` that is not an object, or holds one of the six
+  members outside its type, met the `[outcome]` rule: with the sentences of rule 2 from "A
+  verifier MUST reject a credential whose `scanSummary` holds a member with any other name"
+  through "would ride a valid signature unsigned." deleted, the check exited 0. On that tree it
+  now reports `[outcome]` for `scanSummary` at `core.md:269` and exits 1. The delivered tree still
+  passes: rule 2 rejects a `scanSummary` member "with any other name", and rule 1 rejects a
+  `behavioralProfile` that is "not well formed", the words its member-set sentence puts between
+  "is" and "only when". `scripts/test_tbs_member_names.sh` adds 6 cases and runs 36; with the
+  check of e212bad, 3 of them fail. (#121)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the
