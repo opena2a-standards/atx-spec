@@ -34,6 +34,16 @@ identifier registered in `core.md` §14.
   `core.md` and passes on this one. Of the test's 20 cases, one runs the delivered `core.md`
   against a real suite checkout and is skipped unless `ATX_CONFORMANCE_SUITE` names one; the
   others use scratch suites. The check needs only python3 and is not yet run by CI. (#55)
+- `scripts/check_review_marker.py` + `scripts/test_review_marker.sh`: each backticked path or
+  glob in `.pre-push-review-not-required`, a span that holds a `/` and no whitespace, matches a
+  file or directory of the tree, or the check fails as `[unmatched]`; each file directly under
+  `scripts/`, dotfiles aside, is matched by one of them, or it fails as `[unnamed]`; and while
+  `scripts/` holds a file, no list that "no", "without" or "neither" opens has an item beginning
+  with "tests", "test suite", "scripts", "checks", "runnable" or "executable", or it fails as
+  `[denied]`. A tree without the file passes. Against the tree at 6d8bd98 the check reports
+  `[denied]` for "test suite" and `[unnamed]` for each of the 41 files under `scripts/`; it passes
+  on this tree. The check exits 1 on a failure and 2 on a usage error, needs only python3 and is
+  not yet run by CI; the test runs 32 cases with bash and python3. (#99)
 - `scripts/check_schema_refusals.py` + `scripts/test_schema_refusals.sh`: the sentences of the
   `core.md` §12 Issuer paragraph that say the credential schema refuses account for every
   atx-conformance fixture the schema refuses on its `signatures` member, an Ed25519-only fixture
@@ -313,6 +323,15 @@ identifier registered in `core.md` §14.
   an entry's `agentId` with the credential's `agentId`. No BCP 14 statement is added or removed.
   Keying the fixtures' list by `agentDid` belongs in atx-conformance and is not part of this
   change. (#55)
+- `.pre-push-review-not-required` says what runs in this repository. It opened "Spec/docs-only
+  repository. No CLI, build, test suite, or runnable artifacts." while `scripts/` held 41 tracked
+  files: 18 `check_*.py` checks, 19 `test_*.sh` and 2 `test_*.py` tests, `validate_examples.py`
+  and `gen_errata_index.py`, of which the workflows run `validate_examples.py`,
+  `check_conformance_counts.py`, `check_errata.py` and `test_errata.sh`. It now names each of them
+  by a backticked path or glob, says what each kind does and which of them CI runs, and says there
+  is no package, CLI tool or build output to install. It points review at pull requests and issues
+  on this repository, as `CONTRIBUTING.md` does; it named PR review and issue threads on
+  a2aproject/A2A. No normative text changes. (#99)
 - The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
   `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
   with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,

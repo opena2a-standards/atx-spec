@@ -1,1 +1,27 @@
-Spec/docs-only repository. No CLI, build, test suite, or runnable artifacts. The 8-phase /pre-push-review (new-user walkthrough, adversarial corpus, score sanity, concept-explainer, real-world dev-tree scan) is not applicable. Review of spec text happens via PR review and downstream issue threads on a2aproject/A2A.
+Specification repository. There is no package, CLI tool or build output to install, so the
+pre-push review phases that exercise an installed tool (new-user walkthrough, adversarial
+corpus, score sanity, concept-explainer, real-world dev-tree scan) do not apply.
+
+Besides the CI workflows under `.github/workflows/`, the files that run are the Python and
+shell scripts under `scripts/`, run with python3 and bash from a clone:
+
+- `scripts/check_*.py`: checks on the Markdown documents, errata included, and on this file.
+  The docstring of each states what it asserts; some also read a checkout of the
+  atx-conformance suite, passed with --suite.
+- `scripts/test_*.sh` and `scripts/test_*.py`: tests of the checks and of the files under
+  `schemas/`.
+- `scripts/validate_examples.py`: validates the specification's inline JSON examples against
+  the JSON Schemas under `schemas/`. It and the tests that import it also need the jsonschema
+  package.
+- `scripts/gen_errata_index.py`: generates `errata/README.md` from the erratum files in
+  `errata/`.
+
+CI runs `scripts/validate_examples.py` from `.github/workflows/validate.yml`, and
+`scripts/check_conformance_counts.py`, `scripts/check_errata.py` and `scripts/test_errata.sh`
+from `.github/workflows/conformance-counts.yml`; `.github/workflows/spec-drift.yml` calls the
+opena2a-standards family's reusable spec-drift workflow. `scripts/check_review_marker.py`
+checks that the backticked paths in this file exist and name every file directly under
+`scripts/`.
+
+Review of the specification text happens in pull requests and issues on this repository, as
+`CONTRIBUTING.md` describes.
