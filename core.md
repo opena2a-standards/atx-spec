@@ -314,7 +314,27 @@ credential that verifies across implementations and one that does not:
    for a `behavioralProfile` that is not well formed (rule 1) and a
    `scanSummary` member outside its type (rule 2): the projection cannot
    represent such a value in bytes that every implementation reproduces, so no
-   signature covers it.
+   signature covers it. A credential that is not conforming can carry other
+   JSON numbers into the TBS: rules 5 and 6 carry a present `declaredPurpose`
+   and a present `scanSummary.techniques` into it verbatim, whatever they
+   hold, so a number at any depth of either member, or one that is the
+   member's whole value, reaches the TBS. A verifier MUST reject a credential
+   whose projection would carry a JSON number into the TBS at a member other
+   than the four integers above, in `declaredPurpose`, in
+   `scanSummary.techniques` or elsewhere, when that number is written with a
+   fraction part or an exponent part or its absolute value is greater than
+   9007199254740991, as a signature failure (`SIGNATURE_INVALID`): with the
+   ECMAScript number-formatting path out of cross-language scope, the
+   projection cannot represent such a number in bytes that every
+   implementation reproduces, so no signature covers it. The verifier decides
+   the form from the number as the credential's JSON text writes it, as rule 1
+   decides the integer form of `observationDays`, not from the value a JSON
+   parser returns for it, so `1.0`, `1e2` and `1E0` are outside the form. A
+   number in `declaredPurpose` or `scanSummary.techniques` that is in the
+   integer form and whose absolute value is at most 9007199254740991 is
+   carried into the TBS verbatim, as rules 5 and 6 carry the member that
+   holds it, and RFC 8785 writes it in decimal, as it writes the four
+   integers above.
 4. **`issuerChain` is root-first and order-significant.** Element 0 is the root
    authority. JCS preserves array order and never sorts arrays, so reordering the
    chain changes the signed bytes.
@@ -334,7 +354,9 @@ credential that verifies across implementations and one that does not:
    NOT normalize an unexpected value away, because silently omitting it would
    let unsigned purpose content ride a valid signature (the injection the
    conformance suite pins with its `v1_1-declared-purpose-*-injected`
-   fixtures). This is a deliberate, documented
+   fixtures). A JSON number in such a value, or a number that is the value, is
+   carried only in the integer form and range that rule 3 states, and rule 3
+   gives the outcome for one outside them. This is a deliberate, documented
    exception to the "canonical empties are always present" rule above; it is the
    pattern every future *optional* additive field follows. When the key is
    present, JCS sorts its member names like any other nested object and it sits
@@ -350,9 +372,11 @@ credential that verifies across implementations and one that does not:
    omitted. A present value that is anything else, including a non-array value
    or an array that repeats an ID, MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
    preserves array order, and a verifier MUST NOT sort, deduplicate or drop it,
-   because a value it dropped would ride a valid signature unsigned. When
-   present it is the last member of the canonical `scanSummary`, after
-   `secretless`.
+   because a value it dropped would ride a valid signature unsigned. As in
+   `declaredPurpose` (rule 5), a JSON number in such a value, or a number that
+   is the value, is carried only in the integer form and range that rule 3
+   states. When present it is the last member of the canonical `scanSummary`,
+   after `secretless`.
 7. **`issuedAt` and `expiresAt` are written in UTC to whole seconds.** In the
    TBS, `issuedAt` and `expiresAt` MUST each be the instant its value in the
    credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`),

@@ -372,6 +372,34 @@ identifier registered in `core.md` §14.
   `behavioralProfile` that is "not well formed", the words its member-set sentence puts between
   "is" and "only when". `scripts/test_tbs_member_names.sh` adds 6 cases and runs 36; with the
   check of e212bad, 3 of them fail. (#121)
+- `core.md` §1.3a.2 rule 3 states the outcome for a JSON number that the projection carries into
+  the TBS at a member other than `trustLevel`, `scanSummary.criticalFindings`,
+  `scanSummary.highFindings` and `behavioralProfile.observationDays`. Rules 5 and 6 carry a
+  present `declaredPurpose` and a present `scanSummary.techniques` into the TBS verbatim,
+  whatever they hold, and rule 3 bounded only those four integers, so a number inside either
+  member written with a fraction or an exponent part, or of absolute value above
+  9007199254740991, had no stated outcome. Implementations write different bytes for such a
+  number: Node.js 26.12.0's `JSON.stringify`, which formats numbers by the ECMAScript algorithm
+  RFC 8785 adopts, writes `9007199254740993`, `1.0` and `1e2` inside `declaredPurpose`, once
+  parsed, as `9007199254740992`, `1` and `100`, while Python 3.14.3's `json` module writes them
+  as `9007199254740993`, `1.0` and `100.0`. A verifier MUST reject a credential whose projection
+  would carry such a number into the TBS, in `declaredPurpose`, in `scanSummary.techniques` or at
+  any other member, as a signature failure (`SIGNATURE_INVALID`), and decides the form from the
+  number as the credential's JSON text writes it, as rule 1 decides the integer form of
+  `observationDays`, so `1.0`, `1e2` and `1E0` are outside it. A number in either member that is
+  in the integer form and within that range is carried verbatim, as before, and rules 5 and 6
+  point to rule 3 for a number they carry. `scripts/check_tbs_numbers.py` adds a `[verbatim]`
+  rule: for each of `declaredPurpose` and `scanSummary.techniques`, a sentence of §1.3a.2 names it
+  in backticks and says "fraction", "exponent", "9007199254740991", "reject" and
+  "SIGNATURE_INVALID". `[range]` no longer counts a sentence that names one of them, so the
+  sentence for those members does not stand in for the one for the four integers. Against the
+  `core.md` of e212bad the check reports `[verbatim]` for both members and exits 1; it passes on
+  this tree. `scripts/test_tbs_numbers.sh` adds 13 cases and runs 76, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check and `core.md` of e212bad, 15 of
+  them fail: 11 of the 13 new cases, and 4 existing `[range]` cases, whose scratch trees now carry
+  the sentence for `declaredPurpose` and `scanSummary.techniques`, which the old `[range]` rule
+  counted. The reference verifiers and fixtures in atx-conformance are not part of this change.
+  (#122)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the

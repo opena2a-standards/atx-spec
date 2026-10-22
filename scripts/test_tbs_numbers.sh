@@ -113,16 +113,27 @@ ONE='This makes
 RANGE='A verifier MUST reject a credential that carries one of these members with
    an absolute value greater than 9007199254740991, as a signature failure.'
 
+# The rule 3 sentence that says what a verifier does with a JSON number in the
+# members rules 5 and 6 carry into the TBS verbatim.
+VERBATIM='A verifier MUST reject a credential that carries a JSON number in
+   `declaredPurpose` or `scanSummary.techniques` written with a fraction part or
+   an exponent part, or whose absolute value is greater than 9007199254740991, as
+   a signature failure (`SIGNATURE_INVALID`).'
+
 MISSING='[missing] names the only JSON numbers in the TBS but not'
 UNBOUNDED='schemas/atx-credential-v1.1.schema.json [unbounded]'
+NO_VERBATIM='core.md:3 [verbatim] section 1.3a.2 has no sentence that names'
 
 # tree <name> <rule 3 statement> [included keys] -> path to a scratch tree
 # core.md: the section 1.3a.2 heading on line 3, the included keys on lines 8-11,
 # and the statement from line 15, after the rule 3 sentence that keeps trustScore
 # a JSON number on the wire. The RANGE sentence follows the statement, or
-# $RANGE_TEXT when it is set (empty for none); section 1.3a.3 follows rule 4.
+# $RANGE_TEXT when it is set (empty for none), and the VERBATIM sentence follows
+# that, or $VERBATIM_TEXT when it is set (empty for none); section 1.3a.3 follows
+# rule 4.
 tree() {
     local t="$TMP/$1" keys="${3:-$KEYS}" range="${RANGE_TEXT-$RANGE}"
+    local verbatim="${VERBATIM_TEXT-$VERBATIM}"
     mkdir -p "$t/schemas"
     cp "$REPO/schemas/atx-credential-v1.1.schema.json" "$t/schemas/"
     {
@@ -132,6 +143,9 @@ tree() {
         printf '   as a JSON number; the projection performs the conversion. %s\n' "$2"
         if [ -n "$range" ]; then
             printf '   %s\n' "$range"
+        fi
+        if [ -n "$verbatim" ]; then
+            printf '   %s\n' "$verbatim"
         fi
         printf '4. **`issuerChain` is root-first.** Element 0 is the root authority.\n\n'
         printf '#### 1.3a.3 Cross-implementation byte agreement\n\nThe vectors pin the bytes.\n'
@@ -401,6 +415,60 @@ T="$(RANGE_TEXT='' tree range-moved "$NAMED")"
 printf '\n%s\n' "$RANGE" >> "$T/core.md"
 expect_fail "the range sentence outside section 1.3a.2 does not stand in for one inside it" \
     "$T" - "core.md:3 [range]"
+
+T="$(RANGE_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` whose absolute value is greater than 9007199254740991.' VERBATIM_TEXT='' tree range-names-purpose "$NAMED")"
+expect_fail "a sentence that says 9007199254740991 and reject but names declaredPurpose does not stand in for the range sentence" \
+    "$T" - "core.md:3 [range]" "$NO_VERBATIM"' `declaredPurpose`'
+
+# --- verbatim: a JSON number in declaredPurpose or scanSummary.techniques ----
+
+T="$(VERBATIM_TEXT='' tree no-verbatim "$NAMED")"
+expect_fail "a section 1.3a.2 that does not say what a verifier does with a JSON number in declaredPurpose or scanSummary.techniques fails for each" \
+    "$T" - "$NO_VERBATIM"' `declaredPurpose` and says "fraction", "exponent", "9007199254740991", "reject" and "SIGNATURE_INVALID"' \
+    "$NO_VERBATIM"' `scanSummary.techniques`' "![range]" "![missing]" "!$UNBOUNDED"
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` written with a fraction part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree purpose-only "$NAMED")"
+expect_fail "a sentence that names declaredPurpose and not scanSummary.techniques fails for scanSummary.techniques only" \
+    "$T" - "$NO_VERBATIM"' `scanSummary.techniques`' "!$NO_VERBATIM"' `declaredPurpose`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `techniques` written with a fraction part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree techniques-own-name "$NAMED")"
+expect_pass "a sentence may name scanSummary.techniques by its own name" "$T"
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fractional part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-fractional "$NAMED")"
+expect_pass "'fractional' counts as 'fraction'" "$T"
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-no-fraction "$NAMED")"
+expect_fail "a sentence that does not say fraction does not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fraction part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-no-exponent "$NAMED")"
+expect_fail "a sentence that does not say exponent does not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fraction part or an exponent part, or whose absolute value is greater than 2^53 - 1, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-no-exact "$NAMED")"
+expect_fail "a sentence that does not say 9007199254740991 does not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST NOT accept a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fraction part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-no-reject "$NAMED")"
+expect_fail "a sentence that does not say reject does not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fraction part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure.' tree verbatim-no-code "$NAMED")"
+expect_fail "a sentence that does not say SIGNATURE_INVALID does not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in `declaredPurpose` or `scanSummary.techniques` written with a fraction part or an exponent part, as a signature failure (`SIGNATURE_INVALID`). It also rejects one whose absolute value is greater than 9007199254740991.' tree verbatim-split "$NAMED")"
+expect_fail "the words split across two sentences do not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='A verifier MUST reject a credential that carries a JSON number in declaredPurpose or scanSummary.techniques written with a fraction part or an exponent part, or whose absolute value is greater than 9007199254740991, as a signature failure (`SIGNATURE_INVALID`).' tree verbatim-bare-names "$NAMED")"
+expect_fail "member names outside backticks do not count" "$T" - \
+    "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
+
+T="$(VERBATIM_TEXT='' tree verbatim-moved "$NAMED")"
+printf '\n%s\n' "$VERBATIM" >> "$T/core.md"
+expect_fail "the verbatim sentence outside section 1.3a.2 does not stand in for one inside it" \
+    "$T" - "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
 
 # --- absent and the anchors -------------------------------------------------
 
