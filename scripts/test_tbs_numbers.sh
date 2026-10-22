@@ -595,6 +595,55 @@ schema_set "$T" '[]' properties scanSummary properties
 expect_fail "a properties that is an array fails instead of leaving that member's integers unchecked" \
     "$T" - "$UNREADABLE"' `scanSummary` has "properties": [], which is not an object'
 
+# A $ref the walk cannot follow stops the check naming the member and the $ref,
+# instead of dropping every member under it from the check.
+T="$(tree root-ref-missing "$NAMED")"
+schema_set "$T" '"#/$defs/missing"' '$ref'
+expect_fail "a \$ref at the schema root to a missing \$defs entry fails instead of checking no member" \
+    "$T" - "$UNREADABLE"' the schema root has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '!Traceback' '!TBS numbers ok'
+one_line "a \$ref at the schema root to a missing \$defs entry is reported on one line"
+
+T="$(tree member-ref-missing "$NAMED")"
+schema_set "$T" '{"$ref": "#/$defs/missing"}' properties scanSummary
+expect_fail "a \$ref at a member to a missing \$defs entry fails instead of leaving its integers unchecked" \
+    "$T" - "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '!TBS numbers ok'
+one_line "a \$ref at a member to a missing \$defs entry is reported on one line"
+
+T="$(tree member-ref-number "$NAMED")"
+schema_set "$T" '{"$ref": 5}' properties scanSummary
+expect_fail "a \$ref that is not a string fails naming the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": 5, which is not a string'
+
+T="$(tree member-ref-external "$NAMED")"
+schema_set "$T" '{"$ref": "https://example.com/scan-summary.json"}' properties scanSummary
+expect_fail "a \$ref to an external URI fails naming the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "https://example.com/scan-summary.json", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree member-ref-hash "$NAMED")"
+schema_set "$T" '{"$ref": "#"}' properties scanSummary
+expect_fail "a \$ref of \"#\" fails naming the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree member-ref-not-schema "$NAMED")"
+schema_set "$T" '{"$ref": "#/$defs/did/type"}' properties scanSummary
+expect_fail "a \$ref to a value that is not a schema fails naming the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/did/type", which is not a pointer to a schema in this file'
+
+T="$(tree member-ref-loop "$NAMED")"
+schema_set "$T" '{"$ref": "#/$defs/loopB"}' '$defs' loopA
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' '$defs' loopB
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' properties scanSummary
+expect_fail "a \$ref chain that leads back to itself fails naming the member" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/loopA", which is not a $ref chain that ends at a schema'
+
+# A $ref back to a node the walk is already inside is recursion, not a failure.
+T="$(tree member-ref-recursive "$NAMED")"
+schema_set "$T" '{"type": "object", "properties": {"child": {"$ref": "#/$defs/treeNode"}}}' '$defs' treeNode
+schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties extensionTree
+expect_pass "a recursive \$ref outside the TBS passes" "$T"
+
 # --- a schema nested deeper than Python reads, writes or walks --------------
 
 # Each stops the check with one line, not with a RecursionError traceback. The

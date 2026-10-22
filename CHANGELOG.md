@@ -348,6 +348,23 @@ identifier registered in `core.md` §14.
   cases where `json.loads` reads 2,000,000 levels and the 2 walk cases where it reads no schema
   nested that deep, as on Python 3.9.6. With the check of 47ade55, 8 of the 76 fail on Python
   3.14.3, 4 on 3.12.12 and 3.13.12, and 2 on 3.9.6. (#124)
+- `scripts/check_tbs_numbers.py` reports a `$ref` in the credential schema that its walk cannot
+  follow. The walk returned without a message at a `$ref` that was not a string, did not start
+  with `#/`, or pointed at nothing, so every member under it dropped out of the `[missing]` and
+  `[unbounded]` rules: a root `$ref` of `"#/$defs/missing"` beside the root `properties` passed
+  naming 0 TBS members, and a `scanSummary` of `{"$ref": "#/$defs/missing"}` passed naming 2,
+  without `scanSummary.criticalFindings` and `scanSummary.highFindings`. A `$ref` that is not a
+  string, is not a `#/` pointer (`"#"` and an external URI included), points at nothing or at a
+  value that is not a schema, or leads back to itself through other `$ref`s now stops the check
+  with one line naming the member, or the schema root, and the `$ref`, such as
+  `schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema: the schema root has
+  "$ref": "#/$defs/missing", which is not a pointer to a schema in this file`, and exit 1. A `$ref`
+  to a node the walk is already inside is recursion and still stops the walk without a message.
+  The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 10 cases: 7 for those
+  shapes (`"#/$defs/missing"` at the root and at `scanSummary`, 5, an external URI, `"#"`,
+  `"#/$defs/did/type"` and a two-`$ref` loop), a one-line count for the root and member `"#/$defs/missing"`, and a recursive `$ref`
+  that passes, and runs 78, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout; with the check of 47ade55, 7 of them fail. (#125)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it

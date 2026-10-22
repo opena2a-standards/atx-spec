@@ -316,21 +316,42 @@ def schema_members(schema):
     every member the schema defines, at any depth; a member defined in several places has
     a node for each. unreadable says, once per place, where a node the walk reaches has a
     type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not allow
-    there, and what it holds, and where the walk stops at Python's recursion limit. The
-    walk reads no other keyword of a node that has a $ref, so the root's own properties,
-    which main() reads, is checked apart from the walk."""
+    there, and what it holds, or a $ref the walk cannot follow to a schema in this file
+    (one that is not a string, is not a "#/" pointer, points at nothing or at a value that
+    is not a schema, or leads back to itself), and where the walk stops at Python's
+    recursion limit. The walk reads no other keyword of a node that has a $ref,
+    so the root's own properties, which main() reads, is checked apart from the walk."""
     found, nodes, unreadable = {}, {}, []
     active = []  # the path of each object node whose walk has not returned
 
-    def resolve(node, seen):
+    missing = object()
+
+    def resolve(node, path, seen):
+        """The node a chain of $refs leads to, or None when the walk stops there. A $ref
+        already followed on the way to this node is recursion and stops the walk without
+        a message; a $ref that cannot be followed is reported, naming the member."""
+        chain = set()
         while isinstance(node, dict) and "$ref" in node:
             ref = node["$ref"]
-            if not isinstance(ref, str) or not ref.startswith("#/") or ref in seen:
+            if not isinstance(ref, str):
+                wrong(path, "$ref", ref, "a string")
                 return None, seen
+            if not ref.startswith("#/"):
+                wrong(path, "$ref", ref, 'a JSON pointer into this schema ("#/...")')
+                return None, seen
+            if ref in chain:
+                wrong(path, "$ref", ref, "a $ref chain that ends at a schema")
+                return None, seen
+            if ref in seen:
+                return None, seen
+            chain.add(ref)
             seen = seen | {ref}
             target = schema
             for part in ref[2:].split("/"):
-                target = target.get(part) if isinstance(target, dict) else None
+                target = target.get(part, missing) if isinstance(target, dict) else missing
+            if target is missing or not isinstance(target, (dict, bool)):
+                wrong(path, "$ref", ref, "a pointer to a schema in this file")
+                return None, seen
             node = target
         return node, seen
 
@@ -341,7 +362,7 @@ def schema_members(schema):
             unreadable.append(message)
 
     def walk(node, path, seen):
-        node, seen = resolve(node, seen)
+        node, seen = resolve(node, path, seen)
         if not isinstance(node, dict):
             return
         active.append(path)
