@@ -32,7 +32,14 @@ that opens with **Issuer.** that say the schema refuses ("schema refuses",
                such as `signatures` in backticks outside the phrase.
   missing      core.md, its section 12 Issuer line, the schema or a
                fixtures/*.json in the suite is missing, so a renamed anchor or
-               a wrong --suite path cannot pass vacuously.
+               a wrong --suite path cannot pass vacuously. A schema that cannot
+               be read as JSON fails the same way, and so does one the JSON
+               Schema 2020-12 metaschema refuses, such as one with a type,
+               oneOf or properties of the wrong JSON type. Its failure line
+               gives the first place the metaschema reports, as a JSON path,
+               and the metaschema's message for it; where that message opens
+               with the value in Python notation, the value is written as JSON,
+               cut to 60 characters.
   fixture      a fixture that cannot be read as JSON, or has no object atx
                member.
 
@@ -55,7 +62,7 @@ import re
 import sys
 
 try:
-    from jsonschema import Draft202012Validator
+    from jsonschema import Draft202012Validator, SchemaError
 except ImportError:
     print("error: the 'jsonschema' package is required (pip install jsonschema)", file=sys.stderr)
     sys.exit(2)
@@ -107,6 +114,22 @@ def refused_on_signatures(validator, atx):
     return any(list(error.absolute_path)[:1] == ["signatures"] for error in validator.iter_errors(atx))
 
 
+def shown(value):
+    """value written as JSON, cut to 60 characters."""
+    text = json.dumps(value)
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def schema_problem(error):
+    """What a SchemaError says, for its failure line: the place in the schema as a JSON path,
+    then the metaschema's message for it. Where that message opens with the value in Python
+    notation, the value is written as JSON instead, cut to 60 characters."""
+    message, value = error.message, repr(error.instance)
+    if message.startswith(value):
+        message = shown(error.instance) + message[len(value):]
+    return f"{error.json_path}: {message}"
+
+
 def check(root, suite):
     home = root / HOME_FILE
     try:
@@ -127,6 +150,12 @@ def check(root, suite):
         schema = json.loads((root / SCHEMA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return [f"{SCHEMA_FILE} [missing] cannot be read as JSON: {exc}"]
+    # iter_errors() stops with a TypeError on a oneOf or a type of 5, and with an
+    # AttributeError on a properties of 5; the metaschema refuses each of them.
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as exc:
+        return [f"{SCHEMA_FILE} [missing] cannot be read as a JSON Schema: {schema_problem(exc)}"]
     validator = Draft202012Validator(schema)
 
     paths = sorted((suite / "fixtures").glob("*.json"))

@@ -343,6 +343,20 @@ identifier registered in `core.md` §14.
   beside a `$ref`, and a one-line count for 5 with and without a `$ref`, and runs 68, one of them
   skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of e212bad, 4 of
   them fail. (#119)
+- `scripts/check_schema_refusals.py` checks the credential schema against the JSON Schema 2020-12
+  metaschema with `Draft202012Validator.check_schema()` before it validates the fixtures. It built
+  the validator without that check, so a `oneOf` of 5 at `scanSummary` or a `type` of 5 at
+  `scanSummary.highFindings` stopped the check with a `TypeError` traceback from jsonschema's
+  `iter_errors()`, and a `properties` of 5 at the schema root with an `AttributeError` traceback,
+  each with exit 1. A schema the metaschema refuses now fails as `[missing]`, as a schema that is
+  not JSON does, with exit 1 and one failure line that gives the first place the metaschema
+  reports, as a JSON path, and the metaschema's message for it; where that message opens with the
+  value in Python notation, the value is written as JSON, cut to 60 characters. For the `oneOf` of
+  5 it reports `schemas/atx-credential-v1.1.schema.json [missing] cannot be read as a JSON Schema:
+  $.properties.scanSummary.oneOf: 5 is not of type 'array'`. The repository's own tree still
+  passes against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 5 cases and runs
+  27, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of
+  e212bad, 5 of them fail. (#120)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the

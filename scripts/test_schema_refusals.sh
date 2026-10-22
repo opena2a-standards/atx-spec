@@ -60,8 +60,12 @@ new_dir() {  # new_dir <name> -> path to an empty scratch directory
     printf '%s' "$TMP/$1"
 }
 
-expect_fail() {  # expect_fail <leaf name> <root> <suite> <where> <rule> [<detail>]
-    local name="$1" root="$2" suite="$3" where="$4" rule="$5" detail="${6-}" rc
+# expect_fail <leaf name> <root> <suite> <where> <rule> [<detail>...]
+# Exit 1, "<where> [<rule>]" and every detail reported; a detail that starts
+# with ! must not be reported.
+expect_fail() {
+    local name="$1" root="$2" suite="$3" where="$4" rule="$5" rc detail
+    shift 5
     run_check "$root" "$suite"
     rc=$?
     if [ "$rc" -ne 1 ]; then
@@ -72,10 +76,22 @@ expect_fail() {  # expect_fail <leaf name> <root> <suite> <where> <rule> [<detai
         not_ok "$name" "exit 1 but '$where [$rule]' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
         return
     fi
-    if [ -n "$detail" ] && ! grep -qF -- "$detail" "$OUT"; then
-        not_ok "$name" "exit 1 but '$detail' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
-        return
-    fi
+    for detail in "$@"; do
+        case "$detail" in
+            '!'*)
+                if grep -qF -- "${detail#!}" "$OUT"; then
+                    not_ok "$name" "'${detail#!}' reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
+                    return
+                fi
+                ;;
+            *)
+                if ! grep -qF -- "$detail" "$OUT"; then
+                    not_ok "$name" "exit 1 but '$detail' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
+                    return
+                fi
+                ;;
+        esac
+    done
     ok "$name"
 }
 
@@ -108,6 +124,23 @@ write_tree() {
     write_core "$1" "$2"
     mkdir -p "$1/schemas"
     cp "$REPO/schemas/atx-credential-v1.1.schema.json" "$1/schemas/"
+}
+
+schema_set() {  # schema_set <root> <JSON value> <key>...: set that member of the tree's schema
+    local root="$1" value="$2"
+    shift 2
+    python3 -B - "$root/schemas/atx-credential-v1.1.schema.json" "$value" "$@" <<'PYEOF'
+import json, sys
+path, value, keys = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3:]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+node = schema
+for key in keys[:-1]:
+    node = node[key]
+node[keys[-1]] = value
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
 }
 
 # write_fixture <suite> <name> <atcVersion> <algorithm>[,<algorithm>...]
@@ -250,6 +283,49 @@ T="$(new_dir no-schema)"
 write_core "$T" "$GOOD"
 expect_fail "a tree with no schema fails instead of passing vacuously" \
     "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing
+
+# A schema the JSON Schema 2020-12 metaschema refuses fails on one line that
+# gives the place as a JSON path, not with a traceback from the validator.
+UNREADABLE='cannot be read as a JSON Schema:'
+
+T="$(new_dir one-of-number)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '5' properties scanSummary oneOf
+expect_fail "a oneOf that is a number fails naming the place in the schema" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE \$.properties.scanSummary.oneOf: 5 is not of type 'array'" '!Traceback'
+
+T="$(new_dir type-number)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '5' properties scanSummary properties highFindings type
+expect_fail "a type that is a number fails naming the place in the schema" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE \$.properties.scanSummary.properties.highFindings.type: 5 is not valid under any of the given schemas" \
+    '!Traceback'
+
+T="$(new_dir root-properties)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '5' properties
+expect_fail "a properties at the schema root that is a number fails naming the place in the schema" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE \$.properties: 5 is not of type 'object'" '!Traceback'
+
+T="$(new_dir type-null)"
+write_tree "$T" "$GOOD"
+schema_set "$T" 'null' properties scanSummary properties highFindings type
+expect_fail "a type that is null fails with the value written as JSON" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE \$.properties.scanSummary.properties.highFindings.type: null is not valid" \
+    '!None is not valid' '!Traceback'
+
+T="$(new_dir member-properties)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '["criticalFindings", "highFindings", "mediumFindings", "lowFindings"]' \
+    properties scanSummary properties
+expect_fail "a value longer than 60 characters is written as JSON and cut to 60" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE \$.properties.scanSummary.properties: [\"criticalFindings\", \"highFindings\", \"mediumFindings\", \"l... is not of type 'object'" \
+    '!Traceback'
 
 T="$(new_dir tree)"
 write_tree "$T" "$GOOD"
