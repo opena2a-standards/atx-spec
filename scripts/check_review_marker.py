@@ -25,6 +25,8 @@ other part names an entry exactly, case included. Three rules:
                "executable" or "executables". The list runs to the end of its
                clause (".", ";", ":" or a parenthesis) and splits at commas and
                at "and", "or" and "nor"; backticked spans are not read as words.
+               A negation inside the list of another opens a list of its own,
+               so "no package and no tests" denies "tests".
 
 The file is optional: a tree without it passes, since only what it says is
 checked. A file that is not UTF-8 text, or a directory in its place, fails as
@@ -48,7 +50,7 @@ SCRIPTS_DIR = "scripts"
 
 CODE_RE = re.compile(r"`([^`\n]+)`")
 MAGIC = frozenset("*?[")
-NEGATION_RE = re.compile(r"\b(?:no|without|neither)\s+(?P<list>[^.;:()]*)", re.IGNORECASE)
+NEGATION_RE = re.compile(r"\b(?:no|without|neither)\s+(?=(?P<list>[^.;:()]*))", re.IGNORECASE)
 ITEM_SPLIT_RE = re.compile(r",|\b(?:and|or|nor)\b", re.IGNORECASE)
 DENIED_RE = re.compile(
     r"(?:tests|test suites?|scripts|checks|runnable|executables?)\b", re.IGNORECASE
@@ -130,7 +132,7 @@ def check(root):
             items = (item.strip() for item in ITEM_SPLIT_RE.split(m.group("list")))
             term = next((hit.group(0) for hit in map(DENIED_RE.match, items) if hit), None)
             if term is not None:
-                clause = " ".join(m.group(0).split())
+                clause = " ".join(masked[m.start() : m.end("list")].split())
                 failures.append(
                     f"{MARKER}:{line_of(masked, m.start())} [denied] {clause!r} denies {term!r}, "
                     f"while {SCRIPTS_DIR}/ holds {len(scripts)} file(s)"

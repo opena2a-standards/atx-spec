@@ -207,6 +207,26 @@ write_marker "$T" "$NAMES"$'\n''There are no'$'\n''tests here.'
 expect_fail "a denial wrapped across lines is reported on the line of its negation" \
     "$T" "$MARKER:2" denied "denies 'tests'"
 
+T="$(new_tree inner-no)"
+write_marker "$T" "$NAMES"' There is no package and no tests.'
+expect_fail "a negation inside the list of another opens a list of its own" \
+    "$T" "$MARKER:1" denied "'no tests' denies 'tests'"
+
+T="$(new_tree inner-no-later-item)"
+write_marker "$T" "$NAMES"' There is no CLI, and there are no tests.'
+expect_fail "a negation inside a later item of another's list is a denial" \
+    "$T" "$MARKER:1" denied "'no tests' denies 'tests'"
+
+T="$(new_tree inner-without)"
+write_marker "$T" "$NAMES"' No build, without tests.'
+expect_fail "without inside the list of no is a denial" \
+    "$T" "$MARKER:1" denied "'without tests' denies 'tests'"
+
+T="$(new_tree two-denials)"
+write_marker "$T" "$NAMES"' There are no tests and no scripts.'
+expect_fail "a second denial in the list of the first is reported as well" \
+    "$T" "$MARKER:1" denied "'no scripts' denies 'scripts'"
+
 T="$(new_tree singular)"
 write_marker "$T" "$NAMES"' No test needs network access.'
 expect_pass "no test followed by a verb is not a denial" "$T"
@@ -222,6 +242,10 @@ expect_pass "a term inside a parenthesis is not in the list" "$T"
 T="$(new_tree list-tail)"
 write_marker "$T" "$NAMES"' There is no package or build output to install, so the tests run from a clone.'
 expect_pass "a list item that does not begin with a term is not a denial" "$T"
+
+T="$(new_tree inner-no-pass)"
+write_marker "$T" "$NAMES"' There is no package, so no install step; the tests run with bash.'
+expect_pass "a negation inside another's list whose own list holds no term is not a denial" "$T"
 
 T="$(new_tree code-span)"
 write_marker "$T" "$NAMES"' Do not pass `no tests` or `--no-scripts` to it.'

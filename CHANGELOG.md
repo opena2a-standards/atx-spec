@@ -332,6 +332,16 @@ identifier registered in `core.md` §14.
   is no package, CLI tool or build output to install. It points review at pull requests and issues
   on this repository, as `CONTRIBUTING.md` does; it named PR review and issue threads on
   a2aproject/A2A. No normative text changes. (#99)
+- `scripts/check_review_marker.py` reads a "no", "without" or "neither" as the opening of a list
+  of its own where it stands inside the list of another. Its matches did not overlap, so such a
+  negation was read only as words of an item of the outer list. In "There is no package and no
+  tests.", "There is no CLI, and there are no tests." and "No build, without tests." no item of
+  the outer list begins with a denied term, and, in a tree whose `scripts/` holds two files, each
+  exited 0, while "There are no tests." exited 1. Each now exits 1 with `[denied]` for "tests",
+  and "There are no runnable files and no executables." reports `[denied]` for "executables" as
+  well as for "runnable". The delivered `.pre-push-review-not-required` passes.
+  `scripts/test_review_marker.sh` adds 5 cases; run with the check at fa77e5a, 4 of its 37 cases
+  fail, and all 37 pass on this tree. (#101)
 - The stated conformance-suite count follows the suite to **27** fixtures. atx-conformance added
   `fixtures/v1_1-scan-summary-member-outside-type.json`, a MUST-REJECT v1.1 credential signed
   with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member,
