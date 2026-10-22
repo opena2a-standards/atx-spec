@@ -61,9 +61,14 @@ text verbatim by design. Hidden directories and node_modules are skipped. A file
 that is not UTF-8 fails rather than being skipped.
 
 A tree fails with a message that says why when core.md is missing, is not UTF-8
-or has no section 1.3a.2 heading, and when the schema is missing or is not JSON.
-Every other failure is reported with its rule in brackets, as file:line, or as
-the file alone for a vector, for the schema and for a file that is not UTF-8.
+or has no section 1.3a.2 heading, and when the schema is missing, is not JSON or
+cannot be walked: a node the walk reaches has a type that is neither a string
+nor an array of strings, a oneOf, anyOf or allOf that is not an array, or a
+properties that is not an object. That message names the member whose schema
+holds the node, or the schema root, and the keyword with its value written as
+JSON, cut to 60 characters. Every other failure is reported with its rule in
+brackets, as file:line, or as the file alone for a vector, for the schema and for
+a file that is not UTF-8.
 
     python3 scripts/check_tbs_numbers.py [--root <tree>] [--suite <atx-conformance>]
 
@@ -241,10 +246,30 @@ def included_keys(lines, start, end):
     return None
 
 
+def node_types(node):
+    """The type names a schema node's type gives, as a set (empty when it has no type),
+    or None when its type is neither a string nor an array of strings."""
+    types = node.get("type", [])
+    if isinstance(types, str):
+        return {types}
+    if isinstance(types, list) and all(isinstance(name, str) for name in types):
+        return set(types)
+    return None
+
+
+def shown(value):
+    """value written as JSON, cut to 60 characters."""
+    text = json.dumps(value)
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
 def schema_members(schema):
-    """({dotted path: set of JSON types}, {dotted path: [schema node]}) for every member
-    the schema defines, at any depth; a member defined in several places has a node for each."""
-    found, nodes = {}, {}
+    """({dotted path: set of JSON types}, {dotted path: [schema node]}, [unreadable]) for
+    every member the schema defines, at any depth; a member defined in several places has
+    a node for each. unreadable says, once per place, where a node the walk reaches has a
+    type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not allow
+    there, and what it holds."""
+    found, nodes, unreadable = {}, {}, []
 
     def resolve(node, seen):
         while isinstance(node, dict) and "$ref" in node:
@@ -258,27 +283,41 @@ def schema_members(schema):
             node = target
         return node, seen
 
+    def wrong(path, key, value, allowed):
+        where = f"`{path}`" if path else "the schema root"
+        message = f'{where} has "{key}": {shown(value)}, which is not {allowed}'
+        if message not in unreadable:
+            unreadable.append(message)
+
     def walk(node, path, seen):
         node, seen = resolve(node, seen)
         if not isinstance(node, dict):
             return
+        types = node_types(node)
+        if types is None:
+            wrong(path, "type", node["type"], "a string or an array of strings")
         if path:
-            types = node.get("type", [])
-            found.setdefault(path, set()).update([types] if isinstance(types, str) else types)
+            found.setdefault(path, set()).update(types or ())
             nodes.setdefault(path, []).append(node)
         for key in ("oneOf", "anyOf", "allOf"):
-            for sub in node.get(key, []):
+            subs = node.get(key, [])
+            if not isinstance(subs, list):
+                wrong(path, key, subs, "an array")
+                continue
+            for sub in subs:
                 walk(sub, path, seen)
         properties = node.get("properties", {})
-        if isinstance(properties, dict):
-            for name, sub in properties.items():
-                walk(sub, f"{path}.{name}" if path else name, seen)
+        if not isinstance(properties, dict):
+            wrong(path, "properties", properties, "an object")
+            properties = {}
+        for name, sub in properties.items():
+            walk(sub, f"{path}.{name}" if path else name, seen)
         for key in ("items", "additionalProperties"):
             if isinstance(node.get(key), dict):
                 walk(node[key], path, seen)
 
     walk(schema, "", frozenset())
-    return found, nodes
+    return found, nodes, unreadable
 
 
 def finite(value):
@@ -314,8 +353,7 @@ def check_bounds(path, nodes):
     """[unbounded] failures for a TBS member the schema types as integer or number."""
     failures = []
     for node in nodes:
-        types = node.get("type", [])
-        types = {types} if isinstance(types, str) else set(types)
+        types = node_types(node) or set()
         if not types & NUMERIC:
             continue
         if "number" in types:
@@ -455,6 +493,11 @@ def main():
     except (ValueError, OSError) as exc:
         print(f"{SCHEMA} cannot be read as JSON: {exc}", file=sys.stderr)
         return 1
+    members, nodes, unreadable = schema_members(schema)
+    if unreadable:
+        for problem in unreadable:
+            print(f"{SCHEMA} cannot be read as a JSON Schema: {problem}", file=sys.stderr)
+        return 1
 
     failures = []
     lines = core.splitlines()
@@ -469,7 +512,6 @@ def main():
         print(f"core.md:{heading} [keys] section 1.3a.2 lists no included keys in a fenced block "
               f"after \"included keys are exactly\"", file=sys.stderr)
         return 1
-    members, nodes = schema_members(schema)
     properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
     tbs_keys = {key for _, key in keys}
     for line, key in keys:
