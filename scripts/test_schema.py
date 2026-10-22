@@ -4,8 +4,9 @@
 Each case takes the section 1.1 example credential from core.md, changes one
 member, and asserts that the schema accepts the result when the text allows it
 and rejects it when the text forbids it. The cited rules are core.md section
-1.3a.2 rules 1, 2 and 5 (canonical empties and a null behavioralProfile, the
-full scanSummary, an absent declaredPurpose), section 1.5.2 (the taskScope
+1.3a.2 rules 1, 2, 3 and 5 (canonical empties and a null behavioralProfile, the
+full scanSummary, TBS integers of at most 9007199254740991, an absent
+declaredPurpose), section 1.5.2 (the taskScope
 grammar, capabilityJustification keys), section 14 (capability tokens in the
 AIP section 4.1 grammar) and section 1.1 (an atcVersion 1.1 credential carries
 both signature suites; frozen 1.0 is not held to that). The last cases check
@@ -61,6 +62,12 @@ def scan(**changes):
     return apply
 
 
+def profile(**changes):
+    def apply(d):
+        d["behavioralProfile"].update(changes)
+    return apply
+
+
 def capabilities(tokens):
     # declaredPurpose is dropped so the case isolates the capabilities pattern.
     def apply(d):
@@ -101,6 +108,10 @@ ACCEPT = [
     ("scanSummary fully zero-valued (rule 2)",
      scan(hma="", criticalFindings=0, highFindings=0, secretless="", cryptoServe="",
           oasbLevel="")),
+    ("scanSummary integers at 9007199254740991, the largest rule 3 allows",
+     scan(criticalFindings=2**53 - 1, highFindings=2**53 - 1)),
+    ("behavioralProfile.observationDays 9007199254740991, the largest rule 3 allows",
+     profile(observationDays=2**53 - 1)),
     ("taskScopes custom namespace with underscore objective acme:refund_review",
      purpose(taskScopes=["acme:refund_review"])),
     ("capabilityJustification organization-prefixed key",
@@ -137,6 +148,14 @@ REJECT = [
     ("publisherDid that is neither a DID nor empty", member(publisherDid="acme-corp")),
     ("scanSummary.oasbLevel L10", scan(oasbLevel="L10")),
     ("scanSummary null (rule 2)", member(scanSummary=None)),
+    ("scanSummary.criticalFindings 9007199254740992 (rule 3)", scan(criticalFindings=2**53)),
+    ("scanSummary.criticalFindings 1000000000000000000000 (rule 3)",
+     scan(criticalFindings=10**21)),
+    ("scanSummary.highFindings 9007199254740993 (rule 3)", scan(highFindings=2**53 + 1)),
+    ("behavioralProfile.observationDays 9007199254740993 (rule 3)",
+     profile(observationDays=2**53 + 1)),
+    ("behavioralProfile.observationDays 1000000000000000000000 (rule 3)",
+     profile(observationDays=10**21)),
     ("atcVersion 1.1 with Ed25519 signatures only (section 1.1)", one_suite("1.1", "Ed25519")),
     ("atcVersion 1.1 with ML-DSA-65 signatures only (section 1.1)", one_suite("1.1", "ML-DSA-65")),
 ]

@@ -103,20 +103,26 @@ NAMED='This makes the
    integers `trustLevel`, `scanSummary.criticalFindings` and
    `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays`
    unless `behavioralProfile` is `null` (rule 1), the only JSON numbers in the
-   TBS of a conforming credential, which removes the RFC 8785 ECMAScript
-   number-formatting path from cross-language scope entirely.'
+   TBS of a conforming credential.'
 ONE='This makes
    `trustLevel` (an integer) the only JSON number in the TBS, which removes the
    RFC 8785 ECMAScript number-formatting path from cross-language scope entirely.'
 
+# The rule 3 sentence that says what a verifier does with one of those integers
+# outside the range in which implementations agree on its value.
+RANGE='A verifier MUST reject a credential that carries one of these members with
+   an absolute value greater than 9007199254740991, as a signature failure.'
+
 MISSING='[missing] names the only JSON numbers in the TBS but not'
+UNBOUNDED='schemas/atx-credential-v1.1.schema.json [unbounded]'
 
 # tree <name> <rule 3 statement> [included keys] -> path to a scratch tree
 # core.md: the section 1.3a.2 heading on line 3, the included keys on lines 8-11,
 # and the statement from line 15, after the rule 3 sentence that keeps trustScore
-# a JSON number on the wire; section 1.3a.3 follows rule 4.
+# a JSON number on the wire. The RANGE sentence follows the statement, or
+# $RANGE_TEXT when it is set (empty for none); section 1.3a.3 follows rule 4.
 tree() {
-    local t="$TMP/$1" keys="${3:-$KEYS}"
+    local t="$TMP/$1" keys="${3:-$KEYS}" range="${RANGE_TEXT-$RANGE}"
     mkdir -p "$t/schemas"
     cp "$REPO/schemas/atx-credential-v1.1.schema.json" "$t/schemas/"
     {
@@ -124,6 +130,9 @@ tree() {
         printf '```\n%s\n```\n\n' "$keys"
         printf '3. **`trustScore` is string-encoded.** The wire credential keeps `trustScore`\n'
         printf '   as a JSON number; the projection performs the conversion. %s\n' "$2"
+        if [ -n "$range" ]; then
+            printf '   %s\n' "$range"
+        fi
         printf '4. **`issuerChain` is root-first.** Element 0 is the root authority.\n\n'
         printf '#### 1.3a.3 Cross-implementation byte agreement\n\nThe vectors pin the bytes.\n'
     } > "$t/core.md"
@@ -275,6 +284,70 @@ T="$(tree unknown-key "$NAMED" "$KEYS, riskScore")"
 expect_fail "an included key the schema does not define fails" "$T" - \
     'core.md:11 [keys] the TBS key `riskScore` is not a property of'
 
+# --- unbounded: the schema keeps each of them within 2^53 - 1 ----------------
+
+T="$(tree no-maximum "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0}' properties scanSummary properties criticalFindings
+expect_fail "a TBS integer the schema gives no maximum fails" "$T" - \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `scanSummary.criticalFindings`' \
+    '!at `scanSummary.highFindings`' "![missing]"
+
+T="$(tree maximum-above "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0, "maximum": 9007199254740992}' \
+    properties behavioralProfile properties observationDays
+expect_fail "a maximum of 9007199254740992 fails" "$T" - \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `behavioralProfile.observationDays`'
+
+T="$(tree maximum-string "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0, "maximum": "9007199254740991"}' \
+    properties scanSummary properties highFindings
+expect_fail "a maximum written as a string does not bound the member" "$T" - \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `scanSummary.highFindings`'
+
+T="$(tree exclusive-maximum "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0, "exclusiveMaximum": 9007199254740992}' \
+    properties scanSummary properties criticalFindings
+expect_pass "an exclusiveMaximum of 9007199254740992 bounds the member" "$T"
+
+T="$(tree no-minimum "$NAMED")"
+schema_set "$T" '{"type": "integer", "maximum": 10}' properties scanSummary properties highFindings
+expect_fail "a TBS integer the schema gives no minimum fails" "$T" - \
+    "$UNBOUNDED"' admits an integer below -9007199254740991 at `scanSummary.highFindings`' \
+    '!admits an integer above'
+
+T="$(tree negative-minimum "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991}' \
+    properties scanSummary properties highFindings
+expect_pass "a minimum of -9007199254740991 bounds the member" "$T"
+
+T="$(tree number-typed "$NAMED")"
+schema_set "$T" '{"type": "number", "minimum": 0, "maximum": 4}' properties trustLevel
+expect_fail "a TBS member the schema types as number fails although it is bounded" "$T" - \
+    "$UNBOUNDED"' types `trustLevel` as number'
+
+T="$(tree ref-unbounded "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0}' '$defs' declaredPurpose properties refundLimit
+expect_fail "an integer member reached through oneOf and \$ref is checked for its bounds" "$T" - \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `declaredPurpose.refundLimit`'
+
+# --- range: section 1.3a.2 says a verifier rejects one outside it -----------
+
+T="$(RANGE_TEXT='' tree no-range "$NAMED")"
+expect_fail "a section 1.3a.2 that does not say what a verifier does outside the range fails" \
+    "$T" - "core.md:3 [range]" "![missing]" "!$UNBOUNDED"
+
+T="$(RANGE_TEXT='The schema bounds each of them to at most 9007199254740991.' tree no-reject "$NAMED")"
+expect_fail "a sentence that says 9007199254740991 but not reject does not count" "$T" - \
+    "core.md:3 [range]"
+
+T="$(RANGE_TEXT='A verifier MUST reject an absolute value greater than 90071992547409910.' tree longer-number "$NAMED")"
+expect_fail "9007199254740991 inside a longer number does not count" "$T" - "core.md:3 [range]"
+
+T="$(RANGE_TEXT='' tree range-moved "$NAMED")"
+printf '\n%s\n' "$RANGE" >> "$T/core.md"
+expect_fail "the range sentence outside section 1.3a.2 does not stand in for one inside it" \
+    "$T" - "core.md:3 [range]"
+
 # --- absent and the anchors -------------------------------------------------
 
 T="$(tree no-statement '')"
@@ -324,6 +397,18 @@ S="$TMP/suite-score"
 vector "$S" 01-score-number '{"scanSummary":{"criticalFindings":0,"highFindings":0},"trustLevel":4,"trustScore":87.5}'
 expect_fail "a vector that holds trustScore as a JSON number fails" "$T" "$S" \
     'jcs-vectors/vectors/01-score-number.json [vector] holds the JSON number 87.5 at `trustScore`'
+
+S="$TMP/suite-exact"
+vector "$S" 01-largest '{"behavioralProfile":{"observationDays":9007199254740991},"scanSummary":{"criticalFindings":0,"highFindings":0},"trustLevel":4}'
+expect_pass "a vector that holds 9007199254740991 at one of those members passes" "$T" "$S"
+
+S="$TMP/suite-beyond"
+vector "$S" 01-above '{"scanSummary":{"criticalFindings":9007199254740993,"highFindings":0},"trustLevel":4}'
+vector "$S" 02-exponent '{"behavioralProfile":{"observationDays":1e+21},"trustLevel":4}'
+expect_fail "a vector that holds an integer above 9007199254740991 at one of those members fails" \
+    "$T" "$S" \
+    'jcs-vectors/vectors/01-above.json [vector] holds the JSON number 9007199254740993 at `scanSummary.criticalFindings`, whose absolute value is greater than 9007199254740991' \
+    'jcs-vectors/vectors/02-exponent.json [vector] holds the JSON number 1e+21 at `behavioralProfile.observationDays`'
 
 S="$TMP/suite-array"
 vector "$S" 01-array '{"capabilities":["db:read",7],"trustLevel":4}'

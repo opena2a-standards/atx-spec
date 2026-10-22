@@ -229,10 +229,11 @@ credential that verifies across implementations and one that does not:
    NOT project a present `behavioralProfile` to the absent form (JSON `null`)
    and MUST NOT coerce an unreadable member to a zero value, because either
    projection signs a value other than the one the credential carries and lets
-   unsigned profile content ride a valid signature. This rule tests form, not
-   the schema's value constraints: the `sha256:` prefix of `checksum` and a
-   non-negative `observationDays` bind the issuer (§12), and a verifier MUST NOT
-   reject a credential on them. An absent `capabilities` or
+   unsigned profile content ride a valid signature. This rule tests form, and
+   the magnitude of `observationDays` (rule 3), not the schema's other value
+   constraints: the `sha256:` prefix of `checksum` and a non-negative
+   `observationDays` bind the issuer (§12), and a verifier MUST NOT reject a
+   credential on them. An absent `capabilities` or
    `issuerChain` MUST be the empty array `[]`, never `null`.
    - The date-time form. `generatedAt` matches the `date-time` production of
      RFC 3339 §5.6 written with an upper-case `T` and `Z` and a second from
@@ -251,7 +252,9 @@ credential that verifies across implementations and one that does not:
      `14E0` are not, although each has the value 14. The verifier decides the
      form from the number as the credential's JSON text writes it, not from the
      value a JSON parser returns for it. The credential schema's `integer` type
-     tests the value, so it accepts `14.0`.
+     tests the value, so it accepts `14.0`. An `observationDays` in this form
+     whose absolute value is greater than 9007199254740991 is not well formed
+     (rule 3).
    - The projection of `generatedAt`. The TBS holds the instant `generatedAt`
      names, in UTC and to whole seconds, as `YYYY-MM-DDTHH:MM:SSZ`: a numeric
      offset is subtracted from the local time it follows (RFC 3339 §4.2), and
@@ -270,9 +273,23 @@ credential that verifies across implementations and one that does not:
    A verifier MUST reject a credential whose `scanSummary` is not an object, or
    holds any of the six members outside its type, as a signature failure
    (`SIGNATURE_INVALID`): such a member has no value in the projection, so no
-   signature covers the credential. An absent or `null` member is the zero value
-   (above); this rule bites only a member that is present and the wrong type.
+   signature covers the credential. An integer member whose absolute value is
+   greater than 9007199254740991 is outside its type (rule 3). An absent or
+   `null` member is the zero value (above); the type test bites only a member
+   that is present and outside its type.
    Its optional `techniques` member is not one of the six; rule 6 governs it.
+   The member names a `scanSummary` may hold are exactly `hma`,
+   `criticalFindings`, `highFindings`, `secretless`, `cryptoServe`, `oasbLevel`
+   and `techniques`, compared exactly (a name that differs in case is a
+   different member), and an issuer MUST NOT emit a `scanSummary` member with
+   any other name. A verifier MUST reject a credential whose `scanSummary`
+   holds a member with any other name as a signature failure
+   (`SIGNATURE_INVALID`), as it does for a `behavioralProfile` whose member
+   names are not exactly its three (rule 1): the TBS `scanSummary` carries only
+   the six members and, when present, `techniques`, so no signature covers any
+   other member. A verifier MUST NOT drop such a member when it rebuilds the
+   signed bytes, because a member it dropped would ride a valid signature
+   unsigned.
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
    (printf `%.6f`), e.g. `"87.500000"`. The wire credential keeps `trustScore`
@@ -280,8 +297,24 @@ credential that verifies across implementations and one that does not:
    integers `trustLevel`, `scanSummary.criticalFindings` and
    `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays`
    unless `behavioralProfile` is `null` (rule 1), the only JSON numbers in the
-   TBS of a conforming credential, which removes the RFC 8785 ECMAScript
-   number-formatting path from cross-language scope entirely.
+   TBS of a conforming credential. An issuer MUST NOT emit any of them with an
+   absolute value greater than 9007199254740991 (2^53 - 1), and the credential
+   schema bounds each of them to at most that value. Within that range,
+   implementations agree exactly on the value of an integer (RFC 8259 §6),
+   whether they read it as an IEEE 754 double or keep it exact, and RFC 8785
+   writes it as an integer in decimal, with neither a fraction nor an exponent
+   part, which removes the RFC 8785 ECMAScript number-formatting path from
+   cross-language scope entirely. Outside it they can disagree: no IEEE 754
+   double has the value `9007199254740993`, so an implementation that reads it
+   as one projects `9007199254740992`, and RFC 8785 writes the double
+   `1000000000000000000000` as `1e+21`, while an implementation that keeps the
+   integer writes its 22 digits. A verifier MUST reject a credential that
+   carries one of these members with an absolute value greater than
+   9007199254740991, as a signature failure (`SIGNATURE_INVALID`), as it does
+   for a `behavioralProfile` that is not well formed (rule 1) and a
+   `scanSummary` member outside its type (rule 2): the projection cannot
+   represent such a value in bytes that every implementation reproduces, so no
+   signature covers it.
 4. **`issuerChain` is root-first and order-significant.** Element 0 is the root
    authority. JCS preserves array order and never sorts arrays, so reordering the
    chain changes the signed bytes.
@@ -858,7 +891,7 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 **Verifier.** A conforming verifier implements the local verification algorithm of §1.3, dispatching on the credential's version field, and rejects on the failure of any step. It MUST treat the §1.3a.1 unsigned fields as unauthenticated under `atcVersion` `1.0` (§1.3a.4), and it MUST NOT add a network dependency on the issuing node to the acceptance path.
 
-**Conformance suite.** The executable definition of these claims is the byte-pinned fixture set and SDK-independent reference verifiers at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance): 29 fixtures (baseline, hybrid, the hybrid credential with its Ed25519 signature removed, leaving one ML-DSA-65 signature that verifies, rejected because §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry, threshold cosignature, the threshold-cosignature credential cut to one of its three signatures under a verifier state that holds the authority's three Ed25519 keys and requires two of them, rejected because §1.3 step 5 requires signatures under at least the threshold of distinct member keys to verify, which pins the threshold against a verifier that checks only that every declared signature verifies, revocation by the credential's own flag and by revocation-list membership alone, expiry, issuer binding, tamper rejection, malformed schema, and the `v1_1-*` family covering JCS signing, signed-field integrity, the untrusted chain authority of §1.3 step 4 that contributes no eligible key even when named in the signed `issuerChain`, `declaredPurpose`, the rule-5 degenerate inputs — whitespace-empty object accepted as absent, injected non-object values rejected — and strict credential parse: duplicate object members rejected at any depth per RFC 8259 §4, and case-variant members that a last-wins JSON decoder would collapse rejected as `PARSE_ERROR`, and a hybrid credential carrying a forged ML-DSA-65 signature beside an intact Ed25519 one, rejected because every declared signature must verify, a hybrid credential carrying one ML-DSA-65 signature that verifies and no Ed25519 signature, rejected because §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry, a credential that omits the optional `transparencyLogIndex`, which pins the field's optionality against a verifier that still requires it, and a credential signed with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member, written after signing, rejected as a signature failure because §1.3a.2 rule 2 brings `criticalFindings` into the TBS as an integer, which pins the member's type against a verifier that leaves a member it cannot decode at its zero value, projects the signed 0 and accepts), each pinned by SHA-256 in its `MANIFEST.sha256`, plus the `jcs-vectors` cross-language byte-agreement gate. An implementation claiming issuer or verifier conformance MUST produce the pinned verdict on every fixture and, for v1.1 issuance, MUST reproduce every `jcs-vectors` `expected.canonicalHex` byte-for-byte.
+**Conformance suite.** The executable definition of these claims is the byte-pinned fixture set and SDK-independent reference verifiers at [`opena2a-standards/atx-conformance`](https://github.com/opena2a-standards/atx-conformance): 30 fixtures (baseline, hybrid, the hybrid credential with its Ed25519 signature removed, leaving one ML-DSA-65 signature that verifies, rejected because §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry, threshold cosignature, the threshold-cosignature credential cut to one of its three signatures under a verifier state that holds the authority's three Ed25519 keys and requires two of them, rejected because §1.3 step 5 requires signatures under at least the threshold of distinct member keys to verify, which pins the threshold against a verifier that checks only that every declared signature verifies, revocation by the credential's own flag and by revocation-list membership alone, expiry, issuer binding, tamper rejection, malformed schema, and the `v1_1-*` family covering JCS signing, signed-field integrity, the untrusted chain authority of §1.3 step 4 that contributes no eligible key even when named in the signed `issuerChain`, `declaredPurpose`, the rule-5 degenerate inputs — whitespace-empty object accepted as absent, injected non-object values rejected — and strict credential parse: duplicate object members rejected at any depth per RFC 8259 §4, and case-variant members that a last-wins JSON decoder would collapse rejected as `PARSE_ERROR`, and a hybrid credential carrying a forged ML-DSA-65 signature beside an intact Ed25519 one, rejected because every declared signature must verify, a hybrid credential carrying one ML-DSA-65 signature that verifies and no Ed25519 signature, rejected because §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry, a credential that omits the optional `transparencyLogIndex`, which pins the field's optionality against a verifier that still requires it, a credential signed with `scanSummary.criticalFindings` 0 that carries the JSON string `"3"` in that member, written after signing, rejected as a signature failure because §1.3a.2 rule 2 brings `criticalFindings` into the TBS as an integer, which pins the member's type against a verifier that leaves a member it cannot decode at its zero value, projects the signed 0 and accepts, and a credential carrying `scanSummary.criticalFindings` 9007199254740993 under a signature over the bytes an RFC 8785 serializer that reads each number as an IEEE 754 double writes for it, with 9007199254740992 in that member, rejected as a signature failure because §1.3a.2 rule 3 rejects that member above 9007199254740991 (2^53 - 1), which pins the bound against a verifier that canonicalizes the count as that serializer does, verifies the signature and accepts), each pinned by SHA-256 in its `MANIFEST.sha256`, plus the `jcs-vectors` cross-language byte-agreement gate. An implementation claiming issuer or verifier conformance MUST produce the pinned verdict on every fixture and, for v1.1 issuance, MUST reproduce every `jcs-vectors` `expected.canonicalHex` byte-for-byte.
 
 **Verifier clock (informative).** This paragraph adds no requirement. Each fixture carries the verifier's current time in `verifierState.clockRfc3339`, a member the suite's fixture schema requires, and a verifier under test takes "now" from that member, as both reference verifiers do, rather than from the clock of the host it runs on. Every current fixture pins `2026-05-24T00:00:00Z`, one day after the `issuedAt` of each fixture that pins ACCEPT, so at that clock §1.3 step 2, its seven-day bound included, rejects no fixture that pins ACCEPT, and a verifier that implements all of step 2 produces every pinned verdict. A verifier that substitutes its own wall clock finds those fixtures expired once seven days have passed since their `issuedAt`; that difference comes from the substituted clock, not from a conflict between step 2 and the suite.
 
@@ -870,7 +903,7 @@ Three conformance targets exist. An implementation claims conformance for one or
 
 Attack techniques are cited by agent-threat-matrix ID ([threats.opena2a.org](https://threats.opena2a.org)) per architectural commitment 2.
 
-**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document. Under v1.1, a present `behavioralProfile` that is not well formed, and a `scanSummary` that is not an object or holds one of its six members outside its type, are signature failures (`SIGNATURE_INVALID`), never silently dropped or zeroed when the verifier rebuilds the signed bytes: the projection cannot represent them, so no signature covers them (§1.3a.2 rules 1 and 2).
+**Unsigned v1.0 fields are forgeable (T-4001 Capability Override).** The legacy form signs eleven fields (§1.3a.1); `capabilities`, `scanSummary`, `issuerChain`, and `publisher` are not among them. A holder can rewrite any of these in a v1.0 credential without breaking its signature. Every consumer making decisions on those fields MUST enforce §1.3a.4 (require v1.1). This is the single most important verifier-side rule in this document. Under v1.1, a present `behavioralProfile` that is not well formed, and a `scanSummary` that is not an object, holds one of its six members outside its type or holds a member named other than those six and `techniques`, are signature failures (`SIGNATURE_INVALID`), never silently dropped or zeroed when the verifier rebuilds the signed bytes: the projection cannot represent them, so no signature covers them (§1.3a.2 rules 1 and 2).
 
 **Stolen credentials replay (T-5004 Credential Reuse).** An ATX is a bearer artifact: presenting it proves what was attested about an agent build, not that the presenter is that agent. Exfiltrated credentials replay until expiry — the 7-day TTL (§1.2) and the CRL (§3.3) bound the window, and deep verification (`contentHash` check, §3.2 step 7; runtime self-attestation, §5), where performed, binds the credential to the running artifact. Deployments where impersonation matters MUST pair ATX presentation with a proof-of-possession channel (AIP identity keys); ATX alone does not provide one.
 

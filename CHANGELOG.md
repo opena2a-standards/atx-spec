@@ -10,6 +10,19 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_tbs_member_names.py` + `scripts/test_tbs_member_names.sh`: each TBS key that
+  `schemas/atx-credential-v1.1.schema.json` types as an object with `additionalProperties` false
+  (a closed object) has a sentence of `core.md` §1.3a.2 that names it and each member the schema
+  lists for it in backticks and says "exactly", "none of", "no other" or "any other", or the check
+  fails as `[unstated]`; the rule that holds that sentence also has a sentence that names the
+  object and says "reject" and `SIGNATURE_INVALID`, or "verbatim", or the check fails as
+  `[outcome]`. The keys are read from the included-keys block of §1.3a.2 and typed from the
+  schema, so a closed object the schema adds to the TBS joins them; in this tree they are
+  `behavioralProfile` and `scanSummary`. A schema that types no TBS key as a closed object fails
+  as `[none]`. Against the `core.md` of dff1236 the check reports `[unstated]` for `scanSummary`
+  and exits 1; it passes on this tree. It exits 2 on a usage error, needs only python3 and is not
+  yet run by CI. The test runs 30 cases with bash and python3; against the `core.md` of dff1236 1
+  of them fails, the case that reads the delivered tree. (#113)
 - `scripts/check_tbs_timestamps.py` + `scripts/test_tbs_timestamps.sh`: each TBS member, at any
   depth, that `schemas/atx-credential-v1.1.schema.json` types with format `date-time` is named in
   backticks in a sentence of `core.md` §1.3a.2 that says "UTC" and "whole second" or "whole
@@ -316,6 +329,50 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **30** fixtures. atx-conformance added
+  `fixtures/v1_1-integer-outside-exact-range.json` at 7e1542e, a MUST-REJECT v1.1 credential that
+  carries `scanSummary.criticalFindings` 9007199254740993 under an Ed25519 signature over the bytes
+  an RFC 8785 serializer that reads each number as an IEEE 754 double writes for it, with
+  9007199254740992 in that member, so the signature does not cover the count the credential
+  carries. §1.3a.2 rule 3 has a verifier reject that member above 9007199254740991 (2^53 - 1) as a
+  signature failure. `README.md` carried the verifier's summary line for 29; `docs/conformance.md`
+  carried "29 fixtures" and "29 of 29 PASS"; §12 carried "29 fixtures". Each follows the suite, and
+  the fixture joins both fixture enumerations as the last entry of the `v1_1-*` family. Against
+  atx-conformance at 7e1542e both reference verifiers report
+  `summary: 30 pass, 0 fail (30 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
+  normative text changes.
+- `core.md` §1.3a.2 rule 3 bounds the integers it names as the only JSON numbers of the TBS
+  (`trustLevel`, `scanSummary.criticalFindings`, `scanSummary.highFindings` and
+  `behavioralProfile.observationDays`) to an absolute value of at most 9007199254740991
+  (2^53 - 1), and `schemas/atx-credential-v1.1.schema.json` gives the last three a `maximum` of
+  that value, beside the `minimum` of 0 they had (`trustLevel` already had a `maximum` of 4). Rule
+  3 said that leaving only those integers as JSON numbers removes the RFC 8785 ECMAScript
+  number-formatting path from cross-language scope, which holds only in the range in which
+  implementations agree exactly on the value of an integer (RFC 8259 §6). Outside it they can
+  disagree: Node.js 26.12.0, whose `JSON.stringify` formats numbers by the ECMAScript algorithm
+  RFC 8785 adopts, writes the parsed `9007199254740993` as `9007199254740992` and
+  `1000000000000000000000` as `1e+21`, while Python 3.14.3's `json` module, which keeps the exact
+  integer, writes each as given. An issuer MUST NOT emit one of the four outside the range, and a
+  verifier MUST reject a credential that carries one there as a signature failure
+  (`SIGNATURE_INVALID`): rule 1 makes such an `observationDays` not well formed, rule 2 makes such
+  a `criticalFindings` or `highFindings` outside its type, and rule 3 states the rejection for all
+  four. Rule 1 still bars a verifier from rejecting a credential on a negative `observationDays`
+  within that range: the `minimum` of 0 binds the issuer. jsonschema 4.26.0 (draft
+  2020-12) reported no error for the §1.1 example with any of the three set to `9007199254740993`
+  or `1000000000000000000000`, and it now rejects each of those six at its `maximum`.
+  `scripts/test_schema.py` adds 7 cases and runs 49, of which 5 fail against the schema of
+  dff1236; `scripts/test_schema.sh` adds 3 and runs 14, of which 3 fail there: its two new
+  rejections and the case that runs `scripts/test_schema.py`. `scripts/check_tbs_numbers.py` adds
+  two rules: each schema node that types one of those members as integer or number types it as
+  `integer`, with bounds that admit no integer of absolute value above 9007199254740991
+  (`[unbounded]`), and a sentence of §1.3a.2 says "9007199254740991" and "reject" (`[range]`);
+  with `--suite`, a value of one of those members above that absolute value in a `jcs-vectors`
+  vector fails as `[vector]`. Against the `core.md` and schema of dff1236 the check reports
+  `[unbounded]` for the three members and `[range]`, and exits 1; it passes on this tree.
+  `scripts/test_tbs_numbers.sh` adds 14 cases and runs 53, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check, `core.md` and schema of dff1236,
+  11 of them fail. The reference verifiers and fixtures in atx-conformance are not part of this
+  change. (#112)
 - The stated conformance-suite count follows the suite to **29** fixtures. atx-conformance added
   `fixtures/hybrid-pq-only.json` at 50cbe67, a MUST-REJECT v1.0 credential: the v1.0 hybrid
   baseline with its Ed25519 signature removed, so it carries one ML-DSA-65 signature that verifies
@@ -328,6 +385,19 @@ identifier registered in `core.md` §14.
   case it is cut from. Against atx-conformance at a825ec2 both reference verifiers report
   `summary: 29 pass, 0 fail (29 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
   normative text changes.
+- `core.md` §1.3a.2 rule 2: the member names a `scanSummary` may hold are exactly the six members
+  and `techniques`, compared exactly, so a name that differs in case is a different member. An
+  issuer MUST NOT emit a `scanSummary` member with any other name, and a verifier MUST reject a
+  credential whose `scanSummary` holds one as a signature failure (`SIGNATURE_INVALID`), as rule 1
+  does for a `behavioralProfile` whose member names are not exactly its three, and MUST NOT drop
+  it when it rebuilds the signed bytes. Rule 2 rejected a `scanSummary` that is not an object or
+  holds one of the six outside its type, and gave no outcome for a member with another name; the
+  TBS `scanSummary` carries only the six and `techniques`, so such a member is in no signed byte,
+  and a verifier that drops it accepts a credential carrying a member no signature covers. The
+  schema's `additionalProperties` false on `scanSummary` already refused such a member, but rule 2
+  did not require a verifier to. §13 names the case beside the other `scanSummary` signature
+  failures. The projection of a `scanSummary` that holds only those members is unchanged. The
+  reference verifiers and fixtures in atx-conformance are not part of this change. (#113)
 - `core.md` §1.3a.2 rule 7: a wire value of `issuedAt`, `expiresAt` or
   `behavioralProfile.generatedAt` whose instant falls in UTC outside the years 0000 to 9999 has no
   `YYYY-MM-DDTHH:MM:SSZ` form, and a verifier MUST reject a credential that carries one rather than
