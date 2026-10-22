@@ -17,6 +17,11 @@ $ref.
             backticks, as `member` or as a dotted path such as `parent.member`,
             and says "UTC" and "whole second" or "whole seconds". A sentence
             outside the section does not count.
+  range     A sentence of section 1.3a.2 says "UTC", "0000", "9999" and "reject"
+            (or "rejects", "rejected"), which is how the section states the
+            outcome for a value whose instant falls in UTC outside the years
+            0000 to 9999: a numeric offset can carry a valid RFC 3339 value
+            there, and such an instant has no YYYY-MM-DDTHH:MM:SSZ form.
   none      The schema types at least one TBS member with format date-time, so
             a schema the check cannot read that way fails instead of passing.
   keys      Section 1.3a.2 lists the included keys in a fenced block after the
@@ -64,6 +69,10 @@ MEMBER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 UTC_RE = re.compile(r"\bUTC\b", re.IGNORECASE)
 WHOLE_SECONDS_RE = re.compile(r"\bwhole\s+seconds?\b", re.IGNORECASE)
+# The years a YYYY-MM-DDTHH:MM:SSZ value can write, and the outcome for an instant outside them.
+FIRST_YEAR_RE = re.compile(r"(?<!\d)0000(?!\d)")
+LAST_YEAR_RE = re.compile(r"(?<!\d)9999(?!\d)")
+REJECT_RE = re.compile(r"\breject(?:s|ed)?\b", re.IGNORECASE)
 # What a timestamp in UTC to whole seconds looks like in the TBS.
 PROJECTED_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", re.ASCII)
 
@@ -136,6 +145,17 @@ def projection_names(lines, start, end):
                 if MEMBER_RE.fullmatch(name):
                     names.add(name)
     return names
+
+
+def states_year_range(lines, start, end):
+    """True when a sentence of lines[start:end] says "UTC", "0000", "9999" and "reject";
+    start and end are line numbers, end excluded."""
+    for _, block in blocks(lines[start - 1:end - 1]):
+        for sentence in sentences(block):
+            if (UTC_RE.search(sentence) and FIRST_YEAR_RE.search(sentence)
+                    and LAST_YEAR_RE.search(sentence) and REJECT_RE.search(sentence)):
+                return True
+    return False
 
 
 def section_range(lines):
@@ -328,6 +348,13 @@ def main():
                 f"no sentence of the section names it in backticks and says \"UTC\" and "
                 f"\"whole seconds\""
             )
+    if members and not states_year_range(lines, heading, end):
+        failures.append(
+            f"core.md:{heading} [range] section 1.3a.2 does not say what becomes of a timestamp "
+            f"whose instant falls in UTC outside the years 0000 to 9999, which has no "
+            f"YYYY-MM-DDTHH:MM:SSZ form: no sentence of the section says \"UTC\", \"0000\", "
+            f"\"9999\" and \"reject\""
+        )
 
     vectors = read = 0
     if suite is not None:

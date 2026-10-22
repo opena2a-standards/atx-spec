@@ -331,7 +331,18 @@ credential that verifies across implementations and one that does not:
    included) or with a fractional second is therefore not carried into the TBS
    verbatim, and two wire values that fall in the same UTC second have the same
    projection, so the signature covers these members to the second and not the
-   text of the wire value.
+   text of the wire value. A wire value whose instant falls in UTC outside the
+   years 0000 to 9999 has no `YYYY-MM-DDTHH:MM:SSZ` form, and a verifier MUST
+   reject a credential that carries one in any of these members rather than
+   write a year of more than four digits, or a negative year, into the TBS. A
+   numeric offset can carry a valid RFC 3339 value there:
+   `9999-12-31T23:59:59-01:00` is the instant 10000-01-01T00:59:59 in UTC, and
+   `0000-01-01T00:00:00+01:00` is an instant in the year before 0000. An
+   `issuedAt` or `expiresAt` that is such a value does not parse, and the
+   verifier rejects the credential at §1.3 step 1, before the validity window
+   of step 2 is read. A `behavioralProfile` whose `generatedAt` is such a value
+   is not well formed (rule 1), and the verifier reports a signature failure
+   (`SIGNATURE_INVALID`). An issuer MUST NOT emit such a value.
 
 The Ed25519 threshold signatures and the ML-DSA-65 hybrid signature are all
 computed over the **same** `JCS(TBS)` bytes. JCS itself sorts object member names
