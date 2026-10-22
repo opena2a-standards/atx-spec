@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Assert that a sentence naming the only JSON numbers in the TBS names each one.
+"""Assert that a sentence naming the only JSON numbers in the TBS names each one, and
+that the schema and core.md bound each to integers of absolute value at most 2^53 - 1.
 
 core.md section 1.3a.2 rule 3 string-encodes trustScore in the v1.1
 to-be-signed (TBS) object and then says which JSON numbers the TBS still holds.
@@ -31,10 +32,26 @@ Each such sentence, in every Markdown file of the tree, is checked:
                  the line that says "included keys are exactly", and the schema
                  defines each of them.
 
+Rule 3 says the RFC 8785 ECMAScript number-formatting path is out of scope
+because those members are integers, which holds only for an integer whose
+absolute value is at most 9007199254740991 (2^53 - 1): implementations agree
+exactly on the value of such an integer (RFC 8259 section 6), and RFC 8785
+writes it in decimal with neither a fraction nor an exponent part. Two more
+checks hold the schema and the text to that range:
+
+  unbounded      Each schema node that types one of those members as integer or
+                 number types it as integer, with a minimum (or exclusiveMinimum)
+                 that admits no integer below -9007199254740991 and a maximum (or
+                 exclusiveMaximum) that admits none above 9007199254740991.
+  range          Section 1.3a.2 holds a sentence that says "9007199254740991"
+                 and "reject", the verifier's outcome for a member outside that
+                 range.
+
 With --suite, each jcs-vectors/vectors/*.json of an atx-conformance checkout is
 also read: its expected.canonicalHex is decoded and parsed as JSON, and a JSON
-number at a member other than those fails as [vector]. A vector that cannot be
-read that way fails as [vector], and so does a checkout with no vectors.
+number at a member other than those, or one whose absolute value is greater
+than 9007199254740991, fails as [vector]. A vector that cannot be read that way
+fails as [vector], and so does a checkout with no vectors.
 
 A sentence may wrap across lines but does not cross a blank line, a heading, a
 list item or a table cell, and a sentence does not end inside a code span.
@@ -46,7 +63,7 @@ that is not UTF-8 fails rather than being skipped.
 A tree fails with a message that says why when core.md is missing, is not UTF-8
 or has no section 1.3a.2 heading, and when the schema is missing or is not JSON.
 Every other failure is reported with its rule in brackets, as file:line, or as
-the file alone for a vector and for a file that is not UTF-8.
+the file alone for a vector, for the schema and for a file that is not UTF-8.
 
     python3 scripts/check_tbs_numbers.py [--root <tree>] [--suite <atx-conformance>]
 
@@ -55,6 +72,7 @@ Exit 0 when every check passes, 1 when one fails, 2 on a usage error.
 
 import argparse
 import json
+import math
 import pathlib
 import re
 import sys
@@ -65,6 +83,11 @@ SCHEMA = "schemas/atx-credential-v1.1.schema.json"
 # core.md section 1.3a.2 rule 3: the projection writes trustScore as a string.
 STRING_ENCODED = {"trustScore"}
 NUMERIC = {"integer", "number"}
+# RFC 8259 section 6: implementations agree exactly on the value of an integer
+# whose absolute value is at most 2^53 - 1.
+EXACT = 2**53 - 1
+EXACT_RE = re.compile(rf"(?<![0-9]){EXACT}(?![0-9])")
+REJECT_RE = re.compile(r"\breject", re.IGNORECASE)
 
 SECTION_RE = re.compile(r"^(#{1,6})\s+1\.3a\.2(?![\w.])")
 HEADING_RE = re.compile(r"^(#{1,6})\s")
@@ -219,8 +242,9 @@ def included_keys(lines, start, end):
 
 
 def schema_members(schema):
-    """{dotted path: set of JSON types} for every member the schema defines, at any depth."""
-    found = {}
+    """({dotted path: set of JSON types}, {dotted path: [schema node]}) for every member
+    the schema defines, at any depth; a member defined in several places has a node for each."""
+    found, nodes = {}, {}
 
     def resolve(node, seen):
         while isinstance(node, dict) and "$ref" in node:
@@ -241,6 +265,7 @@ def schema_members(schema):
         if path:
             types = node.get("type", [])
             found.setdefault(path, set()).update([types] if isinstance(types, str) else types)
+            nodes.setdefault(path, []).append(node)
         for key in ("oneOf", "anyOf", "allOf"):
             for sub in node.get(key, []):
                 walk(sub, path, seen)
@@ -253,7 +278,66 @@ def schema_members(schema):
                 walk(node[key], path, seen)
 
     walk(schema, "", frozenset())
-    return found
+    return found, nodes
+
+
+def finite(value):
+    """value when it is a finite JSON number, else None; a boolean is not a number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def integer_bounds(node):
+    """(least, greatest) integer a schema node admits by its minimum, exclusiveMinimum,
+    maximum and exclusiveMaximum; None on a side that none of them bounds."""
+    low, high = [], []
+    for key, least in (("minimum", math.ceil), ("exclusiveMinimum", lambda v: math.floor(v) + 1)):
+        value = finite(node.get(key))
+        if value is not None:
+            low.append(least(value))
+    for key, greatest in (("maximum", math.floor), ("exclusiveMaximum", lambda v: math.ceil(v) - 1)):
+        value = finite(node.get(key))
+        if value is not None:
+            high.append(greatest(value))
+    return (max(low) if low else None), (min(high) if high else None)
+
+
+def check_bounds(path, nodes):
+    """[unbounded] failures for a TBS member the schema types as integer or number."""
+    failures = []
+    for node in nodes:
+        types = node.get("type", [])
+        types = {types} if isinstance(types, str) else set(types)
+        if not types & NUMERIC:
+            continue
+        if "number" in types:
+            failures.append(
+                f"{SCHEMA} [unbounded] types `{path}` as number, which admits a value that is "
+                f"not an integer; core.md section 1.3a.2 rule 3 holds only for integers"
+            )
+            continue
+        low, high = integer_bounds(node)
+        if low is None or low < -EXACT:
+            failures.append(
+                f"{SCHEMA} [unbounded] admits an integer below -{EXACT} at `{path}`: it has no "
+                f"minimum or exclusiveMinimum at or above that value"
+            )
+        if high is None or high > EXACT:
+            failures.append(
+                f"{SCHEMA} [unbounded] admits an integer above {EXACT} at `{path}`: it has no "
+                f"maximum or exclusiveMaximum at or below that value"
+            )
+    return failures
+
+
+def states_range(lines, start, end):
+    """True when a sentence of lines start..end-1 (numbered from 1) says EXACT and "reject"."""
+    for _, block in blocks(lines[start - 1:end - 1]):
+        for _, sentence in sentences(block):
+            if EXACT_RE.search(sentence) and REJECT_RE.search(sentence):
+                return True
+    return False
 
 
 def refers_to(name, path):
@@ -325,12 +409,19 @@ def check_suite(suite, numeric):
                     f"{rel} [vector] holds the JSON number {value} at `{member}`, which is "
                     f"not a TBS member the schema types as a number"
                 )
+            elif abs(value) > EXACT:
+                failures.append(
+                    f"{rel} [vector] holds the JSON number {value} at `{member}`, whose "
+                    f"absolute value is greater than {EXACT}"
+                )
     return len(vectors), failures
 
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Assert that a sentence naming the only JSON numbers in the TBS names each one."
+        description="Assert that a sentence naming the only JSON numbers in the TBS names each "
+                    "one, and that the schema and core.md bound each to integers of absolute "
+                    "value at most 2^53 - 1."
     )
     ap.add_argument("--root", default=str(ROOT), help="tree to check (default: this repository)")
     ap.add_argument("--suite", help="atx-conformance checkout whose jcs-vectors are also read")
@@ -371,7 +462,7 @@ def main():
         print(f"core.md:{heading} [keys] section 1.3a.2 lists no included keys in a fenced block "
               f"after \"included keys are exactly\"", file=sys.stderr)
         return 1
-    members = schema_members(schema)
+    members, nodes = schema_members(schema)
     properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
     tbs_keys = {key for _, key in keys}
     for line, key in keys:
@@ -385,6 +476,14 @@ def main():
     )
     containers = sorted({path.rsplit(".", n)[0] for path in numeric
                          for n in range(1, path.count(".") + 1)})
+    for path in numeric:
+        failures.extend(check_bounds(path, nodes[path]))
+    if not states_range(lines, heading, end):
+        failures.append(
+            f"core.md:{heading} [range] section 1.3a.2 has no sentence that says \"{EXACT}\" and "
+            f"\"reject\": rule 3's claim holds only for integers of absolute value at most "
+            f"{EXACT}, and the section has to say what a verifier does with one outside it"
+        )
 
     files = markdown_files(root)
     stated, in_section = 0, 0
@@ -413,17 +512,20 @@ def main():
         failures.extend(vector_failures)
 
     if failures:
-        print("a statement of the JSON numbers in the TBS disagrees with what the TBS holds:\n",
-              file=sys.stderr)
+        print("a statement of the JSON numbers in the TBS disagrees with what the TBS holds, "
+              "or with the range they are bounded to:\n", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
     summary = (f"TBS numbers ok: {len(files)} Markdown file(s) read; {stated} sentence(s) name "
                f"the only JSON numbers in the TBS, and each names the {len(numeric)} TBS "
-               f"member(s) the schema types as a number ({', '.join(numeric)})")
+               f"member(s) the schema types as a number ({', '.join(numeric)}); the schema "
+               f"bounds each to integers of absolute value at most {EXACT}, and section 1.3a.2 "
+               f"says a verifier rejects one outside that range")
     if suite is not None:
-        summary += f"; {vectors} jcs-vector(s) hold no JSON number at another member"
+        summary += (f"; {vectors} jcs-vector(s) hold no JSON number at another member or of "
+                    f"absolute value above {EXACT}")
     print(summary)
     return 0
 

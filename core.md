@@ -229,10 +229,11 @@ credential that verifies across implementations and one that does not:
    NOT project a present `behavioralProfile` to the absent form (JSON `null`)
    and MUST NOT coerce an unreadable member to a zero value, because either
    projection signs a value other than the one the credential carries and lets
-   unsigned profile content ride a valid signature. This rule tests form, not
-   the schema's value constraints: the `sha256:` prefix of `checksum` and a
-   non-negative `observationDays` bind the issuer (§12), and a verifier MUST NOT
-   reject a credential on them. An absent `capabilities` or
+   unsigned profile content ride a valid signature. This rule tests form, and
+   the magnitude of `observationDays` (rule 3), not the schema's other value
+   constraints: the `sha256:` prefix of `checksum` and a non-negative
+   `observationDays` bind the issuer (§12), and a verifier MUST NOT reject a
+   credential on them. An absent `capabilities` or
    `issuerChain` MUST be the empty array `[]`, never `null`.
    - The date-time form. `generatedAt` matches the `date-time` production of
      RFC 3339 §5.6 written with an upper-case `T` and `Z` and a second from
@@ -251,7 +252,9 @@ credential that verifies across implementations and one that does not:
      `14E0` are not, although each has the value 14. The verifier decides the
      form from the number as the credential's JSON text writes it, not from the
      value a JSON parser returns for it. The credential schema's `integer` type
-     tests the value, so it accepts `14.0`.
+     tests the value, so it accepts `14.0`. An `observationDays` in this form
+     whose absolute value is greater than 9007199254740991 is not well formed
+     (rule 3).
    - The projection of `generatedAt`. The TBS holds the instant `generatedAt`
      names, in UTC and to whole seconds, as `YYYY-MM-DDTHH:MM:SSZ`: a numeric
      offset is subtracted from the local time it follows (RFC 3339 §4.2), and
@@ -270,8 +273,10 @@ credential that verifies across implementations and one that does not:
    A verifier MUST reject a credential whose `scanSummary` is not an object, or
    holds any of the six members outside its type, as a signature failure
    (`SIGNATURE_INVALID`): such a member has no value in the projection, so no
-   signature covers the credential. An absent or `null` member is the zero value
-   (above); this rule bites only a member that is present and the wrong type.
+   signature covers the credential. An integer member whose absolute value is
+   greater than 9007199254740991 is outside its type (rule 3). An absent or
+   `null` member is the zero value (above); this rule bites only a member that
+   is present and outside its type.
    Its optional `techniques` member is not one of the six; rule 6 governs it.
 3. **`trustScore` is string-encoded.** In the TBS, `trustScore` MUST be the
    string produced by formatting the numeric score with six fractional digits
@@ -280,8 +285,24 @@ credential that verifies across implementations and one that does not:
    integers `trustLevel`, `scanSummary.criticalFindings` and
    `scanSummary.highFindings` (rule 2), and `behavioralProfile.observationDays`
    unless `behavioralProfile` is `null` (rule 1), the only JSON numbers in the
-   TBS of a conforming credential, which removes the RFC 8785 ECMAScript
-   number-formatting path from cross-language scope entirely.
+   TBS of a conforming credential. An issuer MUST NOT emit any of them with an
+   absolute value greater than 9007199254740991 (2^53 - 1), and the credential
+   schema bounds each of them to at most that value. Within that range,
+   implementations agree exactly on the value of an integer (RFC 8259 §6),
+   whether they read it as an IEEE 754 double or keep it exact, and RFC 8785
+   writes it as an integer in decimal, with neither a fraction nor an exponent
+   part, which removes the RFC 8785 ECMAScript number-formatting path from
+   cross-language scope entirely. Outside it they can disagree: no IEEE 754
+   double has the value `9007199254740993`, so an implementation that reads it
+   as one projects `9007199254740992`, and RFC 8785 writes the double
+   `1000000000000000000000` as `1e+21`, while an implementation that keeps the
+   integer writes its 22 digits. A verifier MUST reject a credential that
+   carries one of these members with an absolute value greater than
+   9007199254740991, as a signature failure (`SIGNATURE_INVALID`), as it does
+   for a `behavioralProfile` that is not well formed (rule 1) and a
+   `scanSummary` member outside its type (rule 2): the projection cannot
+   represent such a value in bytes that every implementation reproduces, so no
+   signature covers it.
 4. **`issuerChain` is root-first and order-significant.** Element 0 is the root
    authority. JCS preserves array order and never sorts arrays, so reordering the
    chain changes the signed bytes.

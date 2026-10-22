@@ -85,6 +85,15 @@ expect_invalid "a technique ID in lower case is rejected" \
 expect_invalid "a technique ID without its T- prefix is rejected" \
     techniques '["T-4001", "4001"]' '$.scanSummary.techniques[1]'
 
+# --- the scanSummary integers stay within 2^53 - 1 (core.md §1.3a.2 rule 3) --
+
+expect_valid "criticalFindings 9007199254740991, the largest rule 3 allows, is valid" \
+    criticalFindings '9007199254740991'
+expect_invalid "criticalFindings 9007199254740992 is rejected" \
+    criticalFindings '9007199254740992' '$.scanSummary.criticalFindings'
+expect_invalid "highFindings 1000000000000000000000 is rejected" \
+    highFindings '1000000000000000000000' '$.scanSummary.highFindings'
+
 # --- the rest of scanSummary stays closed ------------------------------------
 
 expect_invalid "a scanSummary member the schema does not define is rejected" \

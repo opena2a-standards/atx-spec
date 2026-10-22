@@ -316,6 +316,38 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2 rule 3 bounds the integers it names as the only JSON numbers of the TBS
+  (`trustLevel`, `scanSummary.criticalFindings`, `scanSummary.highFindings` and
+  `behavioralProfile.observationDays`) to an absolute value of at most 9007199254740991
+  (2^53 - 1), and `schemas/atx-credential-v1.1.schema.json` gives the last three a `maximum` of
+  that value, beside the `minimum` of 0 they had (`trustLevel` already had a `maximum` of 4). Rule
+  3 said that leaving only those integers as JSON numbers removes the RFC 8785 ECMAScript
+  number-formatting path from cross-language scope, which holds only in the range in which
+  implementations agree exactly on the value of an integer (RFC 8259 §6). Outside it they can
+  disagree: Node.js 26.12.0, whose `JSON.stringify` formats numbers by the ECMAScript algorithm
+  RFC 8785 adopts, writes the parsed `9007199254740993` as `9007199254740992` and
+  `1000000000000000000000` as `1e+21`, while Python 3.14.3's `json` module, which keeps the exact
+  integer, writes each as given. An issuer MUST NOT emit one of the four outside the range, and a
+  verifier MUST reject a credential that carries one there as a signature failure
+  (`SIGNATURE_INVALID`): rule 1 makes such an `observationDays` not well formed, rule 2 makes such
+  a `criticalFindings` or `highFindings` outside its type, and rule 3 states the rejection for all
+  four. Rule 1 still bars a verifier from rejecting a credential on a negative `observationDays`
+  within that range: the `minimum` of 0 binds the issuer. jsonschema 4.26.0 (draft
+  2020-12) reported no error for the §1.1 example with any of the three set to `9007199254740993`
+  or `1000000000000000000000`, and it now rejects each of those six at its `maximum`.
+  `scripts/test_schema.py` adds 7 cases and runs 49, of which 5 fail against the schema of
+  dff1236; `scripts/test_schema.sh` adds 3 and runs 14, of which 3 fail there: its two new
+  rejections and the case that runs `scripts/test_schema.py`. `scripts/check_tbs_numbers.py` adds
+  two rules: each schema node that types one of those members as integer or number types it as
+  `integer`, with bounds that admit no integer of absolute value above 9007199254740991
+  (`[unbounded]`), and a sentence of §1.3a.2 says "9007199254740991" and "reject" (`[range]`);
+  with `--suite`, a value of one of those members above that absolute value in a `jcs-vectors`
+  vector fails as `[vector]`. Against the `core.md` and schema of dff1236 the check reports
+  `[unbounded]` for the three members and `[range]`, and exits 1; it passes on this tree.
+  `scripts/test_tbs_numbers.sh` adds 14 cases and runs 53, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check, `core.md` and schema of dff1236,
+  11 of them fail. The reference verifiers and fixtures in atx-conformance are not part of this
+  change. (#112)
 - The stated conformance-suite count follows the suite to **29** fixtures. atx-conformance added
   `fixtures/hybrid-pq-only.json` at 50cbe67, a MUST-REJECT v1.0 credential: the v1.0 hybrid
   baseline with its Ed25519 signature removed, so it carries one ML-DSA-65 signature that verifies
