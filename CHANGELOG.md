@@ -25,6 +25,21 @@ identifier registered in `core.md` §14.
   The check exits 1 on a failure and 2 on a usage error, needs only python3 and is not yet run by
   CI; the test runs 39 cases with bash and python3, one of them against a real suite checkout when
   `ATX_CONFORMANCE_SUITE` names one. (#106)
+- `scripts/check_profile_forms.py` + `scripts/test_profile_forms.sh`: `core.md` §1.3a.2 states
+  the form of each `behavioralProfile` member that `schemas/atx-credential-v1.1.schema.json`
+  types as integer or as a `date-time` string, or rule 1 defers it to text that does. The
+  sentences of §1.3a.2 that name an integer member hold "fraction" and "exponent" between them
+  (`[integer-form]`), and those that name a date-time member hold "RFC 3339", "offset" and
+  "fraction" (`[date-time-form]`). A sentence of rule 1 that decides a member as another member is
+  decided or read ("decided as", "as it reads", "as the verifier decides", "as the verifier
+  reads") names at least one schema member in backticks after those words, each of the kind of
+  the member it decides and named by sentences of `core.md` that hold the words of that kind
+  (`[deferred]`); a member whose deferrals all pass needs no statement of its own. On the previous
+  `core.md` the check reports `[deferred]` for `issuedAt`, `expiresAt` and `trustLevel`,
+  `[date-time-form]` for `generatedAt` and `[integer-form]` for `observationDays`, and exits 1; on
+  this one it exits 0. It exits 2 on a usage error, needs only python3 and is not yet run by CI.
+  The test runs 36 cases with bash and python3; against the previous `core.md` 1 of them fails,
+  the case that reads the delivered tree. (#105)
 - `scripts/check_tbs_numbers.py` + `scripts/test_tbs_numbers.sh`: a sentence that names the TBS
   and says which JSON numbers it holds and no others ("the only JSON numbers in the TBS", "no
   JSON numbers other than") names in backticks each TBS member that
@@ -301,6 +316,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **29** fixtures. atx-conformance added
+  `fixtures/hybrid-pq-only.json` at 50cbe67, a MUST-REJECT v1.0 credential: the v1.0 hybrid
+  baseline with its Ed25519 signature removed, so it carries one ML-DSA-65 signature that verifies
+  and no Ed25519 signature. §13 requires a verifying Ed25519 entry beside an ML-DSA-65 entry and
+  names no `atcVersion`; until this fixture the suite pinned that rule only under `atcVersion` 1.1,
+  with `fixtures/v1_1-hybrid-pq-only.json`. `README.md` carried the verifier's summary line for 28;
+  `docs/conformance.md` carried "28 fixtures" and "28 of 28 PASS"; §12 carried "28 fixtures" and,
+  in its Issuer paragraph, "the four fixtures that carry an ML-DSA-65 signature", where five now
+  do. Each follows the suite, and the fixture joins both fixture enumerations beside the hybrid
+  case it is cut from. Against atx-conformance at a825ec2 both reference verifiers report
+  `summary: 29 pass, 0 fail (29 fixtures)` and reject the new fixture as `SIGNATURE_INVALID`. No
+  normative text changes.
 - `core.md` §1.3a.2 rule 7: in the TBS, `issuedAt` and `expiresAt` are each the instant its value
   in the credential denotes, written in UTC to whole seconds (`YYYY-MM-DDTHH:MM:SSZ`), as rule 1
   writes `behavioralProfile.generatedAt`. For all three the projection applies a time-zone offset
@@ -328,6 +355,26 @@ identifier registered in `core.md` §14.
   treated as absent. `scripts/test_schema.py` adds a case that accepts the `null` and two that
   reject an empty object and the string `"null"`; run against the schema at 6a7c32a, 1 of its 42
   cases fails, and all 42 pass on this tree. No normative text changes. (#107)
+- `core.md` §1.3a.2 rule 1 states the two forms it used to decide by reference to text that
+  states neither. It said `generatedAt` is in the RFC 3339 `date-time` form "decided as the
+  verifier decides `issuedAt` and `expiresAt` (§1.3 step 2)", and §1.3 step 2 states a
+  validity-window comparison and no date-time grammar; it said `observationDays` is read as an
+  integer "decided as it reads `trustLevel`", and no sentence of `core.md` that names `trustLevel`
+  says how a number written with a fraction or an exponent part is read. Three bullets of rule 1
+  now state them. `generatedAt` matches the RFC 3339 §5.6 `date-time` production with an
+  upper-case `T` and `Z` and a second from `00` to `59`, on a day of the Gregorian calendar, with
+  optional fractional seconds and then `Z` or a numeric offset. `observationDays` is a JSON number
+  written with neither a fraction part nor an exponent part (RFC 8259 §6), decided from the JSON
+  text, so `14` is in that form and `14.0`, `1.4e1` and `14E0` are not. The projection writes
+  `generatedAt` as the instant it names in UTC to whole seconds, subtracting a numeric offset and
+  dropping fractional seconds without rounding, so the signature covers that second and not the
+  offset or fractional digits the credential writes; a `generatedAt` whose instant falls outside
+  the years `0000` to `9999` in UTC is not well formed. The credential schema's `integer` type
+  accepts `14.0` and `1.4e1` (jsonschema 4.26.0, draft 2020-12), and Go's `encoding/json` rejects
+  both when it decodes them into an `int` (go1.26.3), so the schema type did not decide the
+  reading. For a `generatedAt` already written as `YYYY-MM-DDTHH:MM:SSZ` and an `observationDays`
+  written as an integer, the projection the text describes is unchanged. No BCP 14 statement is
+  added or removed, and the text this replaces is not in the v1.1.0 `core.md`. (#105)
 - `scripts/check_review_marker.py` reads a run of whitespace in an item of a `[denied]` list, line
   breaks included, as one space. Its pattern matched "test suite" and "test suites" only with one
   space between the words, so a `.pre-push-review-not-required` with "There is no test" at the
