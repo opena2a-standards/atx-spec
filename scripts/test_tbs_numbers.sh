@@ -320,6 +320,35 @@ schema_set "$T" '{"type": "integer", "minimum": -9007199254740991, "maximum": 90
     properties scanSummary properties highFindings
 expect_pass "a minimum of -9007199254740991 bounds the member" "$T"
 
+# 1 followed by 400 zeros: Python's json module reads it as an exact int, which is
+# too large to convert to a float.
+BEYOND_FLOAT="1$(printf '%0400d' 0)"
+
+T="$(tree maximum-beyond-float "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0, "maximum": '"$BEYOND_FLOAT"'}' \
+    properties behavioralProfile properties observationDays
+expect_fail "a maximum of 1 followed by 400 zeros, too large for a float, fails as [unbounded]" \
+    "$T" - \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `behavioralProfile.observationDays`' \
+    '!admits an integer below' '!Traceback'
+
+T="$(tree minimum-beyond-float "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": -'"$BEYOND_FLOAT"', "maximum": 10}' \
+    properties scanSummary properties highFindings
+expect_fail "a minimum of -1 followed by 400 zeros, too large for a float, fails as [unbounded]" \
+    "$T" - \
+    "$UNBOUNDED"' admits an integer below -9007199254740991 at `scanSummary.highFindings`' \
+    '!admits an integer above' '!Traceback'
+
+T="$(tree exclusive-beyond-float "$NAMED")"
+schema_set "$T" '{"type": "integer", "exclusiveMinimum": -'"$BEYOND_FLOAT"', "exclusiveMaximum": '"$BEYOND_FLOAT"'}' \
+    properties scanSummary properties criticalFindings
+expect_fail "an exclusiveMinimum and exclusiveMaximum of minus and plus 1 followed by 400 zeros fail as [unbounded]" \
+    "$T" - \
+    "$UNBOUNDED"' admits an integer below -9007199254740991 at `scanSummary.criticalFindings`' \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `scanSummary.criticalFindings`' \
+    '!Traceback'
+
 T="$(tree number-typed "$NAMED")"
 schema_set "$T" '{"type": "number", "minimum": 0, "maximum": 4}' properties trustLevel
 expect_fail "a TBS member the schema types as number fails although it is bounded" "$T" - \
