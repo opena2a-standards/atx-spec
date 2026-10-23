@@ -489,8 +489,8 @@ expect_fail "a \$dynamicRef to a member \$defs does not have fails the same way"
     "$UNRESOLVED \$.properties.scanSummary['\$dynamicRef']: \"#/\$defs/nonexistent\" does not resolve" \
     '!Traceback'
 
-# unevaluatedProperties looks the $ref beside it up before the $ref keyword
-# does, and the validator then raises the referencing library's own error.
+# jsonschema's unevaluatedProperties looks the $ref beside it up itself, and
+# here it comes first in the schema; the check evaluates it after the $ref.
 T="$(new_dir ref-unevaluated)"
 write_tree "$T" "$GOOD"
 schema_set "$T" '{"unevaluatedProperties": false, "$ref": "#/$defs/nonexistent"}' properties scanSummary
@@ -506,6 +506,115 @@ expect_fail "a \$ref to a document that cannot be retrieved fails naming the ref
     "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
     "$UNRESOLVED \"file:///nonexistent-atx-spec-check/scan-summary.json\" does not resolve" \
     '!Traceback'
+
+# The line names the reference whose lookup failed: not one that resolves
+# against the $id of the subschema it is in, and not one no fixture's
+# validation reaches. No scratch fixture has a revokedAt, whose $ref comes
+# before $defs.zz in the schema.
+T="$(new_dir ref-nested-id)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$id": "https://example.com/scan-summary", "$defs": {"x": {"type": "object"}}, "$ref": "#/$defs/x"}' \
+    properties scanSummary
+expect_pass "a \$ref that resolves against the \$id of the subschema it is in passes" "$T" "$S"
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' properties trustLevel
+expect_fail "a \$ref that resolves against the \$id of the subschema it is in is not named for one that does not resolve" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.trustLevel['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!scanSummary' '!Traceback'
+
+T="$(new_dir ref-unreached)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/$defs/notReached"}' properties revokedAt
+schema_set "$T" '{"$ref": "#/$defs/zz"}' properties scanSummary
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' '$defs' zz
+expect_fail "a \$ref no fixture reaches is not named for the one a fixture reaches" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$['\$defs'].zz['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!notReached' '!Traceback'
+
+# An error jsonschema raises for another cause stops the check as jsonschema
+# raised it, though the schema holds a $ref that does not resolve: no fixture
+# reaches $defs.unusedRef, and jsonschema raises ValueError for the NaN at
+# trustScore under a multipleOf of 0.5.
+S8="$(new_dir nan-suite)"
+mkdir -p "$S8/fixtures"
+cp "$S/fixtures/"*.json "$S8/fixtures/"
+python3 -B - "$S8/fixtures/baseline-valid.json" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    doc = json.load(f)
+doc["atx"]["trustScore"] = float("nan")
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(doc, f, indent=2)
+PYEOF
+T="$(new_dir another-cause)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '0.5' properties trustScore multipleOf
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' '$defs' unusedRef
+run_check "$T" "$S8"
+rc=$?
+LEAF="an error with another cause stops the check as jsonschema raised it, not as a \$ref no fixture reaches"
+if [ "$rc" -eq 1 ] && [ "$(tail -n 1 "$OUT")" = "ValueError: cannot convert float NaN to integer" ] \
+        && ! grep -qF "does not resolve" "$OUT"; then
+    ok "$LEAF"
+else
+    not_ok "$LEAF" "expected exit 1 ending in the ValueError, got $rc: $(tail -c 400 "$OUT" | tr '\n' ' ')"
+fi
+
+# The place of the reference is found by a walk that keeps its own stack, so a
+# value nested deeper than Python's recursion limit, before that reference in
+# the schema, does not stop the check. The value is spliced in as text, after
+# schema_set, whose json.dump stops at the recursion limit.
+DEEP_VALUE=$((2 * LIMIT))
+if python3 -c "import json; n = $DEEP_VALUE + 10; json.loads('[' * n + ']' * n)" 2>/dev/null; then
+    T="$(new_dir ref-after-deep-value)"
+    write_tree "$T" "$GOOD"
+    schema_set "$T" '{"examples": ["@DEEP@"]}' '$defs' aa
+    schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' '$defs' zz
+    schema_set "$T" '{"$ref": "#/$defs/zz"}' properties scanSummary
+    python3 -B - "$T/schemas/atx-credential-v1.1.schema.json" "$DEEP_VALUE" <<'PYEOF'
+import sys
+path, n = sys.argv[1], int(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text.replace('"@DEEP@"', "[" * n + "]" * n))
+PYEOF
+    expect_fail "a \$ref after a value nested deeper than the recursion limit is named" \
+        "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+        "$UNRESOLVED \$['\$defs'].zz['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+        '!Traceback'
+    expect_lines "a \$ref after a value nested deeper than the recursion limit fails on one line" 1
+else
+    skip "a \$ref after a value nested deeper than the recursion limit is named" \
+        "json.loads reads no array nested $DEEP_VALUE deep here"
+    skip "a \$ref after a value nested deeper than the recursion limit fails on one line" \
+        "json.loads reads no array nested $DEEP_VALUE deep here"
+fi
+
+# A $ref of # leads back to the schema root, which declares the JSON Schema
+# 2020-12 $schema, and the check's validator validates it there too. A
+# subschema that declares draft-07 is validated by jsonschema's validator for
+# that dialect, which looks the reference up itself: the line names the
+# reference that lookup was given.
+T="$(new_dir ref-root-again)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#"}' properties behavioralProfile
+schema_set "$T" '{"$ref": "#/additionalProperties/x"}' not
+expect_fail "a \$ref that does not resolve, met under a \$ref of #, is named by its place" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.not['\$ref']: \"#/additionalProperties/x\" does not resolve" '!Traceback'
+
+T="$(new_dir ref-other-dialect)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$schema": "http://json-schema.org/draft-07/schema#", "$ref": "#/additionalProperties/x"}' \
+    '$defs' draft7
+schema_set "$T" '{"$ref": "#/$defs/draft7"}' properties scanSummary
+expect_fail "a \$ref under a subschema that declares draft-07 fails naming the reference" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED" "\"#/additionalProperties/x\" does not resolve" '!Traceback'
+expect_lines "a \$ref under a subschema that declares draft-07 fails on one line" 1
 
 T="$(new_dir tree)"
 write_tree "$T" "$GOOD"

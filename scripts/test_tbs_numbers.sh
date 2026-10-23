@@ -974,6 +974,22 @@ printf '{"expected": {}}\n' > "$S/jcs-vectors/vectors/01-no-hex.json"
 expect_fail "a vector without expected.canonicalHex fails" "$T" "$S" \
     "jcs-vectors/vectors/01-no-hex.json [vector] cannot read expected.canonicalHex"
 
+# json.loads reads NaN, Infinity and -Infinity, which RFC 8259 section 6 does not
+# permit as JSON numbers; a TBS that holds one is not JSON.
+S="$TMP/suite-nan"
+vector "$S" 01-nan '{"trustLevel":NaN}'
+expect_fail "a vector whose TBS holds NaN at a TBS member fails as not JSON" "$T" "$S" \
+    'jcs-vectors/vectors/01-nan.json [vector] cannot read expected.canonicalHex as JSON: NaN is not a JSON number'
+
+S="$TMP/suite-infinity"
+vector "$S" 01-infinity '{"trustLevel":Infinity}'
+vector "$S" 02-negative-infinity '{"trustLevel":-Infinity}'
+expect_fail "a vector whose TBS holds Infinity or -Infinity fails as not JSON, not as a number out of range" \
+    "$T" "$S" \
+    'jcs-vectors/vectors/01-infinity.json [vector] cannot read expected.canonicalHex as JSON: Infinity is not a JSON number' \
+    'jcs-vectors/vectors/02-negative-infinity.json [vector] cannot read expected.canonicalHex as JSON: -Infinity is not a JSON number' \
+    '!holds the JSON number'
+
 # A vector nested deeper than json.loads reads or json_numbers() walks fails on one
 # line, not with a RecursionError traceback, and the vectors after it are still read.
 # The depths are those of the schema cases above.
