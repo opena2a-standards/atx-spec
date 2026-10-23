@@ -329,6 +329,24 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py --suite` reports a `jcs-vectors` vector nested deeper than Python
+  reads or walks on one `[vector]` line that names the vector file, instead of stopping with a
+  `RecursionError` traceback. With Python 3.14.3 on macOS arm64, a vector file that is an array
+  nested 300,000 deep stopped the check in `json.loads` with a 19-line traceback, and a vector
+  whose `expected.canonicalHex` decodes to an object nested 5,000 deep, which `json.loads` reads,
+  stopped it in the walk that finds the JSON numbers in the TBS with an 18-line traceback, each
+  with exit 1. The first now prints `cannot read the file as JSON: it nests arrays or objects
+  deeper than the json module of this Python can read` after the vector's path and `[vector]`, or
+  `cannot read expected.canonicalHex as JSON` and the same words when the value nested that deep
+  is the TBS; the second prints `expected.canonicalHex nests deeper than the check can walk`. Each
+  is followed by Python's reason in parentheses and exits 1, and the vectors after it are still
+  read. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 6 cases and runs 105,
+  one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector file and an
+  `expected.canonicalHex` nested deeper than `json.loads` reads, and an `expected.canonicalHex`
+  nested deeper than the walk follows, each beside a vector that is still reported, with a
+  one-line count. It takes the depths the schema cases take, and skips the 2 walk cases where
+  `json.loads` reads no value nested that deep, as on Python 3.9.6. With the check of 5796fc2, 6
+  of its 105 cases fail on Python 3.14.3 and 3.13.12, and 4 on 3.9.6. (#132)
 - `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
   writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
   3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check

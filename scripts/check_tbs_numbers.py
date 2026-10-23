@@ -573,13 +573,27 @@ def check_suite(suite, numeric):
     failures = []
     for path in vectors:
         rel = path.relative_to(suite).as_posix()
+        source = "the file"
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
+            source = "expected.canonicalHex"
             tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             failures.append(f"{rel} [vector] cannot read expected.canonicalHex as JSON: {exc}")
             continue
-        for member, value in json_numbers(tbs):
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] cannot read {source} as JSON: it nests arrays or "
+                            f"objects deeper than the json module of this Python can read ({exc})")
+            continue
+        # Each array or object nested in another is one more call of json_numbers(), so
+        # the numbers are all found before any is reported.
+        try:
+            numbers = list(json_numbers(tbs))
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] expected.canonicalHex nests deeper than the check "
+                            f"can walk ({exc})")
+            continue
+        for member, value in numbers:
             if member not in numeric:
                 failures.append(
                     f"{rel} [vector] holds the JSON number {value} at `{member}`, which is "

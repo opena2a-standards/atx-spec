@@ -235,6 +235,34 @@ print(json.dumps({"expected": {"canonicalHex": sys.argv[1].encode("utf-8").hex()
 ' "$3" > "$1/jcs-vectors/vectors/$2.json"
 }
 
+# vector_deep <suite> <name> <depth> <array|object> <file|tbs>: a
+# jcs-vectors/vectors/<name>.json that is itself an array nested <depth> deep, or whose
+# expected.canonicalHex is one, or <depth> objects each nested in the one before
+# through a ({"a": {"a": ... 1}}). The value is built as text, as in schema_deep.
+vector_deep() {
+    mkdir -p "$1/jcs-vectors/vectors"
+    python3 -B - "$1/jcs-vectors/vectors/$2.json" "$3" "$4" "$5" <<'PYEOF'
+import json, sys
+path, depth, kind, where = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+if kind == "array":
+    deep = "[" * depth + "0" + "]" * depth
+else:
+    deep = '{"a": ' * depth + "1" + "}" * depth
+if where == "tbs":
+    deep = json.dumps({"expected": {"canonicalHex": deep.encode("utf-8").hex()}})
+with open(path, "w", encoding="utf-8") as f:
+    f.write(deep)
+PYEOF
+}
+
+one_line_naming() {  # one_line_naming <leaf name> <text>: the last run printed one line with it
+    if [ "$(grep -cF -- "$2" "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line naming '$2': $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
+}
+
 # --- the delivered tree -----------------------------------------------------
 
 expect_pass "the delivered core.md, schema and Markdown pass" "$REPO"
@@ -813,6 +841,59 @@ mkdir -p "$S/jcs-vectors/vectors"
 printf '{"expected": {}}\n' > "$S/jcs-vectors/vectors/01-no-hex.json"
 expect_fail "a vector without expected.canonicalHex fails" "$T" "$S" \
     "jcs-vectors/vectors/01-no-hex.json [vector] cannot read expected.canonicalHex"
+
+# A vector nested deeper than json.loads reads or json_numbers() walks fails on one
+# line, not with a RecursionError traceback, and the vectors after it are still read.
+# The depths are those of the schema cases above.
+DEEP_READ=': it nests arrays or objects deeper than the json module of this Python can read'
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    S="$TMP/suite-deep-file"
+    vector_deep "$S" 01-deep-file "$((2 * LOADS_DEPTH))" array file
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "a vector file nested deeper than json.loads reads fails as not JSON" "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-file.json [vector] cannot read the file as JSON$DEEP_READ" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "a vector file nested deeper than json.loads reads is reported on one line" \
+        "01-deep-file.json"
+
+    S="$TMP/suite-deep-hex"
+    vector_deep "$S" 01-deep-hex "$((2 * LOADS_DEPTH))" array tbs
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "an expected.canonicalHex nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-hex.json [vector] cannot read expected.canonicalHex as JSON$DEEP_READ" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "an expected.canonicalHex nested deeper than json.loads reads is reported on one line" \
+        "01-deep-hex.json"
+else
+    for leaf in "a vector file nested deeper than json.loads reads fails as not JSON" \
+        "a vector file nested deeper than json.loads reads is reported on one line" \
+        "an expected.canonicalHex nested deeper than json.loads reads fails as not JSON" \
+        "an expected.canonicalHex nested deeper than json.loads reads is reported on one line"; do
+        skip "$leaf" "json.loads reads 2,000,000 levels here"
+    done
+fi
+
+# One JSON level per object: {"a": ...}.
+if [ "$LOADS_DEPTH" -gt $((WALK_DEPTH + 100)) ]; then
+    S="$TMP/suite-deep-walk"
+    vector_deep "$S" 01-deep-walk "$WALK_DEPTH" object tbs
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "an expected.canonicalHex nested deeper than the walk follows fails naming the vector" \
+        "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-walk.json [vector] expected.canonicalHex nests deeper than the check can walk" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "an expected.canonicalHex nested deeper than the walk follows is reported on one line" \
+        "01-deep-walk.json"
+else
+    skip "an expected.canonicalHex nested deeper than the walk follows fails naming the vector" \
+        "json.loads reads no value nested that deep here"
+    skip "an expected.canonicalHex nested deeper than the walk follows is reported on one line" \
+        "json.loads reads no value nested that deep here"
+fi
 
 S="$TMP/suite-empty"
 mkdir -p "$S"
