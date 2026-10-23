@@ -146,7 +146,7 @@ Any party verifying an ATX runs this sequence locally. Steps 1 through 5 require
    - The authority behind a signature is the DID its `keyId` names: the `keyId` up to the first `#`, or the whole value if it contains none. A signature counts only after the verifier has resolved that DID as in step 3, confirmed the verifying key is published in the resulting DID document, and confirmed the authority is one it accepts under its federation trust list (§7).
    - Distinctness is over keys as well as names. Each authority counts once however many of its keys signed, so an Ed25519 and an ML-DSA-65 signature from one authority are one authority, and a threshold key set held by one authority is one authority, whatever its threshold (step 5 checks that threshold; it adds no authority here). Two signatures that verify under the same public key count once, whatever `keyId` values they carry.
    - Only verified signatures count. The length of `issuerChain` MUST NOT be counted, and presence in `issuerChain` MUST NOT substitute for a verified signature. The chain is a signed declaration of intended delegation order (§1.3a.2 rule 4), not evidence that the authorities it names signed anything.
-8. Accept. Attach the ATX to the request context for downstream use, together with the number of distinct signer authorities this verifier itself verified in step 7 and whether it performed that count at all.
+8. Accept. Attach the ATX to the request context for downstream use, together with the number of distinct signer authorities this verifier itself verified in step 7 and whether it performed that count at all. Downstream use takes each value it acts on from the members this verifier read by their exact names in steps 1 to 7. A relying party MUST NOT act on a value it obtains by decoding the credential's JSON again, because a decoder that matches names, resolves escapes or keeps a repeated member differently from this verifier can return a value this verifier did not check.
 
 A verifier that did not perform the step 7 count MUST NOT present `trustLevel` to downstream consumers as a value it has verified: it has verified the signature over the level, not the multi-authority property the level asserts at 3 and above. Before presenting a `trustLevel` of 3 or higher it MUST either perform the count of step 7, or present the level together with an explicit marker that the multi-authority property was not checked. It MUST NOT lower the level and MUST NOT omit the field: lowering asserts a level no issuer signed, and omitting removes a signed field the consumer may need. A verifier that did not perform the count reports it as not performed and MUST NOT report a count of zero or one in its place; an absent measurement is not a measured result. A consumer that receives a `trustLevel` of 3 or higher with no such marker MAY assume the verifier performed the count.
 
@@ -206,6 +206,26 @@ issuerDid, issuerChain
 Excluded, and MUST NOT appear in the TBS: `id`; `transparencyLogIndex` (unsigned inclusion metadata, assigned by the log and set after signing; §1.1); `signatures` (the envelope being produced); `revoked`,
 `revokedAt`, `revocationReason` (mutated after issuance via the CRL and the
 database, so they cannot be signed at issuance); and `createdAt`.
+
+Member names. The members of a v1.1 credential are exactly the included keys
+above and the excluded members just named, and the members of each
+`signatures` entry are exactly `algorithm`, `keyId` and `value`. Names are
+compared code point for code point after JSON escape sequences are resolved,
+so a name that differs from one of these in letter case, in a character
+outside ASCII, or in any other way is another name: `ID` and `İd` (U+0130
+LATIN CAPITAL LETTER I WITH DOT ABOVE) are not `id`, and `ıssuedAt` (U+0131
+LATIN SMALL LETTER DOTLESS I) and `issued_at` are not `issuedAt`. A verifier
+MUST reject, at §1.3 step 1, a credential that has a member with any other
+name at its top level or in a `signatures` entry, whatever the member's value:
+the credential does not parse (`PARSE_ERROR`). An issuer MUST NOT emit such a
+member. Rules 1 and 2 below do the same for the members of `behavioralProfile`
+and `scanSummary`, with a signature failure as the outcome, and rule 5
+includes `declaredPurpose` as the credential writes it, so the signature
+covers every name it holds. JSON decoders differ in which names they treat as
+one: some ignore letter case, some fold Unicode case, and some map one naming
+convention onto another. Without this rule, a decoder could read a member that
+the signature does not cover as one it covers, and two decoders could read
+different values from one credential.
 
 Determinism rules. These are normative; they are the difference between a
 credential that verifies across implementations and one that does not:
