@@ -120,7 +120,15 @@ VERBATIM='A verifier MUST reject a credential that carries a JSON number in
    an exponent part, or whose absolute value is greater than 9007199254740991, as
    a signature failure (`SIGNATURE_INVALID`).'
 
+# The rule 3 sentence that says what a verifier does with one of those integers
+# written with a fraction or an exponent part.
+FORM='A verifier MUST reject a credential that carries `trustLevel`,
+   `scanSummary.criticalFindings`, `scanSummary.highFindings` or
+   `behavioralProfile.observationDays` written with a fraction part or an
+   exponent part, as a signature failure (`SIGNATURE_INVALID`).'
+
 MISSING='[missing] names the only JSON numbers in the TBS but not'
+NO_FORM='core.md:3 [form] section 1.3a.2 has no sentence that names'
 UNBOUNDED='schemas/atx-credential-v1.1.schema.json [unbounded]'
 NO_VERBATIM='core.md:3 [verbatim] section 1.3a.2 has no sentence that names'
 
@@ -128,12 +136,13 @@ NO_VERBATIM='core.md:3 [verbatim] section 1.3a.2 has no sentence that names'
 # core.md: the section 1.3a.2 heading on line 3, the included keys on lines 8-11,
 # and the statement from line 15, after the rule 3 sentence that keeps trustScore
 # a JSON number on the wire. The RANGE sentence follows the statement, or
-# $RANGE_TEXT when it is set (empty for none), and the VERBATIM sentence follows
-# that, or $VERBATIM_TEXT when it is set (empty for none); section 1.3a.3 follows
-# rule 4.
+# $RANGE_TEXT when it is set (empty for none), the VERBATIM sentence follows
+# that, or $VERBATIM_TEXT when it is set (empty for none), and the FORM sentence
+# follows that, or $FORM_TEXT when it is set (empty for none); section 1.3a.3
+# follows rule 4.
 tree() {
     local t="$TMP/$1" keys="${3:-$KEYS}" range="${RANGE_TEXT-$RANGE}"
-    local verbatim="${VERBATIM_TEXT-$VERBATIM}"
+    local verbatim="${VERBATIM_TEXT-$VERBATIM}" form="${FORM_TEXT-$FORM}"
     mkdir -p "$t/schemas"
     cp "$REPO/schemas/atx-credential-v1.1.schema.json" "$t/schemas/"
     {
@@ -146,6 +155,9 @@ tree() {
         fi
         if [ -n "$verbatim" ]; then
             printf '   %s\n' "$verbatim"
+        fi
+        if [ -n "$form" ]; then
+            printf '   %s\n' "$form"
         fi
         printf '4. **`issuerChain` is root-first.** Element 0 is the root authority.\n\n'
         printf '#### 1.3a.3 Cross-implementation byte agreement\n\nThe vectors pin the bytes.\n'
@@ -221,6 +233,34 @@ vector() {  # vector <suite> <name> <canonical TBS as JSON>: a jcs-vectors/vecto
 import json, sys
 print(json.dumps({"expected": {"canonicalHex": sys.argv[1].encode("utf-8").hex()}}))
 ' "$3" > "$1/jcs-vectors/vectors/$2.json"
+}
+
+# vector_deep <suite> <name> <depth> <array|object> <file|tbs>: a
+# jcs-vectors/vectors/<name>.json that is itself an array nested <depth> deep, or whose
+# expected.canonicalHex is one, or <depth> objects each nested in the one before
+# through a ({"a": {"a": ... 1}}). The value is built as text, as in schema_deep.
+vector_deep() {
+    mkdir -p "$1/jcs-vectors/vectors"
+    python3 -B - "$1/jcs-vectors/vectors/$2.json" "$3" "$4" "$5" <<'PYEOF'
+import json, sys
+path, depth, kind, where = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+if kind == "array":
+    deep = "[" * depth + "0" + "]" * depth
+else:
+    deep = '{"a": ' * depth + "1" + "}" * depth
+if where == "tbs":
+    deep = json.dumps({"expected": {"canonicalHex": deep.encode("utf-8").hex()}})
+with open(path, "w", encoding="utf-8") as f:
+    f.write(deep)
+PYEOF
+}
+
+one_line_naming() {  # one_line_naming <leaf name> <text>: the last run printed one line with it
+    if [ "$(grep -cF -- "$2" "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line naming '$2': $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
 }
 
 # --- the delivered tree -----------------------------------------------------
@@ -490,6 +530,55 @@ printf '\n%s\n' "$VERBATIM" >> "$T/core.md"
 expect_fail "the verbatim sentence outside section 1.3a.2 does not stand in for one inside it" \
     "$T" - "$NO_VERBATIM"' `declaredPurpose`' "$NO_VERBATIM"' `scanSummary.techniques`'
 
+# --- form: one of those integers written with a fraction or exponent part ---
+
+T="$(FORM_TEXT='' tree no-form "$NAMED")"
+expect_fail "a section 1.3a.2 that does not say what a verifier does with one of those integers written with a fraction or an exponent part fails for each" \
+    "$T" - "$NO_FORM"' `trustLevel` and says "fraction", "exponent", "reject" and "SIGNATURE_INVALID"' \
+    "$NO_FORM"' `scanSummary.criticalFindings`' "$NO_FORM"' `scanSummary.highFindings`' \
+    "$NO_FORM"' `behavioralProfile.observationDays`' \
+    "![range]" "![missing]" "![verbatim]" "!$UNBOUNDED"
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries `trustLevel` written with a fraction part or an exponent part, as a signature failure (`SIGNATURE_INVALID`).' tree form-trust-level-only "$NAMED")"
+expect_fail "a sentence that names trustLevel only fails for the other three only" "$T" - \
+    "$NO_FORM"' `scanSummary.criticalFindings`' "$NO_FORM"' `scanSummary.highFindings`' \
+    "$NO_FORM"' `behavioralProfile.observationDays`' "!$NO_FORM"' `trustLevel`'
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries `trustLevel`, `criticalFindings`, `highFindings` or `observationDays` written with a fractional part or an exponent part, as a signature failure (`SIGNATURE_INVALID`).' tree form-own-names "$NAMED")"
+expect_pass "a sentence may name each of those integers by its own name" "$T"
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries a `scanSummary` member written with a fraction part or an exponent part, as a signature failure (`SIGNATURE_INVALID`).' tree form-container "$NAMED")"
+expect_fail "a sentence that names scanSummary does not stand in for its integer members" "$T" - \
+    "$NO_FORM"' `scanSummary.criticalFindings`' "$NO_FORM"' `scanSummary.highFindings`'
+
+T="$(FORM_TEXT='`observationDays` is a JSON number written with neither a fraction part nor an exponent part.' tree form-no-outcome "$NAMED")"
+expect_fail "a sentence that states the form but gives no outcome does not count" "$T" - \
+    "$NO_FORM"' `behavioralProfile.observationDays`'
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries `trustLevel`, `criticalFindings`, `highFindings` or `observationDays` written with an exponent part, as a signature failure (`SIGNATURE_INVALID`).' tree form-no-fraction "$NAMED")"
+expect_fail "a form sentence that does not say fraction does not count" "$T" - "$NO_FORM"' `trustLevel`'
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries `trustLevel`, `criticalFindings`, `highFindings` or `observationDays` written with a fraction part, as a signature failure (`SIGNATURE_INVALID`).' tree form-no-exponent "$NAMED")"
+expect_fail "a form sentence that does not say exponent does not count" "$T" - "$NO_FORM"' `trustLevel`'
+
+T="$(FORM_TEXT='A verifier MUST NOT accept a credential that carries `trustLevel`, `criticalFindings`, `highFindings` or `observationDays` written with a fraction part or an exponent part, as a signature failure (`SIGNATURE_INVALID`).' tree form-no-reject "$NAMED")"
+expect_fail "a form sentence that does not say reject does not count" "$T" - "$NO_FORM"' `trustLevel`'
+
+T="$(FORM_TEXT='A verifier MUST reject a credential that carries `trustLevel`, `criticalFindings`, `highFindings` or `observationDays` written with a fraction part or an exponent part, as a signature failure.' tree form-no-code "$NAMED")"
+expect_fail "a form sentence that does not say SIGNATURE_INVALID does not count" "$T" - \
+    "$NO_FORM"' `trustLevel`'
+
+T="$(FORM_TEXT='' tree form-moved "$NAMED")"
+printf '\n%s\n' "$FORM" >> "$T/core.md"
+expect_fail "the form sentence outside section 1.3a.2 does not stand in for one inside it" \
+    "$T" - "$NO_FORM"' `trustLevel`' "$NO_FORM"' `behavioralProfile.observationDays`'
+
+T="$(tree form-new-member "$NAMED")"
+schema_set "$T" '{"type": "integer", "minimum": 0, "maximum": 9007199254740991}' \
+    properties scanSummary properties mediumFindings
+expect_fail "an integer member the schema adds to scanSummary fails the form check until a sentence names it" \
+    "$T" - "$NO_FORM"' `scanSummary.mediumFindings`' "!$NO_FORM"' `trustLevel`'
+
 # --- absent and the anchors -------------------------------------------------
 
 T="$(tree no-statement '')"
@@ -752,6 +841,59 @@ mkdir -p "$S/jcs-vectors/vectors"
 printf '{"expected": {}}\n' > "$S/jcs-vectors/vectors/01-no-hex.json"
 expect_fail "a vector without expected.canonicalHex fails" "$T" "$S" \
     "jcs-vectors/vectors/01-no-hex.json [vector] cannot read expected.canonicalHex"
+
+# A vector nested deeper than json.loads reads or json_numbers() walks fails on one
+# line, not with a RecursionError traceback, and the vectors after it are still read.
+# The depths are those of the schema cases above.
+DEEP_READ=': it nests arrays or objects deeper than the json module of this Python can read'
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    S="$TMP/suite-deep-file"
+    vector_deep "$S" 01-deep-file "$((2 * LOADS_DEPTH))" array file
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "a vector file nested deeper than json.loads reads fails as not JSON" "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-file.json [vector] cannot read the file as JSON$DEEP_READ" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "a vector file nested deeper than json.loads reads is reported on one line" \
+        "01-deep-file.json"
+
+    S="$TMP/suite-deep-hex"
+    vector_deep "$S" 01-deep-hex "$((2 * LOADS_DEPTH))" array tbs
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "an expected.canonicalHex nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-hex.json [vector] cannot read expected.canonicalHex as JSON$DEEP_READ" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "an expected.canonicalHex nested deeper than json.loads reads is reported on one line" \
+        "01-deep-hex.json"
+else
+    for leaf in "a vector file nested deeper than json.loads reads fails as not JSON" \
+        "a vector file nested deeper than json.loads reads is reported on one line" \
+        "an expected.canonicalHex nested deeper than json.loads reads fails as not JSON" \
+        "an expected.canonicalHex nested deeper than json.loads reads is reported on one line"; do
+        skip "$leaf" "json.loads reads 2,000,000 levels here"
+    done
+fi
+
+# One JSON level per object: {"a": ...}.
+if [ "$LOADS_DEPTH" -gt $((WALK_DEPTH + 100)) ]; then
+    S="$TMP/suite-deep-walk"
+    vector_deep "$S" 01-deep-walk "$WALK_DEPTH" object tbs
+    vector "$S" 02-score-number '{"trustLevel":4,"trustScore":87.5}'
+    expect_fail "an expected.canonicalHex nested deeper than the walk follows fails naming the vector" \
+        "$T" "$S" \
+        "jcs-vectors/vectors/01-deep-walk.json [vector] expected.canonicalHex nests deeper than the check can walk" \
+        'jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`' \
+        '!Traceback'
+    one_line_naming "an expected.canonicalHex nested deeper than the walk follows is reported on one line" \
+        "01-deep-walk.json"
+else
+    skip "an expected.canonicalHex nested deeper than the walk follows fails naming the vector" \
+        "json.loads reads no value nested that deep here"
+    skip "an expected.canonicalHex nested deeper than the walk follows is reported on one line" \
+        "json.loads reads no value nested that deep here"
+fi
 
 S="$TMP/suite-empty"
 mkdir -p "$S"

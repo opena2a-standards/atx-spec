@@ -329,6 +329,23 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py --suite` reports a `jcs-vectors` vector nested deeper than Python
+  reads or walks on one `[vector]` line that names the vector file, instead of stopping with a
+  `RecursionError` traceback. With Python 3.14.3 on macOS arm64, a vector file that is an array
+  nested 300,000 deep stopped the check in `json.loads` with a 19-line traceback, and a vector
+  whose `expected.canonicalHex` decodes to an object nested 5,000 deep, which `json.loads` reads,
+  stopped it in the walk that finds the JSON numbers in the TBS with an 18-line traceback, each
+  with exit 1. The first now prints `cannot read the file as JSON: it nests arrays or objects
+  deeper than the json module of this Python can read` after the vector's path and `[vector]`, or
+  `cannot read expected.canonicalHex as JSON` and the same words when the value nested that deep
+  is the TBS; the second prints `expected.canonicalHex nests deeper than the check can walk`. Each
+  is followed by Python's reason in parentheses and exits 1, and the vectors after it are still
+  read. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 6 cases and runs 116,
+  one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector file and an
+  `expected.canonicalHex` nested deeper than `json.loads` reads, and an `expected.canonicalHex`
+  nested deeper than the walk follows, each beside a vector that is still reported, with a
+  one-line count. It takes the depths the schema cases take, and skips the 2 walk cases where
+  `json.loads` reads no value nested that deep, as on Python 3.9.6. (#132)
 - `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
   writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
   3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check
@@ -365,6 +382,44 @@ identifier registered in `core.md` §14.
   `"#/$defs/did/type"` and a two-`$ref` loop), a one-line count for the root and member `"#/$defs/missing"`, and a recursive `$ref`
   that passes, and runs 99, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
   checkout. (#125)
+- `scripts/check_schema_refusals.py` reports a schema or fixture nested deeper than it can read or
+  follow on one failure line per file, where it stopped with a `RecursionError` traceback. With
+  Python 3.14.3 and jsonschema 4.26.0, an unused `$defs` member that nests 100 object schemas
+  through `properties` stopped the check in `Draft202012Validator.check_schema()` with 2,704 lines
+  of traceback (one that nests 90 passed); arrays nested 200,000 deep in the schema or in a fixture
+  stopped it in `json.loads`; and a chain of 2,000 `$ref` at `agentId`, which every fixture
+  reaches, stopped it in `iter_errors()` with 2,504 lines. Each exited 1. The 100-deep schema now
+  fails as `[missing]` with `schemas/atx-credential-v1.1.schema.json [missing] cannot be read as a
+  JSON Schema: it nests deeper than the check can follow when it compares it with the JSON Schema
+  2020-12 metaschema; its deepest place is
+  $.$defs.deepUnused.properties.a.properties.a.properties.a... (maximum recursion depth
+  exceeded)`; the 200,000-deep schema and fixture fail as files that cannot be read as JSON; and
+  with the `$ref` chain each fixture fails as `[fixture]` on one line and is left out of the
+  `[stale]` rule, as whether the schema refuses it is not known. Each of them exits with 1. The
+  repository's own tree still passes against the test's scratch suite.
+  `scripts/test_schema_refusals.sh` adds 9 cases and runs 36, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of f339902, 8 of them fail. (#127)
+- `core.md` §1.3a.2 rules 2 and 3 state the integer form for `trustLevel`,
+  `scanSummary.criticalFindings` and `scanSummary.highFindings`, decided from the number as the
+  credential's JSON text writes it, as rule 1 decides it for `behavioralProfile.observationDays`,
+  and give the outcome for a value outside it. Rules 2 and 3 bounded those three members to an
+  absolute value of at most 9007199254740991 but stated no form, and the credential schema's
+  `integer` type accepts `1.0` and `1e0` at each of them (`Draft202012Validator` reports no error
+  for either), so a member written `1.0` had no stated outcome. Implementations write different
+  bytes for such a number: Node.js 26.12.0 `JSON.stringify` writes the parsed
+  `{"criticalFindings":1.0,"trustLevel":3e0}` as `{"criticalFindings":1,"trustLevel":3}`, and
+  Python 3.14.3 `json.dumps` writes it as `{"criticalFindings": 1.0, "trustLevel": 3.0}`. Rule 3
+  now says a verifier MUST reject a credential that carries one of the four TBS integers written
+  with a fraction part or an exponent part, as it does one above that bound, as a signature failure
+  (`SIGNATURE_INVALID`), and that an issuer MUST NOT emit one outside the integer form; rule 2
+  counts such a `scanSummary` member as outside its type. `scripts/check_tbs_numbers.py` adds a
+  `[form]` check: for each TBS member the schema types as integer or number, `trustScore` apart,
+  a sentence of §1.3a.2 names it in backticks and says "fraction", "exponent", "reject" and
+  `SIGNATURE_INVALID`. Against the `core.md` of f339902 it reports `[form]` for each of the four
+  members and exits 1; it passes on this tree. `scripts/test_tbs_numbers.sh` adds 11 cases and
+  runs 110, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; against the
+  `core.md` of f339902 1 of them fails, the case that reads the delivered tree. The
+  atx-conformance fixtures for this outcome are not part of this change. (#129)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it
@@ -393,6 +448,27 @@ identifier registered in `core.md` §14.
   passes against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 5 cases and runs
   27, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of
   e212bad, 5 of them fail. (#120)
+- `scripts/check_schema_refusals.py` reports a `$ref` or `$dynamicRef` of the credential schema
+  that does not resolve on one line instead of stopping with a traceback. The JSON Schema 2020-12
+  metaschema, which the check applies first, does not follow a `$ref`, so a schema whose
+  `scanSummary` is `{"$ref": "#/$defs/nonexistent"}` passed it, and once a fixture's validation
+  reached that `$ref`, jsonschema's `iter_errors()` raised `_WrappedReferencingError:
+  PointerToNowhere` and the check stopped with a traceback and exit 1. A reference that does not
+  resolve when a fixture's validation reaches it, a JSON pointer that names nothing in the schema
+  such as that one or `#/allOf/x`, an anchor no subschema declares, or a document jsonschema
+  cannot retrieve, now fails as `[missing]`, with exit 1 and one line that names the fixture and
+  gives the first `$ref` or `$dynamicRef` in the schema that names nothing in it, as a JSON path
+  written as jsonschema writes one, with its value written as JSON; when the schema has none, as
+  for a reference to another document, the line gives what jsonschema reports it could not
+  resolve.
+  For that `scanSummary` it reports `schemas/atx-credential-v1.1.schema.json [missing] cannot
+  validate fixtures/baseline-valid.json: $.properties.scanSummary['$ref']: "#/$defs/nonexistent"
+  does not resolve` against the test's scratch suite. The repository's own tree still passes
+  against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 8 cases, a `$ref` to
+  `#/$defs/nonexistent`, `#/allOf/x`, `#/additionalProperties/x` and `#nonexistent`, a `$ref`
+  reached through another `$ref`, a `$dynamicRef` to `#/$defs/nonexistent`, a `$ref` that
+  `unevaluatedProperties` looks up first, and a `$ref` to a `file:` document that does not exist,
+  and runs 44, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout. (#128)
 - `scripts/check_tbs_member_names.py` counts a sentence as the outcome for a closed object only
   when it is also about a member outside the set: it states the set itself, says "none of", "no
   other" or "any other", or says "not" and the one to three words between "is" and "only when" or

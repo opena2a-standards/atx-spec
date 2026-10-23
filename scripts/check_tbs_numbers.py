@@ -63,6 +63,17 @@ text to an outcome for such a number:
                  "fraction", "exponent", "9007199254740991", "reject" and
                  "SIGNATURE_INVALID". "fraction" also matches "fractional".
 
+The schema's integer type tests the value, so it accepts 1.0 and 1e0 at each of
+the members the TBS holds as JSON numbers, and implementations write different
+bytes for such a number. One more check holds the text to an outcome for one:
+
+  form           For each of those members, section 1.3a.2 holds a sentence that
+                 names it in backticks, as `member` or as a dotted path such as
+                 `parent.member`, and says "fraction", "exponent", "reject" and
+                 "SIGNATURE_INVALID". "fraction" also matches "fractional", and
+                 the name of an object that holds one (`scanSummary`) does not
+                 count for it.
+
 With --suite, each jcs-vectors/vectors/*.json of an atx-conformance checkout is
 also read: its expected.canonicalHex is decoded and parsed as JSON, and a JSON
 number at a member other than those, or one whose absolute value is greater
@@ -126,6 +137,8 @@ VERBATIM_RES = (
     re.compile(r"\bexponent", re.IGNORECASE),
     re.compile(r"\bSIGNATURE_INVALID\b"),
 )
+# core.md section 1.3a.2 rules 1 and 3: the integer form, decided from the JSON text.
+FORM_RES = VERBATIM_RES[1:]
 
 SECTION_RE = re.compile(r"^(#{1,6})\s+1\.3a\.2(?![\w.])")
 HEADING_RE = re.compile(r"^(#{1,6})\s")
@@ -495,6 +508,19 @@ def verbatim_stated(lines, start, end):
     return stated
 
 
+def form_stated(lines, start, end, numeric):
+    """The members of numeric named by a sentence of lines start..end-1 (numbered from 1)
+    that says each word of FORM_RES."""
+    stated = set()
+    for _, block in blocks(lines[start - 1:end - 1]):
+        for _, sentence in sentences(block):
+            if not all(word.search(sentence) for word in FORM_RES):
+                continue
+            names = [code.group(1).strip() for code in CODE_RE.finditer(sentence)]
+            stated |= {path for path in numeric if any(refers_to(name, path) for name in names)}
+    return stated
+
+
 def json_numbers(node, path=""):
     """(dotted member path, value) per JSON number in node; array positions add nothing."""
     if isinstance(node, bool):
@@ -547,13 +573,27 @@ def check_suite(suite, numeric):
     failures = []
     for path in vectors:
         rel = path.relative_to(suite).as_posix()
+        source = "the file"
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
+            source = "expected.canonicalHex"
             tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             failures.append(f"{rel} [vector] cannot read expected.canonicalHex as JSON: {exc}")
             continue
-        for member, value in json_numbers(tbs):
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] cannot read {source} as JSON: it nests arrays or "
+                            f"objects deeper than the json module of this Python can read ({exc})")
+            continue
+        # Each array or object nested in another is one more call of json_numbers(), so
+        # the numbers are all found before any is reported.
+        try:
+            numbers = list(json_numbers(tbs))
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] expected.canonicalHex nests deeper than the check "
+                            f"can walk ({exc})")
+            continue
+        for member, value in numbers:
             if member not in numeric:
                 failures.append(
                     f"{rel} [vector] holds the JSON number {value} at `{member}`, which is "
@@ -653,6 +693,15 @@ def main():
                 f"section has to say what a verifier does with a JSON number in it written with "
                 f"a fraction or an exponent part, or of absolute value above {EXACT}"
             )
+    stated_form = form_stated(lines, heading, end, numeric)
+    for path in numeric:
+        if path not in stated_form:
+            failures.append(
+                f"core.md:{heading} [form] section 1.3a.2 has no sentence that names `{path}` and "
+                f"says \"fraction\", \"exponent\", \"reject\" and \"SIGNATURE_INVALID\": the schema's "
+                f"integer type tests the value and accepts 1.0 and 1e0, so the section has to say "
+                f"what a verifier does with that member written with a fraction or an exponent part"
+            )
 
     files = markdown_files(root)
     stated, in_section = 0, 0
@@ -694,7 +743,8 @@ def main():
                f"bounds each to integers of absolute value at most {EXACT}, and section 1.3a.2 "
                f"says a verifier rejects one outside that range and what it does with a JSON "
                f"number in {' or '.join(VERBATIM)} written with a fraction or an exponent part "
-               f"or outside that range")
+               f"or outside that range, and with each of those members written with a fraction "
+               f"or an exponent part")
     if suite is not None:
         summary += (f"; {vectors} jcs-vector(s) hold no JSON number at another member or of "
                     f"absolute value above {EXACT}")

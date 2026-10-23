@@ -106,6 +106,16 @@ expect_pass() {  # expect_pass <leaf name> <root> <suite>
     fi
 }
 
+expect_lines() {  # expect_lines <leaf name> <count>: the last run reported <count> failure lines
+    local name="$1" got
+    got="$(grep -c '^  - ' "$OUT")"
+    if [ "$got" -eq "$2" ]; then
+        ok "$name"
+    else
+        not_ok "$name" "expected $2 failure line(s), got $got: $(head -c 400 "$OUT" | tr '\n' ' ')"
+    fi
+}
+
 # write_core <root> <Issuer paragraph text>
 # The Issuer paragraph is on line 5. Section 13 names a fixture the schema
 # accepts in a refusal sentence, which fails if anything outside section 12 is
@@ -140,6 +150,28 @@ for key in keys[:-1]:
 node[keys[-1]] = value
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
+PYEOF
+}
+
+# schema_nest <root> <depth> <key>...: set that member of the tree's schema to
+# <depth> object schemas, each holding the next as the member a of its
+# properties, around a string schema. The text is built rather than written
+# with json.dump, which stops at Python's recursion limit on a value this deep.
+schema_nest() {
+    local root="$1" depth="$2"
+    shift 2
+    python3 -B - "$root/schemas/atx-credential-v1.1.schema.json" "$depth" "$@" <<'PYEOF'
+import json, sys
+path, depth, keys = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+node = schema
+for key in keys[:-1]:
+    node = node.setdefault(key, {})
+node[keys[-1]] = "@NEST@"
+nest = '{"type": "object", "properties": {"a": ' * depth + '{"type": "string"}' + "}}" * depth
+with open(path, "w", encoding="utf-8") as f:
+    f.write(json.dumps(schema, indent=2).replace('"@NEST@"', nest))
 PYEOF
 }
 
@@ -325,6 +357,154 @@ schema_set "$T" '["criticalFindings", "highFindings", "mediumFindings", "lowFind
 expect_fail "a value longer than 60 characters is written as JSON and cut to 60" \
     "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
     "$UNREADABLE \$.properties.scanSummary.properties: [\"criticalFindings\", \"highFindings\", \"mediumFindings\", \"l... is not of type 'object'" \
+    '!Traceback'
+
+# A schema or fixture nested deeper than the check can read or follow fails on
+# one line per file, not with a RecursionError traceback. The depths are taken
+# from the running Python: check_schema() makes several calls for each object
+# schema it walks, so a quarter of the recursion limit is past it, while the
+# JSON text of that many nests less deep than the recursion limit.
+LIMIT="$(python3 -c 'import sys; print(sys.getrecursionlimit())')"
+TOO_DEEP=1000000  # arrays nested this deep, past what json.loads reads
+
+T="$(new_dir nested-shallow)"
+write_tree "$T" "$GOOD"
+schema_nest "$T" 20 '$defs' deepUnused
+expect_pass "an unused \$defs member nesting 20 object schemas still passes" "$T" "$S"
+
+T="$(new_dir nested-deep)"
+write_tree "$T" "$GOOD"
+schema_nest "$T" "$((LIMIT / 4))" '$defs' deepUnused
+expect_fail "an unused \$defs member nesting more object schemas than the check can follow fails naming its deepest place" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE it nests deeper than the check can follow when it compares it with the JSON Schema 2020-12 metaschema; its deepest place is \$.\$defs.deepUnused.properties.a.properties.a.properties.a..." \
+    '!Traceback'
+expect_lines "a schema nested deeper than the check can follow fails on one line" 1
+
+T="$(new_dir ref-chain)"
+write_tree "$T" "$GOOD"
+python3 -B - "$T/schemas/atx-credential-v1.1.schema.json" "$LIMIT" <<'PYEOF'
+import json, sys
+path, n = sys.argv[1], int(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+for i in range(n):
+    schema["$defs"][f"chain{i}"] = {"$ref": f"#/$defs/chain{i + 1}"}
+schema["$defs"][f"chain{n}"] = {"type": "string"}
+schema["properties"]["agentId"] = {"$ref": "#/$defs/chain0"}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+expect_fail "a chain of \$ref every fixture reaches, too long to follow, fails each fixture" \
+    "$T" "$S" "fixtures/v1_1-hybrid-pq-only.json" fixture \
+    "fixtures/baseline-valid.json [fixture] cannot be validated against the schema: the validation goes deeper than the check can follow" \
+    '!Traceback' '![stale]' '![unaccounted]'
+expect_lines "each fixture the check cannot validate fails on one line, and no stale line follows" 4
+
+if python3 -c "import json; n = $TOO_DEEP; json.loads('[' * n + ']' * n)" 2>/dev/null; then
+    skip "a schema nested deeper than json.loads reads fails on one line" "json.loads reads $TOO_DEEP nested arrays"
+    skip "a fixture nested deeper than json.loads reads fails on one line" "json.loads reads $TOO_DEEP nested arrays"
+else
+    T="$(new_dir loads-deep)"
+    write_tree "$T" "$GOOD"
+    schema_set "$T" '"@DEEP@"' '$defs' deepArray
+    python3 -B - "$T/schemas/atx-credential-v1.1.schema.json" "$TOO_DEEP" <<'PYEOF'
+import sys
+path, n = sys.argv[1], int(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text.replace('"@DEEP@"', "[" * n + "]" * n))
+PYEOF
+    expect_fail "a schema nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+        "cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    expect_lines "a schema nested deeper than json.loads reads fails on one line" 1
+
+    S7="$(new_dir deep-fixture-suite)"
+    write_fixture "$S7" v1_1-baseline-valid 1.1 Ed25519
+    write_fixture "$S7" v1_1-hybrid-pq-only 1.1 ML-DSA-65
+    python3 -c "n = $TOO_DEEP; print('{\"atx\": ' + '[' * n + ']' * n + '}')" > "$S7/fixtures/deep.json"
+    T="$(new_dir deep-fixture)"
+    write_tree "$T" "$GOOD"
+    expect_fail "a fixture nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S7" "fixtures/deep.json" fixture \
+        "cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    expect_lines "a fixture nested deeper than json.loads reads fails on one line" 1
+fi
+
+# The metaschema does not follow a $ref, so one that does not resolve passes it
+# and the validator raises once a fixture reaches it. That fails on one line
+# that names the fixture and the reference, not with a traceback; the place is
+# written as jsonschema writes a JSON path, with a key such as $ref in brackets.
+# Every scratch fixture has a scanSummary, and fixtures/baseline-valid.json is
+# read first.
+UNRESOLVED='cannot validate fixtures/baseline-valid.json:'
+
+T="$(new_dir ref-nowhere)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$ref to a member \$defs does not have fails naming the place and the \$ref" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-index)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/allOf/x"}' properties scanSummary
+expect_fail "a \$ref that indexes an array with a segment that is not a number fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/allOf/x\" does not resolve" '!Traceback'
+
+T="$(new_dir ref-scalar)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/additionalProperties/x"}' properties scanSummary
+expect_fail "a \$ref that steps into a boolean fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/additionalProperties/x\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-anchor)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#nonexistent"}' properties scanSummary
+expect_fail "a \$ref to an anchor no subschema declares fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#nonexistent\" does not resolve" '!Traceback'
+
+T="$(new_dir ref-chain)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' '$defs' did
+expect_fail "a \$ref reached through another \$ref is the one named" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$['\$defs'].did['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!$.properties' '!Traceback'
+
+T="$(new_dir dynamic-ref)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$dynamicRef": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$dynamicRef to a member \$defs does not have fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$dynamicRef']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+# unevaluatedProperties looks the $ref beside it up before the $ref keyword
+# does, and the validator then raises the referencing library's own error.
+T="$(new_dir ref-unevaluated)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"unevaluatedProperties": false, "$ref": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$ref that unevaluatedProperties looks up first fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-document)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "file:///nonexistent-atx-spec-check/scan-summary.json"}' properties scanSummary
+expect_fail "a \$ref to a document that cannot be retrieved fails naming the reference" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \"file:///nonexistent-atx-spec-check/scan-summary.json\" does not resolve" \
     '!Traceback'
 
 T="$(new_dir tree)"
