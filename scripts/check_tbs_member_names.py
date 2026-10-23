@@ -18,9 +18,15 @@ apply the schema, so the section has to.
             its properties, and says "exactly", "none of", "no other" or "any
             other".
   outcome   The list item or paragraph that holds that sentence also holds a
-            sentence that names the closed object in backticks and says either
+            sentence that names the closed object in backticks, says either
             "reject" (or "rejects", "rejected") and SIGNATURE_INVALID, or
-            "verbatim".
+            "verbatim", and is about a member outside the set: it is a sentence
+            that states the set, it says "none of", "no other" or "any other",
+            or it says "not" and the one to three words between "is" and "only
+            when" or "only if" in a sentence that states the set ("is well
+            formed only when" makes "not well formed" and "not well-formed"
+            count). A sentence that rejects the object for another reason, and
+            meets none of these, does not count.
   none      The schema types at least one TBS key as a closed object, so a
             schema the check cannot read that way fails instead of passing.
   keys      Section 1.3a.2 lists the included keys in a fenced block after the
@@ -63,6 +69,13 @@ CLOSED_RE = re.compile(r"\bexactly\b|\bnone\s+of\b|\bno\s+other\b|\bany\s+other\
 REJECT_RE = re.compile(r"\breject(?:s|ed)?\b", re.IGNORECASE)
 SIGNATURE_INVALID = "SIGNATURE_INVALID"
 VERBATIM_RE = re.compile(r"\bverbatim\b", re.IGNORECASE)
+
+# What makes an outcome sentence one about a member outside the set: the closing words
+# that point outside a set, or "not" before a condition a member-set sentence states
+# with "is ... only when" or "is ... only if" (one to three words).
+OUTSIDE_RE = re.compile(r"\bnone\s+of\b|\bno\s+other\b|\bany\s+other\b", re.IGNORECASE)
+CONDITION_RE = re.compile(r"\bis\s+([A-Za-z]+(?:[\s-]+[A-Za-z]+){0,2}?)\s+only\s+(?:when|if)\b",
+                          re.IGNORECASE)
 
 CODE_RE = re.compile(r"`([^`]+)`")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
@@ -192,6 +205,12 @@ def code_names(sentence):
     return {m.group(1).strip() for m in CODE_RE.finditer(sentence)}
 
 
+def closes_set(sentence, key, members):
+    """True when a sentence names key and each member in backticks and says a closing word."""
+    names = code_names(sentence)
+    return key in names and set(members) <= names and bool(CLOSED_RE.search(sentence))
+
+
 def states_outcome(sentence, key):
     """True when a sentence names key in backticks and says reject and SIGNATURE_INVALID,
     or says verbatim."""
@@ -201,23 +220,42 @@ def states_outcome(sentence, key):
     return bool(rejects or VERBATIM_RE.search(sentence))
 
 
+def negated_conditions(sentence):
+    """A pattern per condition a sentence states with "is ... only when" or "is ... only if",
+    matching "not" before it: "is well formed only when" gives one that matches
+    "not well formed" and "not well-formed"."""
+    out = []
+    for m in CONDITION_RE.finditer(sentence):
+        words = re.split(r"[\s-]+", m.group(1))
+        out.append(re.compile(r"\bnot\s+" + r"[\s-]+".join(map(re.escape, words)) + r"\b",
+                              re.IGNORECASE))
+    return out
+
+
+def about_outside(sentence, closing):
+    """True when a sentence is about a member outside the set the closing sentences state:
+    it is one of them, says "none of", "no other" or "any other", or says "not" before a
+    condition one of them states."""
+    if sentence in closing or OUTSIDE_RE.search(sentence):
+        return True
+    return any(p.search(sentence) for s in closing for p in negated_conditions(s))
+
+
 def check_key(lines, start, end, key, members):
     """(closed-set sentence found, its block's first line, outcome stated) for one closed object.
 
     The first block of lines[start:end] whose closed-set sentence also has an outcome
-    sentence wins; otherwise the first block with a closed-set sentence is reported.
+    sentence about a member outside the set wins; otherwise the first block with a
+    closed-set sentence is reported.
     """
     first = None
     for number, block in blocks(lines[start - 1:end - 1]):
         texts = list(sentences(block))
-        closes = any(
-            key in code_names(s) and set(members) <= code_names(s) and CLOSED_RE.search(s)
-            for s in texts
-        )
-        if not closes:
+        closing = [s for s in texts if closes_set(s, key, members)]
+        if not closing:
             continue
         line = start + number - 1
-        if any(states_outcome(s, key) for s in texts):
+        if any(states_outcome(s, key) and about_outside(s, closing) for s in texts):
             return True, line, True
         if first is None:
             first = line
@@ -293,7 +331,10 @@ def main():
             failures.append(
                 f"core.md:{line} [outcome] section 1.3a.2 names the members `{key}` may hold but "
                 f"states no outcome for any other: no sentence of that rule names `{key}` in "
-                f"backticks and says \"reject\" and {SIGNATURE_INVALID}, or \"verbatim\""
+                f"backticks, says \"reject\" and {SIGNATURE_INVALID}, or \"verbatim\", and is "
+                f"about a member outside those: one that states them, or says \"none of\", \"no "
+                f"other\" or \"any other\", or says \"not\" and the words between \"is\" and "
+                f"\"only when\" or \"only if\" in the sentence that states them"
             )
 
     if failures:

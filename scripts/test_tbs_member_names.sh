@@ -245,6 +245,28 @@ expect_fail "an outcome sentence that does not name scanSummary in backticks doe
 T="$(tree verbatim "**\`scanSummary\` is always a full object.** $CLOSES A \`scanSummary\` member with any other name MUST be included in the TBS verbatim.")"
 expect_pass "an outcome that includes any other member verbatim counts" "$T"
 
+# An outcome sentence counts only when it is about a member outside the set.
+T="$(tree type-only "$RULE2_BEFORE $CLOSES")"
+expect_fail "rule 2's sentence that rejects a scanSummary that is not an object, or holds one of the six members outside its type, is not the outcome for a member with another name" "$T" \
+    "core.md:15 $OUTCOME"' `scanSummary` may hold' "!$UNSTATED" "!$OUTCOME"' `behavioralProfile`'
+
+T="$(tree rule1-type-only "$RULE2" '' '**Canonical empties are always present.** A present `behavioralProfile` is well formed only when it is a JSON object whose member names are exactly `checksum`, `generatedAt` and `observationDays`. A verifier MUST reject a credential whose `behavioralProfile` is not an object, as a signature failure (`SIGNATURE_INVALID`).')"
+expect_fail "a rule 1 that rejects only a behavioralProfile that is not an object states no outcome for another member" "$T" \
+    "core.md:14 $OUTCOME"' `behavioralProfile` may hold' "!$OUTCOME"' `scanSummary`'
+
+T="$(tree condition-elsewhere "**\`scanSummary\` is always a full object.** A \`scanSummary\` is complete only when all six members are present. $CLOSES A verifier MUST reject a credential whose \`scanSummary\` is not complete, as a signature failure (\`SIGNATURE_INVALID\`).")"
+expect_fail "\"not\" before a condition that a sentence other than the member set states does not count" "$T" \
+    "core.md:15 $OUTCOME"' `scanSummary` may hold'
+
+T="$(tree condition-only-if "$RULE2" '' '**Canonical empties are always present.** A present `behavioralProfile` is well formed only if its member names are exactly `checksum`, `generatedAt` and `observationDays`. A verifier MUST reject a credential whose `behavioralProfile` is not well-formed, as a signature failure (`SIGNATURE_INVALID`).')"
+expect_pass "\"not\" before the condition the member set is stated under counts, after \"only if\" and hyphenated" "$T"
+
+T="$(tree outcome-none-of "**\`scanSummary\` is always a full object.** $CLOSES A verifier MUST reject a credential whose \`scanSummary\` holds a member whose name is none of those, as a signature failure (\`SIGNATURE_INVALID\`).")"
+expect_pass "an outcome sentence that says \"none of\" counts" "$T"
+
+T="$(tree outcome-no-other "**\`scanSummary\` is always a full object.** $CLOSES Since a \`scanSummary\` holds no other member, a verifier MUST reject a credential whose \`scanSummary\` holds one as a signature failure (\`SIGNATURE_INVALID\`).")"
+expect_pass "an outcome sentence that says \"no other\" counts" "$T"
+
 # --- the schema and the included keys decide the objects --------------------
 
 T="$(tree new-member "$RULE2")"

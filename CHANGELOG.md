@@ -343,6 +343,60 @@ identifier registered in `core.md` §14.
   beside a `$ref`, and a one-line count for 5 with and without a `$ref`, and runs 68, one of them
   skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of e212bad, 4 of
   them fail. (#119)
+- `scripts/check_schema_refusals.py` checks the credential schema against the JSON Schema 2020-12
+  metaschema with `Draft202012Validator.check_schema()` before it validates the fixtures. It built
+  the validator without that check, so a `oneOf` of 5 at `scanSummary` or a `type` of 5 at
+  `scanSummary.highFindings` stopped the check with a `TypeError` traceback from jsonschema's
+  `iter_errors()`, and a `properties` of 5 at the schema root with an `AttributeError` traceback,
+  each with exit 1. A schema the metaschema refuses now fails as `[missing]`, as a schema that is
+  not JSON does, with exit 1 and one failure line that gives the first place the metaschema
+  reports, as a JSON path, and the metaschema's message for it; where that message opens with the
+  value in Python notation, the value is written as JSON, cut to 60 characters. For the `oneOf` of
+  5 it reports `schemas/atx-credential-v1.1.schema.json [missing] cannot be read as a JSON Schema:
+  $.properties.scanSummary.oneOf: 5 is not of type 'array'`. The repository's own tree still
+  passes against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 5 cases and runs
+  27, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of
+  e212bad, 5 of them fail. (#120)
+- `scripts/check_tbs_member_names.py` counts a sentence as the outcome for a closed object only
+  when it is also about a member outside the set: it states the set itself, says "none of", "no
+  other" or "any other", or says "not" and the one to three words between "is" and "only when" or
+  "only if" in a sentence of the same rule that states the set; the `[outcome]` message names
+  these. It counted a sentence of that rule that names the object in backticks and says "reject"
+  and `SIGNATURE_INVALID`, or "verbatim", whatever it rejected, so the sentence of `core.md`
+  §1.3a.2 rule 2 that rejects a `scanSummary` that is not an object, or holds one of the six
+  members outside its type, met the `[outcome]` rule: with the sentences of rule 2 from "A
+  verifier MUST reject a credential whose `scanSummary` holds a member with any other name"
+  through "would ride a valid signature unsigned." deleted, the check exited 0. On that tree it
+  now reports `[outcome]` for `scanSummary` at `core.md:269` and exits 1. The delivered tree still
+  passes: rule 2 rejects a `scanSummary` member "with any other name", and rule 1 rejects a
+  `behavioralProfile` that is "not well formed", the words its member-set sentence puts between
+  "is" and "only when". `scripts/test_tbs_member_names.sh` adds 6 cases and runs 36; with the
+  check of e212bad, 3 of them fail. (#121)
+- `core.md` §1.3a.2 rule 3 states the outcome for a JSON number that the projection carries into
+  the TBS at a member other than `trustLevel`, `scanSummary.criticalFindings`,
+  `scanSummary.highFindings` and `behavioralProfile.observationDays`. Rules 5 and 6 carry a
+  present `declaredPurpose` and a present `scanSummary.techniques` into the TBS verbatim,
+  whatever they hold, and rule 3 bounded only those four integers, so a number inside either
+  member written with a fraction or an exponent part, or of absolute value above
+  9007199254740991, had no stated outcome. Implementations write different bytes for such a
+  number: Node.js 26.12.0's `JSON.stringify`, which formats numbers by the ECMAScript algorithm
+  RFC 8785 adopts, writes `9007199254740993`, `1.0` and `1e2` inside `declaredPurpose`, once
+  parsed, as `9007199254740992`, `1` and `100`, while Python 3.14.3's `json` module writes them
+  as `9007199254740993`, `1.0` and `100.0`. A verifier MUST reject a credential whose projection
+  would carry such a number into the TBS, in `declaredPurpose`, in `scanSummary.techniques` or at
+  any other member, as a signature failure (`SIGNATURE_INVALID`), and decides the form from the
+  number as the credential's JSON text writes it, as rule 1 decides the integer form of
+  `observationDays`, so `1.0`, `1e2` and `1E0` are outside it. A number in either member that is
+  in the integer form and within that range is carried verbatim, as before, and rules 5 and 6
+  point to rule 3 for a number they carry. `scripts/check_tbs_numbers.py` adds a `[verbatim]`
+  rule: for each of `declaredPurpose` and `scanSummary.techniques`, a sentence of §1.3a.2 names it
+  in backticks and says "fraction", "exponent", "9007199254740991", "reject" and
+  "SIGNATURE_INVALID". `[range]` no longer counts a sentence that names one of them, so the
+  sentence for those members does not stand in for the one for the four integers. Against the
+  `core.md` of e212bad the check reports `[verbatim]` for both members and exits 1; it passes on
+  this tree. `scripts/test_tbs_numbers.sh` adds 13 cases and runs 81, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout. The reference verifiers and fixtures in
+  atx-conformance are not part of this change. (#122)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the

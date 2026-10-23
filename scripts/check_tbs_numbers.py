@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Assert that a sentence naming the only JSON numbers in the TBS names each one, and
-that the schema and core.md bound each to integers of absolute value at most 2^53 - 1.
+"""Assert that a sentence naming the only JSON numbers in the TBS names each one, that
+the schema and core.md bound each to integers of absolute value at most 2^53 - 1, and
+that core.md gives the outcome for a JSON number in a member the TBS carries verbatim.
 
 core.md section 1.3a.2 rule 3 string-encodes trustScore in the v1.1
 to-be-signed (TBS) object and then says which JSON numbers the TBS still holds.
@@ -45,7 +46,22 @@ checks hold the schema and the text to that range:
                  exclusiveMaximum) that admits none above 9007199254740991.
   range          Section 1.3a.2 holds a sentence that says "9007199254740991"
                  and "reject", the verifier's outcome for a member outside that
-                 range.
+                 range, and names neither of the members the verbatim check
+                 reads: a sentence that names one gives the outcome for a JSON
+                 number inside it, not for those members.
+
+Rules 5 and 6 carry a present declaredPurpose and a present
+scanSummary.techniques into the TBS verbatim, whatever they hold, so a
+credential that is not conforming can carry a JSON number there, at any depth,
+that rule 3's bound does not reach: one written with a fraction or an exponent
+part, or of absolute value above 9007199254740991. One more check holds the
+text to an outcome for such a number:
+
+  verbatim       For each of declaredPurpose and scanSummary.techniques, section
+                 1.3a.2 holds a sentence that names it in backticks, as `member`
+                 or as a dotted path such as `parent.member`, and says
+                 "fraction", "exponent", "9007199254740991", "reject" and
+                 "SIGNATURE_INVALID". "fraction" also matches "fractional".
 
 With --suite, each jcs-vectors/vectors/*.json of an atx-conformance checkout is
 also read: its expected.canonicalHex is decoded and parsed as JSON, and a JSON
@@ -95,6 +111,16 @@ NUMERIC = {"integer", "number"}
 EXACT = 2**53 - 1
 EXACT_RE = re.compile(rf"(?<![0-9]){EXACT}(?![0-9])")
 REJECT_RE = re.compile(r"\breject", re.IGNORECASE)
+# core.md section 1.3a.2 rules 5 and 6: the projection carries these members into
+# the TBS verbatim, whatever they hold, JSON numbers included.
+VERBATIM = ("declaredPurpose", "scanSummary.techniques")
+VERBATIM_RES = (
+    EXACT_RE,
+    REJECT_RE,
+    re.compile(r"\bfraction", re.IGNORECASE),
+    re.compile(r"\bexponent", re.IGNORECASE),
+    re.compile(r"\bSIGNATURE_INVALID\b"),
+)
 
 SECTION_RE = re.compile(r"^(#{1,6})\s+1\.3a\.2(?![\w.])")
 HEADING_RE = re.compile(r"^(#{1,6})\s")
@@ -384,10 +410,12 @@ def check_bounds(path, nodes):
 
 
 def states_range(lines, start, end):
-    """True when a sentence of lines start..end-1 (numbered from 1) says EXACT and "reject"."""
+    """True when a sentence of lines start..end-1 (numbered from 1) says EXACT and "reject"
+    and names no member of VERBATIM."""
     for _, block in blocks(lines[start - 1:end - 1]):
         for _, sentence in sentences(block):
-            if EXACT_RE.search(sentence) and REJECT_RE.search(sentence):
+            if (EXACT_RE.search(sentence) and REJECT_RE.search(sentence)
+                    and not names_verbatim(sentence)):
                 return True
     return False
 
@@ -395,6 +423,23 @@ def states_range(lines, start, end):
 def refers_to(name, path):
     """True when a name in backticks names the member at path: the path itself or its tail."""
     return name == path or path.endswith("." + name)
+
+
+def names_verbatim(sentence):
+    """The members of VERBATIM that a sentence names in backticks."""
+    names = [code.group(1).strip() for code in CODE_RE.finditer(sentence)]
+    return {path for path in VERBATIM if any(refers_to(name, path) for name in names)}
+
+
+def verbatim_stated(lines, start, end):
+    """The members of VERBATIM named by a sentence of lines start..end-1 (numbered from 1)
+    that says each word of VERBATIM_RES."""
+    stated = set()
+    for _, block in blocks(lines[start - 1:end - 1]):
+        for _, sentence in sentences(block):
+            if all(word.search(sentence) for word in VERBATIM_RES):
+                stated |= names_verbatim(sentence)
+    return stated
 
 
 def json_numbers(node, path=""):
@@ -472,8 +517,9 @@ def check_suite(suite, numeric):
 def main():
     ap = argparse.ArgumentParser(
         description="Assert that a sentence naming the only JSON numbers in the TBS names each "
-                    "one, and that the schema and core.md bound each to integers of absolute "
-                    "value at most 2^53 - 1."
+                    "one, that the schema and core.md bound each to integers of absolute value "
+                    "at most 2^53 - 1, and that core.md gives the outcome for a JSON number in a "
+                    "member the TBS carries verbatim."
     )
     ap.add_argument("--root", default=str(ROOT), help="tree to check (default: this repository)")
     ap.add_argument("--suite", help="atx-conformance checkout whose jcs-vectors are also read")
@@ -540,6 +586,16 @@ def main():
             f"\"reject\": rule 3's claim holds only for integers of absolute value at most "
             f"{EXACT}, and the section has to say what a verifier does with one outside it"
         )
+    stated_verbatim = verbatim_stated(lines, heading, end)
+    for path in VERBATIM:
+        if path not in stated_verbatim:
+            failures.append(
+                f"core.md:{heading} [verbatim] section 1.3a.2 has no sentence that names "
+                f"`{path}` and says \"fraction\", \"exponent\", \"{EXACT}\", \"reject\" and "
+                f"\"SIGNATURE_INVALID\": the projection carries it into the TBS verbatim, so the "
+                f"section has to say what a verifier does with a JSON number in it written with "
+                f"a fraction or an exponent part, or of absolute value above {EXACT}"
+            )
 
     files = markdown_files(root)
     stated, in_section = 0, 0
@@ -569,7 +625,8 @@ def main():
 
     if failures:
         print("a statement of the JSON numbers in the TBS disagrees with what the TBS holds, "
-              "or with the range they are bounded to:\n", file=sys.stderr)
+              "or with the range they are bounded to, or gives no outcome for one in a member "
+              "the TBS carries verbatim:\n", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
@@ -578,7 +635,9 @@ def main():
                f"the only JSON numbers in the TBS, and each names the {len(numeric)} TBS "
                f"member(s) the schema types as a number ({', '.join(numeric)}); the schema "
                f"bounds each to integers of absolute value at most {EXACT}, and section 1.3a.2 "
-               f"says a verifier rejects one outside that range")
+               f"says a verifier rejects one outside that range and what it does with a JSON "
+               f"number in {' or '.join(VERBATIM)} written with a fraction or an exponent part "
+               f"or outside that range")
     if suite is not None:
         summary += (f"; {vectors} jcs-vector(s) hold no JSON number at another member or of "
                     f"absolute value above {EXACT}")
