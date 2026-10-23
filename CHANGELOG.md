@@ -329,6 +329,25 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
+  writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
+  3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check
+  in `json.loads` with a 16-line traceback; one nested 110,000 deep, which `json.loads` reads,
+  stopped it in the `json.dumps` call that wrote the value for the message, with a traceback of
+  104,637 lines (104,634 beside a root `$ref`); and 2,000 object schemas nested through
+  `properties` stopped the walk with a 24-line traceback, each with exit 1. The first now prints
+  `schemas/atx-credential-v1.1.schema.json cannot be read as JSON: it nests arrays or objects
+  deeper than the json module of this Python can read`, followed by Python's reason in
+  parentheses. The check now writes the value it shows only until 60 characters are passed, so the
+  second prints the usual line for a root `properties` that is not an object, with the value cut
+  to 60 characters. The third names the member the walk stopped at, cut to 60 characters, and says
+  it `nests deeper than the check can walk`. Each exits 1, and the delivered tree still passes.
+  `scripts/test_tbs_numbers.sh` adds 8 cases and runs 76, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout. It takes the depths from the deepest array
+  `json.loads` reads on the running Python and from its recursion limit, and skips the 2 read
+  cases where `json.loads` reads 2,000,000 levels and the 2 walk cases where it reads no schema
+  nested that deep, as on Python 3.9.6. With the check of 47ade55, 8 of the 76 fail on Python
+  3.14.3, 4 on 3.12.12 and 3.13.12, and 2 on 3.9.6. (#124)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it

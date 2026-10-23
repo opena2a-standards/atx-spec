@@ -187,6 +187,26 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
 }
 
+# schema_deep <tree> <depth> <array|properties>: replace the string "@@DEEP@@" in the
+# tree's schema, set there by schema_set or schema_root_ref, with an array nested
+# <depth> deep, or with <depth> object schemas each nested in the one before through
+# properties.a. The value is spliced in as text: json.dump raises RecursionError for
+# one nested deeper than Python's recursion limit.
+schema_deep() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" <<'PYEOF'
+import sys
+path, depth, kind = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+if kind == "array":
+    deep = "[" * depth + "0" + "]" * depth
+else:
+    deep = '{"type": "object", "properties": {"a": ' * depth + "{}" + "}}" * depth
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text.replace('"@@DEEP@@"', deep, 1))
+PYEOF
+}
+
 one_line() {  # one_line <leaf name>: the last run printed exactly one line
     if [ "$(grep -c '' "$OUT")" -eq 1 ]; then
         ok "$1"
@@ -574,6 +594,79 @@ T="$(tree member-properties "$NAMED")"
 schema_set "$T" '[]' properties scanSummary properties
 expect_fail "a properties that is an array fails instead of leaving that member's integers unchecked" \
     "$T" - "$UNREADABLE"' `scanSummary` has "properties": [], which is not an object'
+
+# --- a schema nested deeper than Python reads, writes or walks --------------
+
+# Each stops the check with one line, not with a RecursionError traceback. The
+# depth at which each limit is reached depends on the Python version and the
+# stack size, so the cases are built from the deepest array json.loads reads
+# here, found by bisection up to 2,000,000, and from the recursion limit.
+LOADS_DEPTH="$(python3 -B -c '
+import json
+low, high = 0, 2000000
+while low < high:
+    mid = (low + high + 1) // 2
+    try:
+        json.loads("[" * mid + "0" + "]" * mid)
+        low = mid
+    except RecursionError:
+        high = mid - 1
+print(low)
+')"
+# 95 of every 100 of those levels: json.loads reads it, and on Python 3.14.3 on
+# macOS arm64 json.dumps cannot write it.
+VALUE_DEPTH=$((LOADS_DEPTH - LOADS_DEPTH / 20))
+# Twice the recursion limit: each schema nested in another is one more call.
+WALK_DEPTH="$(python3 -B -c 'import sys; print(2 * sys.getrecursionlimit())')"
+# The deep array cut to 60 characters: 57 of its [ and "...".
+CUT_ARRAY="$(printf '%57s' '' | tr ' ' '[')..."
+
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    T="$(tree deep-read "$NAMED")"
+    schema_set "$T" '"@@DEEP@@"' properties
+    schema_deep "$T" "$((2 * LOADS_DEPTH))" array
+    expect_fail "a schema nested deeper than json.loads reads fails as not JSON" "$T" - \
+        "schemas/atx-credential-v1.1.schema.json cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    one_line "a schema nested deeper than json.loads reads is reported on one line"
+else
+    skip "a schema nested deeper than json.loads reads fails as not JSON" \
+        "json.loads reads 2,000,000 levels here"
+    skip "a schema nested deeper than json.loads reads is reported on one line" \
+        "json.loads reads 2,000,000 levels here"
+fi
+
+T="$(tree deep-value "$NAMED")"
+schema_set "$T" '"@@DEEP@@"' properties
+schema_deep "$T" "$VALUE_DEPTH" array
+expect_fail "a root properties nested deeper than json.dumps writes is shown cut to 60 characters" \
+    "$T" - "$UNREADABLE"' the schema root has "properties": '"$CUT_ARRAY"', which is not an object' \
+    '!Traceback'
+one_line "a root properties nested deeper than json.dumps writes is reported on one line"
+
+T="$(tree deep-value-ref "$NAMED")"
+schema_root_ref "$T" '"@@DEEP@@"'
+schema_deep "$T" "$VALUE_DEPTH" array
+expect_fail "a root properties nested deeper than json.dumps writes is shown cut to 60 characters beside a \$ref" \
+    "$T" - "$UNREADABLE"' the schema root has "properties": '"$CUT_ARRAY"', which is not an object' \
+    '!Traceback' '![keys]'
+one_line "a root properties nested deeper than json.dumps writes beside a \$ref is reported on one line"
+
+# Two JSON levels per schema: the schema and its properties.
+if [ "$LOADS_DEPTH" -gt $((2 * WALK_DEPTH + 100)) ]; then
+    T="$(tree deep-walk "$NAMED")"
+    schema_set "$T" '"@@DEEP@@"' properties scanSummary properties deep
+    schema_deep "$T" "$WALK_DEPTH" properties
+    expect_fail "schemas nested deeper than the walk follows fail naming the member, cut to 60 characters" \
+        "$T" - "$UNREADABLE"' `scanSummary.deep.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a....` nests deeper than the check can walk' \
+        '!Traceback'
+    one_line "schemas nested deeper than the walk follows are reported on one line"
+else
+    skip "schemas nested deeper than the walk follows fail naming the member, cut to 60 characters" \
+        "json.loads reads no schema nested that deep here"
+    skip "schemas nested deeper than the walk follows are reported on one line" \
+        "json.loads reads no schema nested that deep here"
+fi
 
 # --- --suite: the jcs-vectors -----------------------------------------------
 
