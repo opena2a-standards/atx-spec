@@ -365,9 +365,8 @@ identifier registered in `core.md` §14.
   why, and exit 1. The walk compares the pointers it has followed by their decoded reference
   tokens, so a recursive `$ref` that spells a pointer another way stops the walk where the pointer
   was first followed. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 17
-  cases and runs 116: on Python 3.13.12 and 3.14.3, 115 pass and 1 is skipped
-  (`ATX_CONFORMANCE_SUITE` not set), and on 3.9.6 113 pass and 3 are skipped. With the check of
-  5796fc2, 12 of them fail on each of those Pythons. (#131)
+  cases and runs 133: on Python 3.13.12 and 3.14.3, 132 pass and 1 is skipped
+  (`ATX_CONFORMANCE_SUITE` not set), and on 3.9.6 128 pass and 5 are skipped. (#131)
 - `core.md` §12 Coverage says what the two threshold fixtures pin. The paragraph listed the
   threshold of a key set held by one authority (§1.3 step 5) among the requirements no fixture
   exercises, and said that a verifier that never counts signatures against that threshold, or that
