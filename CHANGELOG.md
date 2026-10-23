@@ -340,13 +340,12 @@ identifier registered in `core.md` §14.
   `cannot read expected.canonicalHex as JSON` and the same words when the value nested that deep
   is the TBS; the second prints `expected.canonicalHex nests deeper than the check can walk`. Each
   is followed by Python's reason in parentheses and exits 1, and the vectors after it are still
-  read. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 6 cases and runs 105,
+  read. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 6 cases and runs 116,
   one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector file and an
   `expected.canonicalHex` nested deeper than `json.loads` reads, and an `expected.canonicalHex`
   nested deeper than the walk follows, each beside a vector that is still reported, with a
   one-line count. It takes the depths the schema cases take, and skips the 2 walk cases where
-  `json.loads` reads no value nested that deep, as on Python 3.9.6. With the check of 5796fc2, 6
-  of its 105 cases fail on Python 3.14.3 and 3.13.12, and 4 on 3.9.6. (#132)
+  `json.loads` reads no value nested that deep, as on Python 3.9.6. (#132)
 - `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
   writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
   3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check
@@ -418,7 +417,7 @@ identifier registered in `core.md` §14.
   a sentence of §1.3a.2 names it in backticks and says "fraction", "exponent", "reject" and
   `SIGNATURE_INVALID`. Against the `core.md` of f339902 it reports `[form]` for each of the four
   members and exits 1; it passes on this tree. `scripts/test_tbs_numbers.sh` adds 11 cases and
-  runs 92, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; against the
+  runs 110, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; against the
   `core.md` of f339902 1 of them fails, the case that reads the delivered tree. The
   atx-conformance fixtures for this outcome are not part of this change. (#129)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
@@ -469,8 +468,7 @@ identifier registered in `core.md` §14.
   `#/$defs/nonexistent`, `#/allOf/x`, `#/additionalProperties/x` and `#nonexistent`, a `$ref`
   reached through another `$ref`, a `$dynamicRef` to `#/$defs/nonexistent`, a `$ref` that
   `unevaluatedProperties` looks up first, and a `$ref` to a `file:` document that does not exist,
-  and runs 35, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the
-  check of f339902, 8 of them fail. (#128)
+  and runs 44, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout. (#128)
 - `scripts/check_tbs_member_names.py` counts a sentence as the outcome for a closed object only
   when it is also about a member outside the set: it states the set itself, says "none of", "no
   other" or "any other", or says "not" and the one to three words between "is" and "only when" or
