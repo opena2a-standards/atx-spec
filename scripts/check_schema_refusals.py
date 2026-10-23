@@ -47,7 +47,17 @@ that opens with **Issuer.** that say the schema refuses ("schema refuses",
                the same way, and so does one that nests deeper than the check
                can follow when it compares it with the metaschema, within
                Python's recursion limit; that line gives the schema's deepest
-               place as a JSON path, cut to 60 characters.
+               place as a JSON path, cut to 60 characters. The metaschema does
+               not follow a $ref, so a schema with a $ref or $dynamicRef that
+               does not resolve fails the same way once a fixture's validation
+               reaches it: a JSON pointer that names nothing in the schema,
+               such as #/$defs/nonexistent or #/allOf/x, an anchor no subschema
+               declares, or a document jsonschema cannot retrieve. Its failure
+               line names that fixture and gives the first $ref or $dynamicRef
+               in the schema that names nothing in it, as a JSON path, with its
+               value written as JSON; when the schema has none, as when the
+               reference is to another document, it gives what jsonschema
+               reports it could not resolve.
   fixture      a fixture that cannot be read as JSON, nests arrays or objects
                deeper than the json module of the running Python reads, has no
                object atx member, or cannot be validated against the schema
@@ -75,6 +85,9 @@ import sys
 
 try:
     from jsonschema import Draft202012Validator, SchemaError
+    from referencing import Registry
+    from referencing.exceptions import Unresolvable
+    from referencing.jsonschema import DRAFT202012
 except ImportError:
     print("error: the 'jsonschema' package is required (pip install jsonschema)", file=sys.stderr)
     sys.exit(2)
@@ -95,6 +108,7 @@ ED25519_ONLY_RE = re.compile(
 )
 NAME_RE = re.compile(r"`([^`\s]+)`")
 PHRASE = "Ed25519-only fixtures that declare `atcVersion` 1.1"
+REFERENCE_KEYWORDS = ("$ref", "$dynamicRef")
 
 
 def issuer_line(lines):
@@ -170,6 +184,54 @@ def schema_problem(error):
     return f"{error.json_path}: {message}"
 
 
+def references(node, keys=()):
+    """(keys, value) of each $ref and $dynamicRef in node that holds a string, in document
+    order; the keys lead from node to that member."""
+    if isinstance(node, dict):
+        for key, child in node.items():
+            if key in REFERENCE_KEYWORDS and isinstance(child, str):
+                yield keys + (key,), child
+            yield from references(child, keys + (key,))
+    elif isinstance(node, list):
+        for index, child in enumerate(node):
+            yield from references(child, keys + (index,))
+
+
+def dangling_reference(schema):
+    """(JSON path, value) of the first $ref or $dynamicRef in the schema that names nothing in
+    it, or None: one whose JSON pointer or anchor names nothing there, or whose value urllib
+    cannot parse. A reference to a document the schema does not hold is passed over: only
+    jsonschema, which may retrieve it, can say whether it resolves. The path is written as
+    jsonschema writes the place of a SchemaError."""
+    resolver = Registry().resolver_with_root(DRAFT202012.create_resource(schema))
+    for keys, value in references(schema):
+        try:
+            resolver.lookup(value)
+        except Unresolvable as exc:
+            # referencing raises Unresolvable itself for a document it does not hold, and a
+            # subclass of it for a pointer or an anchor that names nothing in one it holds.
+            if type(exc) is not Unresolvable:
+                return SchemaError("", path=keys).json_path, value
+        except (TypeError, ValueError):
+            # A pointer that steps into a number, a boolean or null, or that indexes an
+            # array or a string with a segment that is not a number, or a value urllib
+            # cannot parse, such as http://[bad.
+            return SchemaError("", path=keys).json_path, value
+    return None
+
+
+def unresolved(found, exc):
+    """What the failure line says about the reference jsonschema raised exc on: the place and
+    value of the one dangling_reference() found, or else what exc reports it could not
+    resolve: an anchor, a JSON pointer or a whole reference."""
+    if found is not None:
+        place, value = found
+        return f"{place}: {shown(value)} does not resolve"
+    # jsonschema raises its own error from the one the referencing library raised.
+    error = exc.__cause__ if isinstance(exc.__cause__, Unresolvable) else exc
+    return f"{shown(getattr(error, 'anchor', None) or error.ref)} does not resolve"
+
+
 def check(root, suite):
     home = root / HOME_FILE
     try:
@@ -228,6 +290,8 @@ def check(root, suite):
         if not isinstance(atx, dict):
             failures.append(f"{rel} [fixture] has no object atx member to validate")
             continue
+        # The metaschema does not follow a $ref, so one that does not resolve passes it,
+        # and iter_errors() raises once the validation of a fixture reaches it.
         try:
             is_refused = refused_on_signatures(validator, atx)
         except RecursionError as exc:  # as a long chain of $ref the fixture reaches can raise
@@ -235,6 +299,11 @@ def check(root, suite):
                             f"validation goes deeper than the check can follow ({exc})")
             unvalidated[path.stem] = (atx.get("atcVersion"), algorithms(atx))
             continue
+        except (Unresolvable, TypeError, ValueError) as exc:
+            found = dangling_reference(schema)
+            if found is None and not isinstance(exc, Unresolvable):
+                raise
+            return [f"{SCHEMA_FILE} [missing] cannot validate {rel}: {unresolved(found, exc)}"]
         if is_refused:
             refused[path.stem] = (atx.get("atcVersion"), algorithms(atx))
 

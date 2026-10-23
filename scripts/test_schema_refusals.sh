@@ -435,6 +435,78 @@ PYEOF
     expect_lines "a fixture nested deeper than json.loads reads fails on one line" 1
 fi
 
+# The metaschema does not follow a $ref, so one that does not resolve passes it
+# and the validator raises once a fixture reaches it. That fails on one line
+# that names the fixture and the reference, not with a traceback; the place is
+# written as jsonschema writes a JSON path, with a key such as $ref in brackets.
+# Every scratch fixture has a scanSummary, and fixtures/baseline-valid.json is
+# read first.
+UNRESOLVED='cannot validate fixtures/baseline-valid.json:'
+
+T="$(new_dir ref-nowhere)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$ref to a member \$defs does not have fails naming the place and the \$ref" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-index)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/allOf/x"}' properties scanSummary
+expect_fail "a \$ref that indexes an array with a segment that is not a number fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/allOf/x\" does not resolve" '!Traceback'
+
+T="$(new_dir ref-scalar)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/additionalProperties/x"}' properties scanSummary
+expect_fail "a \$ref that steps into a boolean fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/additionalProperties/x\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-anchor)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#nonexistent"}' properties scanSummary
+expect_fail "a \$ref to an anchor no subschema declares fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#nonexistent\" does not resolve" '!Traceback'
+
+T="$(new_dir ref-chain)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "#/$defs/nonexistent"}' '$defs' did
+expect_fail "a \$ref reached through another \$ref is the one named" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$['\$defs'].did['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!$.properties' '!Traceback'
+
+T="$(new_dir dynamic-ref)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$dynamicRef": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$dynamicRef to a member \$defs does not have fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$dynamicRef']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+# unevaluatedProperties looks the $ref beside it up before the $ref keyword
+# does, and the validator then raises the referencing library's own error.
+T="$(new_dir ref-unevaluated)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"unevaluatedProperties": false, "$ref": "#/$defs/nonexistent"}' properties scanSummary
+expect_fail "a \$ref that unevaluatedProperties looks up first fails the same way" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \$.properties.scanSummary['\$ref']: \"#/\$defs/nonexistent\" does not resolve" \
+    '!Traceback'
+
+T="$(new_dir ref-document)"
+write_tree "$T" "$GOOD"
+schema_set "$T" '{"$ref": "file:///nonexistent-atx-spec-check/scan-summary.json"}' properties scanSummary
+expect_fail "a \$ref to a document that cannot be retrieved fails naming the reference" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNRESOLVED \"file:///nonexistent-atx-spec-check/scan-summary.json\" does not resolve" \
+    '!Traceback'
+
 T="$(new_dir tree)"
 write_tree "$T" "$GOOD"
 S4="$(new_dir empty-suite)"

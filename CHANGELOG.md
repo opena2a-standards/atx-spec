@@ -410,6 +410,28 @@ identifier registered in `core.md` §14.
   passes against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 5 cases and runs
   27, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of
   e212bad, 5 of them fail. (#120)
+- `scripts/check_schema_refusals.py` reports a `$ref` or `$dynamicRef` of the credential schema
+  that does not resolve on one line instead of stopping with a traceback. The JSON Schema 2020-12
+  metaschema, which the check applies first, does not follow a `$ref`, so a schema whose
+  `scanSummary` is `{"$ref": "#/$defs/nonexistent"}` passed it, and once a fixture's validation
+  reached that `$ref`, jsonschema's `iter_errors()` raised `_WrappedReferencingError:
+  PointerToNowhere` and the check stopped with a traceback and exit 1. A reference that does not
+  resolve when a fixture's validation reaches it, a JSON pointer that names nothing in the schema
+  such as that one or `#/allOf/x`, an anchor no subschema declares, or a document jsonschema
+  cannot retrieve, now fails as `[missing]`, with exit 1 and one line that names the fixture and
+  gives the first `$ref` or `$dynamicRef` in the schema that names nothing in it, as a JSON path
+  written as jsonschema writes one, with its value written as JSON; when the schema has none, as
+  for a reference to another document, the line gives what jsonschema reports it could not
+  resolve.
+  For that `scanSummary` it reports `schemas/atx-credential-v1.1.schema.json [missing] cannot
+  validate fixtures/baseline-valid.json: $.properties.scanSummary['$ref']: "#/$defs/nonexistent"
+  does not resolve` against the test's scratch suite. The repository's own tree still passes
+  against the test's scratch suite. `scripts/test_schema_refusals.sh` adds 8 cases, a `$ref` to
+  `#/$defs/nonexistent`, `#/allOf/x`, `#/additionalProperties/x` and `#nonexistent`, a `$ref`
+  reached through another `$ref`, a `$dynamicRef` to `#/$defs/nonexistent`, a `$ref` that
+  `unevaluatedProperties` looks up first, and a `$ref` to a `file:` document that does not exist,
+  and runs 35, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; with the
+  check of f339902, 8 of them fail. (#128)
 - `scripts/check_tbs_member_names.py` counts a sentence as the outcome for a closed object only
   when it is also about a member outside the set: it states the set itself, says "none of", "no
   other" or "any other", or says "not" and the one to three words between "is" and "only when" or
