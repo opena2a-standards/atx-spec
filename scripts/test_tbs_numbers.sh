@@ -62,6 +62,19 @@ expect_pass() {  # expect_pass <leaf name> <root> [suite]
     fi
 }
 
+expect_pass_printing() {  # expect_pass_printing <leaf name> <root> <text>: exit 0, text printed
+    local name="$1" rc
+    run_check "$2" -
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        not_ok "$name" "expected exit 0, got $rc: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    elif ! grep -qF -- "$3" "$OUT"; then
+        not_ok "$name" "exit 0 but '$3' not printed: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    else
+        ok "$name"
+    fi
+}
+
 # expect_fail <leaf name> <root> <suite, or -> <text>...
 # Exit 1 and every text reported; a text that starts with ! must not be reported.
 expect_fail() {
@@ -194,6 +207,23 @@ with open(path, encoding="utf-8") as f:
 schema.setdefault("$defs", {})["rootTarget"] = {"type": "object", "properties": schema["properties"]}
 schema["$ref"] = "#/$defs/rootTarget"
 schema["properties"] = value
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+}
+
+# schema_ref <tree> <name, as a JSON string> <$ref> [array]: move the schema of
+# properties.scanSummary in the tree's schema to $defs.<name>, as the one element of
+# an array when "array" is given, and set properties.scanSummary to {"$ref": <$ref>}.
+schema_ref() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" "${4-}" <<'PYEOF'
+import json, sys
+path, name, ref, array = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], sys.argv[4]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+summary = schema["properties"]["scanSummary"]
+schema["$defs"][name] = [summary] if array else summary
+schema["properties"]["scanSummary"] = {"$ref": ref}
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
 PYEOF
@@ -732,6 +762,108 @@ T="$(tree member-ref-recursive "$NAMED")"
 schema_set "$T" '{"type": "object", "properties": {"child": {"$ref": "#/$defs/treeNode"}}}' '$defs' treeNode
 schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties extensionTree
 expect_pass "a recursive \$ref outside the TBS passes" "$T"
+
+# --- a $ref is a JSON pointer written as a URI fragment (RFC 6901) -----------
+
+# The fragment is percent-decoded as UTF-8, "~1" and "~0" in a reference token read
+# as "/" and "~", and a token applied to an array names the element at that index.
+# Each $ref below leads to the schema of scanSummary, so the check passes and names
+# the two integers that schema holds.
+FOUR='each names the 4 TBS member(s) the schema types as a number (behavioralProfile.observationDays, scanSummary.criticalFindings, scanSummary.highFindings, trustLevel)'
+
+T="$(tree ref-tilde-one "$NAMED")"
+schema_ref "$T" '"scan/summary"' '#/$defs/scan~1summary'
+expect_pass_printing "a \$ref that writes the \"/\" of a \$defs name as ~1 is followed" "$T" "$FOUR"
+
+T="$(tree ref-tilde-zero "$NAMED")"
+schema_ref "$T" '"scan~summary"' '#/$defs/scan~0summary'
+expect_pass_printing "a \$ref that writes the \"~\" of a \$defs name as ~0 is followed" "$T" "$FOUR"
+
+T="$(tree ref-tilde-order "$NAMED")"
+schema_ref "$T" '"scan~1summary"' '#/$defs/scan~01summary'
+expect_pass_printing "a \$ref of ~01 is read as \"~1\", not as \"/\"" "$T" "$FOUR"
+
+T="$(tree ref-percent "$NAMED")"
+schema_ref "$T" '"scan summary"' '#/$defs/scan%20summary'
+expect_pass_printing "a \$ref that percent-encodes the space of a \$defs name is followed" "$T" "$FOUR"
+
+T="$(tree ref-percent-utf8 "$NAMED")"
+schema_ref "$T" "\"scan\\u00e9\"" '#/$defs/scan%C3%A9'
+expect_pass_printing "a \$ref that percent-encodes the UTF-8 octets of a \$defs name is followed" "$T" "$FOUR"
+
+T="$(tree ref-percent-once "$NAMED")"
+schema_ref "$T" '"scan%41"' '#/$defs/scan%2541'
+expect_pass_printing "a \$ref of %2541 is read as \"%41\", decoded once" "$T" "$FOUR"
+
+T="$(tree ref-array-index "$NAMED")"
+schema_ref "$T" '"alts"' '#/$defs/alts/0' array
+expect_pass_printing "a \$ref that names an array element by its index is followed" "$T" "$FOUR"
+
+# The members under a schema reached through such a $ref are checked.
+T="$(tree ref-tilde-one-unbounded "$NAMED")"
+schema_ref "$T" '"scan/summary"' '#/$defs/scan~1summary'
+schema_set "$T" '{"type": "integer", "minimum": 0}' '$defs' 'scan/summary' properties mediumFindings
+expect_fail "an integer member under a \$ref written with ~1 is checked" "$T" - \
+    "core.md:18 $MISSING"' `scanSummary.mediumFindings`' \
+    "$UNBOUNDED"' admits an integer above 9007199254740991 at `scanSummary.mediumFindings`'
+
+# RFC 6901 section 4: a token applied to an array is "0" or a decimal number with no
+# leading zero, and "-" names the element after the last one, which does not exist.
+T="$(tree ref-array-leading-zero "$NAMED")"
+schema_ref "$T" '"alts"' '#/$defs/alts/00' array
+expect_fail "a \$ref whose array index has a leading zero points at nothing" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/00", which is not a pointer to a schema in this file'
+
+T="$(tree ref-array-dash "$NAMED")"
+schema_ref "$T" '"alts"' '#/$defs/alts/-' array
+expect_fail "a \$ref of \"-\" into an array points at nothing" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/-", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+T="$(tree ref-array-past-end "$NAMED")"
+schema_ref "$T" '"alts"' '#/$defs/alts/1' array
+expect_fail "a \$ref past the last element of an array points at nothing" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/1", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+# 5,000 digits: int() raises ValueError for a string of more than 4300 digits on
+# Python 3.13 and 3.14. The $ref is shown cut to 60 characters.
+T="$(tree ref-array-long-index "$NAMED")"
+schema_ref "$T" '"alts"' "#/\$defs/alts/$(printf '%05000d' 0 | tr 0 1)" array
+expect_fail "a \$ref whose array index has 5,000 digits points at nothing" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/'"$(printf '%043d' 0 | tr 0 1)"'..., which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+# Each $ref below is not a JSON pointer and is reported so, although $defs holds the
+# name that a reading which keeps the fault as written would look up.
+NOT_POINTER='which is not a JSON pointer (RFC 6901):'
+
+T="$(tree ref-bad-tilde "$NAMED")"
+schema_ref "$T" '"scan~2summary"' '#/$defs/scan~2summary'
+expect_fail "a \$ref with a \"~\" followed by neither 0 nor 1 is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan~2summary", '"$NOT_POINTER"' a reference token holds a "~" that is not followed by "0" or "1"' \
+    '!TBS numbers ok'
+one_line "a \$ref with a \"~\" followed by neither 0 nor 1 is reported on one line"
+
+T="$(tree ref-bad-percent "$NAMED")"
+schema_ref "$T" '"scan%summary"' '#/$defs/scan%summary'
+expect_fail "a \$ref with a \"%\" not followed by two hexadecimal digits is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan%summary", '"$NOT_POINTER"' a "%" in it is not followed by two hexadecimal digits' \
+    '!TBS numbers ok'
+
+T="$(tree ref-bad-utf8 "$NAMED")"
+schema_ref "$T" "\"scan\\ufffdsummary\"" '#/$defs/scan%FFsummary'
+expect_fail "a \$ref that percent-encodes octets that are not UTF-8 is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan%FFsummary", '"$NOT_POINTER"' the octets it percent-encodes are not UTF-8' \
+    '!Traceback' '!TBS numbers ok'
+
+# A $ref to a pointer the walk already followed on the way is recursion however
+# the $ref spells the pointer, so the walk stops there, as it does for one spelling.
+T="$(tree ref-recursive-respelled "$NAMED")"
+schema_set "$T" '{"type": "object", "properties": {"count": {"type": "integer", "minimum": 0, "maximum": 5}, "child": {"$ref": "#/$defs/tree%4Eode"}}}' '$defs' treeNode
+schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties scanSummary properties node
+expect_fail "a recursive \$ref that percent-encodes a letter of the pointer stops the walk where it was first followed" \
+    "$T" - "core.md:18 $MISSING"' `scanSummary.node.count`' '!`scanSummary.node.child.count`'
 
 # --- a schema nested deeper than Python reads, writes or walks --------------
 

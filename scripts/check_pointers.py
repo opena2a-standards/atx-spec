@@ -41,6 +41,14 @@ and each names section 1.3b. Section 1.3b in turn names thresholdKeySets and
 the two members of each set object, members and threshold ([definition]), so a
 pointer to it cannot name a section that does not define the declaration.
 
+The Coverage paragraph of core.md section 12 lists the requirements that no
+conformance fixture exercises and says what the suite's threshold fixtures pin.
+It names threshold-1of3-cosignature, the fixture that pins the rejection of a
+credential carrying fewer signatures than the threshold of section 1.3 step 5
+requires. Without that name the paragraph listed that threshold among the
+requirements no fixture exercises and said that a verifier that never counts
+signatures against it passes the threshold cosignature fixture.
+
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
 table row is one line. References may wrap across lines, since Markdown renders
@@ -83,6 +91,7 @@ AIP_TRUST = "AIP §6.1"
 AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
 THRESHOLD = "§1.3 step 5"
 THRESHOLD_DECLARATION = "§1.3b"
+THRESHOLD_FIXTURE = "`threshold-1of3-cosignature`"
 
 HMA_ROW = "| HackMyAgent |"
 AIM_ROW = "| AIM |"
@@ -101,6 +110,7 @@ POINTERS = [
     ("sovereign-federation.md", "* 3 HSMs", (THRESHOLD,)),
     ("sovereign-federation.md", "Threshold signing means", (THRESHOLD, THRESHOLD_DECLARATION)),
     ("core.md", "   - Threshold key sets.", (THRESHOLD_DECLARATION,)),
+    ("core.md", "**Coverage.**", (THRESHOLD_FIXTURE,)),
 ]
 
 # Sections that a pointer above cites as where something is defined, and the
