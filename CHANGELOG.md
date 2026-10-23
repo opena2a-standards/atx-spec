@@ -346,6 +346,28 @@ identifier registered in `core.md` §14.
   nested deeper than the walk follows, each beside a vector that is still reported, with a
   one-line count. It takes the depths the schema cases take, and skips the 2 walk cases where
   `json.loads` reads no value nested that deep, as on Python 3.9.6. (#132)
+- `scripts/check_tbs_numbers.py` follows a local `$ref` as RFC 6901 reads a JSON pointer written
+  as a URI fragment. It split the `$ref` on `/` and looked each part up as an object member,
+  without reading `~1` and `~0`, percent-decoding or indexing an array. With the schema of
+  `scanSummary` moved to a `$defs` entry named `scan/summary` and `scanSummary` set to
+  `{"$ref": "#/$defs/scan~1summary"}`, a valid pointer to it, the check reported that
+  `scanSummary` has that `$ref`, `which is not a pointer to a schema in this file`, and exited 1,
+  as it did for `"#/$defs/scan~0summary"` (an entry named `scan~summary`),
+  `"#/$defs/scan%20summary"` (`scan summary`) and `"#/$defs/alts/0"` (an array `alts` that holds
+  the schema). The fragment is now percent-decoded as UTF-8, `~1` and `~0` in a reference token
+  are read as `/` and `~`, and a token applied to an array names the element at that index when
+  it is `0` or a decimal number with no leading zero, so each of those four trees passes with the
+  output of the delivered tree; a token such as `00` or `-`, or one past the end of the array,
+  points at nothing. A `$ref` with a `%` not followed by two hexadecimal digits or with a `~` not
+  followed by `0` or `1` was looked up as written, so with a `$defs` entry named `scan%summary` or
+  `scan~2summary` the check passed; such a `$ref`, and one whose percent-encoded octets are not
+  UTF-8, now stops the check with one line that says it `is not a JSON pointer (RFC 6901)` and
+  why, and exit 1. The walk compares the pointers it has followed by their decoded reference
+  tokens, so a recursive `$ref` that spells a pointer another way stops the walk where the pointer
+  was first followed. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 17
+  cases and runs 116: on Python 3.13.12 and 3.14.3, 115 pass and 1 is skipped
+  (`ATX_CONFORMANCE_SUITE` not set), and on 3.9.6 113 pass and 3 are skipped. With the check of
+  5796fc2, 12 of them fail on each of those Pythons. (#131)
 - `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
   writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
   3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check

@@ -11,7 +11,11 @@ schemas/atx-credential-v1.1.schema.json types them. A TBS member, at any depth,
 that the schema types as integer or number holds a JSON number in the TBS,
 except trustScore, which rule 3 converts to a string. The schema is walked
 through properties, items, additionalProperties, oneOf, anyOf, allOf and local
-$ref.
+$ref. A local $ref ("#/...") is read as RFC 6901 reads a JSON pointer written as
+a URI fragment: the fragment is percent-decoded as UTF-8, "~1" and "~0" in a
+reference token are read as "/" and "~", and a token applied to an array names
+the element at that index when it is "0" or a decimal number with no leading
+zero.
 
 A sentence states the only JSON numbers in the TBS when it names the TBS ("TBS"
 or "to-be-signed") and says which JSON numbers it holds and no others: "only",
@@ -90,19 +94,19 @@ that is not UTF-8 fails rather than being skipped.
 A tree fails with a message that says why when core.md is missing, is not UTF-8
 or has no section 1.3a.2 heading, and when the schema is missing, is not JSON or
 cannot be walked: a node the walk reaches has a type that is neither a string
-nor an array of strings, a oneOf, anyOf or allOf that is not an array, or a
-properties that is not an object. The walk reads no other keyword of a node that
-has a $ref, so the schema root's own properties, where the included keys are
-looked up, is checked apart from it and fails the same way. That message names
-the member whose schema holds the node, or the schema root, and the keyword with
-its value written as JSON, cut to 60 characters; the value is written only until
-60 characters are passed. A schema whose arrays or objects nest deeper than the
-json module of the running Python reads is not JSON, and one that nests schemas
-deeper than Python's recursion limit lets the walk follow cannot be walked: that
-message names the member the walk stopped at, or the schema root, cut to 60
-characters. Every other failure is reported with its rule in brackets, as
-file:line, or as the file alone for a vector, for the schema and for a file that
-is not UTF-8.
+nor an array of strings, a oneOf, anyOf or allOf that is not an array, a
+properties that is not an object, or a $ref the walk cannot follow to a schema
+in this file. The walk reads no other keyword of a node that has a $ref, so the
+schema root's own properties, where the included keys are looked up, is checked
+apart from it and fails the same way. That message names the member whose schema
+holds the node, or the schema root, and the keyword with its value written as
+JSON, cut to 60 characters; the value is written only until 60 characters are
+passed. A schema whose arrays or objects nest deeper than the json module of the
+running Python reads is not JSON, and one that nests schemas deeper than Python's
+recursion limit lets the walk follow cannot be walked: that message names the
+member the walk stopped at, or the schema root, cut to 60 characters. Every other
+failure is reported with its rule in brackets, as file:line, or as the file alone
+for a vector, for the schema and for a file that is not UTF-8.
 
     python3 scripts/check_tbs_numbers.py [--root <tree>] [--suite <atx-conformance>]
 
@@ -115,6 +119,7 @@ import math
 import pathlib
 import re
 import sys
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = "schemas/atx-credential-v1.1.schema.json"
@@ -161,6 +166,14 @@ SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:#+\s|\d+\.\s|[-*+]\s|\|)")
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
+
+# RFC 6901: a JSON pointer in a URI fragment is percent-encoded UTF-8 (section 6), a
+# "~" in it is written only as "~0" or "~1" (section 3), and a reference token applied
+# to an array is "0" or a decimal number with no leading zero (section 4).
+PERCENT_FAULT_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+TILDE_FAULT_RE = re.compile(r"~(?![01])")
+INDEX_RE = re.compile(r"0|[1-9][0-9]*")
+NOWHERE = object()  # what a JSON pointer that points at nothing leads to
 
 
 def markdown_files(root):
@@ -324,25 +337,61 @@ def shown(value):
     return cut(text)
 
 
+def pointer_tokens(ref):
+    """(reference tokens, None) for a $ref that starts with "#/", read as RFC 6901 reads
+    a JSON pointer written as a URI fragment, or (None, why it is not one)."""
+    if PERCENT_FAULT_RE.search(ref):
+        return None, 'a "%" in it is not followed by two hexadecimal digits'
+    try:
+        pointer = urllib.parse.unquote(ref[1:], errors="strict")
+    except UnicodeDecodeError:
+        return None, "the octets it percent-encodes are not UTF-8"
+    if TILDE_FAULT_RE.search(pointer):
+        return None, 'a reference token holds a "~" that is not followed by "0" or "1"'
+    # Section 4 reads "~1" before "~0", so "~01" is "~1" and not "/".
+    return tuple(token.replace("~1", "/").replace("~0", "~")
+                 for token in pointer[1:].split("/")), None
+
+
+def pointed_at(document, tokens):
+    """The value reference tokens lead to from document (RFC 6901 section 4), or NOWHERE.
+
+    A token applied to an array names an element only when it is "0" or a decimal number
+    with no leading zero, below the array's length. A token longer than the length is
+    written in decimal is past the end, and is not converted: int() raises ValueError for
+    a string of more than 4300 digits on Python 3.13 and 3.14.
+    """
+    for token in tokens:
+        if isinstance(document, dict):
+            document = document.get(token, NOWHERE)
+        elif (isinstance(document, list) and INDEX_RE.fullmatch(token)
+              and len(token) <= len(str(len(document))) and int(token) < len(document)):
+            document = document[int(token)]
+        else:
+            return NOWHERE
+    return document
+
+
 def schema_members(schema):
     """({dotted path: set of JSON types}, {dotted path: [schema node]}, [unreadable]) for
     every member the schema defines, at any depth; a member defined in several places has
     a node for each. unreadable says, once per place, where a node the walk reaches has a
     type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not allow
     there, and what it holds, or a $ref the walk cannot follow to a schema in this file
-    (one that is not a string, is not a "#/" pointer, points at nothing or at a value that
-    is not a schema, or leads back to itself), and where the walk stops at Python's
-    recursion limit. The walk reads no other keyword of a node that has a $ref,
-    so the root's own properties, which main() reads, is checked apart from the walk."""
+    (one that is not a string, does not start with "#/", is not a JSON pointer as RFC 6901
+    writes one in a URI fragment, points at nothing or at a value that is not a schema, or
+    leads back to itself), and where the walk stops at Python's recursion limit. The walk
+    reads no other keyword of a node that has a $ref, so the root's own properties, which
+    main() reads, is checked apart from the walk."""
     found, nodes, unreadable = {}, {}, []
     active = []  # the path of each object node whose walk has not returned
 
-    missing = object()
-
     def resolve(node, path, seen):
         """The node a chain of $refs leads to, or None when the walk stops there. A $ref
-        already followed on the way to this node is recursion and stops the walk without
-        a message; a $ref that cannot be followed is reported, naming the member."""
+        whose pointer was already followed on the way to this node, however that $ref
+        spells it, is recursion and stops the walk without a message; a $ref that cannot
+        be followed is reported, naming the member. chain and seen hold the reference
+        tokens of each pointer, so two spellings of one pointer are one pointer."""
         chain = set()
         while isinstance(node, dict) and "$ref" in node:
             ref = node["$ref"]
@@ -352,17 +401,19 @@ def schema_members(schema):
             if not ref.startswith("#/"):
                 wrong(path, "$ref", ref, 'a JSON pointer into this schema ("#/...")')
                 return None, seen
-            if ref in chain:
+            tokens, fault = pointer_tokens(ref)
+            if fault:
+                wrong(path, "$ref", ref, f"a JSON pointer (RFC 6901): {fault}")
+                return None, seen
+            if tokens in chain:
                 wrong(path, "$ref", ref, "a $ref chain that ends at a schema")
                 return None, seen
-            if ref in seen:
+            if tokens in seen:
                 return None, seen
-            chain.add(ref)
-            seen = seen | {ref}
-            target = schema
-            for part in ref[2:].split("/"):
-                target = target.get(part, missing) if isinstance(target, dict) else missing
-            if target is missing or not isinstance(target, (dict, bool)):
+            chain.add(tokens)
+            seen = seen | {tokens}
+            target = pointed_at(schema, tokens)
+            if target is NOWHERE or not isinstance(target, (dict, bool)):
                 wrong(path, "$ref", ref, "a pointer to a schema in this file")
                 return None, seen
             node = target
