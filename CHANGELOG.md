@@ -329,6 +329,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2 states the member names of a v1.1 credential, in a new paragraph after the
+  TBS exclusions: the members of the credential are exactly the TBS included keys and the
+  excluded members, and the members of each `signatures` entry are exactly `algorithm`, `keyId`
+  and `value`, compared code point for code point after JSON escapes are resolved. A verifier
+  MUST reject a credential that has a member with any other name at its top level or in a
+  `signatures` entry, whatever the member's value, at §1.3 step 1 (`PARSE_ERROR`), and an issuer
+  MUST NOT emit one. §1.3 step 8 says that downstream use takes each value it acts on from the
+  members the verifier read by their exact names, and that a relying party MUST NOT act on a
+  value it obtains by decoding the credential's JSON again. JSON decoders differ in which names
+  they treat as one, so without the rule a decoder could read a member the signature does not
+  cover as one it covers. The reference verifiers and fixtures in atx-conformance are not part of
+  this change. (#135)
 - `scripts/check_tbs_numbers.py --suite` reports a `jcs-vectors` vector nested deeper than Python
   reads or walks on one `[vector]` line that names the vector file, instead of stopping with a
   `RecursionError` traceback. With Python 3.14.3 on macOS arm64, a vector file that is an array
