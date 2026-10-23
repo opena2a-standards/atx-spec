@@ -394,12 +394,9 @@ identifier registered in `core.md` §14.
   "SIGNATURE_INVALID". `[range]` no longer counts a sentence that names one of them, so the
   sentence for those members does not stand in for the one for the four integers. Against the
   `core.md` of e212bad the check reports `[verbatim]` for both members and exits 1; it passes on
-  this tree. `scripts/test_tbs_numbers.sh` adds 13 cases and runs 76, one of them skipped unless
-  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check and `core.md` of e212bad, 15 of
-  them fail: 11 of the 13 new cases, and 4 existing `[range]` cases, whose scratch trees now carry
-  the sentence for `declaredPurpose` and `scanSummary.techniques`, which the old `[range]` rule
-  counted. The reference verifiers and fixtures in atx-conformance are not part of this change.
-  (#122)
+  this tree. `scripts/test_tbs_numbers.sh` adds 13 cases and runs 81, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout. The reference verifiers and fixtures in
+  atx-conformance are not part of this change. (#122)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the `type`, `oneOf`, `anyOf`, `allOf` and
   `properties` of each node it walks in the credential schema. It passed `type` to `set.update()`
   and iterated `oneOf`, `anyOf` and `allOf` without that check, and looked the TBS keys up in the
