@@ -382,6 +382,27 @@ identifier registered in `core.md` §14.
   repository's own tree still passes against the test's scratch suite.
   `scripts/test_schema_refusals.sh` adds 9 cases and runs 36, one of them skipped unless
   `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of f339902, 8 of them fail. (#127)
+- `core.md` §1.3a.2 rules 2 and 3 state the integer form for `trustLevel`,
+  `scanSummary.criticalFindings` and `scanSummary.highFindings`, decided from the number as the
+  credential's JSON text writes it, as rule 1 decides it for `behavioralProfile.observationDays`,
+  and give the outcome for a value outside it. Rules 2 and 3 bounded those three members to an
+  absolute value of at most 9007199254740991 but stated no form, and the credential schema's
+  `integer` type accepts `1.0` and `1e0` at each of them (`Draft202012Validator` reports no error
+  for either), so a member written `1.0` had no stated outcome. Implementations write different
+  bytes for such a number: Node.js 26.12.0 `JSON.stringify` writes the parsed
+  `{"criticalFindings":1.0,"trustLevel":3e0}` as `{"criticalFindings":1,"trustLevel":3}`, and
+  Python 3.14.3 `json.dumps` writes it as `{"criticalFindings": 1.0, "trustLevel": 3.0}`. Rule 3
+  now says a verifier MUST reject a credential that carries one of the four TBS integers written
+  with a fraction part or an exponent part, as it does one above that bound, as a signature failure
+  (`SIGNATURE_INVALID`), and that an issuer MUST NOT emit one outside the integer form; rule 2
+  counts such a `scanSummary` member as outside its type. `scripts/check_tbs_numbers.py` adds a
+  `[form]` check: for each TBS member the schema types as integer or number, `trustScore` apart,
+  a sentence of §1.3a.2 names it in backticks and says "fraction", "exponent", "reject" and
+  `SIGNATURE_INVALID`. Against the `core.md` of f339902 it reports `[form]` for each of the four
+  members and exits 1; it passes on this tree. `scripts/test_tbs_numbers.sh` adds 11 cases and
+  runs 92, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout; against the
+  `core.md` of f339902 1 of them fails, the case that reads the delivered tree. The
+  atx-conformance fixtures for this outcome are not part of this change. (#129)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it

@@ -273,8 +273,9 @@ credential that verifies across implementations and one that does not:
    A verifier MUST reject a credential whose `scanSummary` is not an object, or
    holds any of the six members outside its type, as a signature failure
    (`SIGNATURE_INVALID`): such a member has no value in the projection, so no
-   signature covers the credential. An integer member whose absolute value is
-   greater than 9007199254740991 is outside its type (rule 3). An absent or
+   signature covers the credential. An integer member written with a fraction
+   part or an exponent part, or whose absolute value is greater than
+   9007199254740991, is outside its type (rule 3). An absent or
    `null` member is the zero value (above); the type test bites only a member
    that is present and outside its type.
    Its optional `techniques` member is not one of the six; rule 6 governs it.
@@ -308,13 +309,27 @@ credential that verifies across implementations and one that does not:
    double has the value `9007199254740993`, so an implementation that reads it
    as one projects `9007199254740992`, and RFC 8785 writes the double
    `1000000000000000000000` as `1e+21`, while an implementation that keeps the
-   integer writes its 22 digits. A verifier MUST reject a credential that
-   carries one of these members with an absolute value greater than
+   integer writes its 22 digits. Each of these members is in the integer form
+   that rule 1 states for `observationDays` only when the credential's JSON
+   text writes it with neither a fraction part nor an exponent part (RFC 8259
+   §6): `3` is in this form, and `3.0`, `3e0` and `0.3E1` are not, although
+   each has the value 3. The verifier decides the form from the number as the
+   credential's JSON text writes it, not from the value a JSON parser returns
+   for it. The credential schema's `integer` type tests the value, so it
+   accepts `1.0` and `1e0` at `trustLevel`, `scanSummary.criticalFindings` and
+   `scanSummary.highFindings`. Implementations write different bytes for a
+   number outside the form: Node.js `JSON.stringify` writes the parsed `1.0`
+   and `3e0` as `1` and `3`, and Python `json.dumps` writes them as `1.0` and
+   `3.0`. A verifier MUST reject a credential that carries `trustLevel`,
+   `scanSummary.criticalFindings`, `scanSummary.highFindings` or
+   `behavioralProfile.observationDays` as a JSON number written with a
+   fraction part or an exponent part, or with an absolute value greater than
    9007199254740991, as a signature failure (`SIGNATURE_INVALID`), as it does
    for a `behavioralProfile` that is not well formed (rule 1) and a
    `scanSummary` member outside its type (rule 2): the projection cannot
    represent such a value in bytes that every implementation reproduces, so no
-   signature covers it. A credential that is not conforming can carry other
+   signature covers it. An issuer MUST NOT emit any of them outside the
+   integer form. A credential that is not conforming can carry other
    JSON numbers into the TBS: rules 5 and 6 carry a present `declaredPurpose`
    and a present `scanSummary.techniques` into it verbatim, whatever they
    hold, so a number at any depth of either member, or one that is the
