@@ -84,9 +84,14 @@ properties that is not an object. The walk reads no other keyword of a node that
 has a $ref, so the schema root's own properties, where the included keys are
 looked up, is checked apart from it and fails the same way. That message names
 the member whose schema holds the node, or the schema root, and the keyword with
-its value written as JSON, cut to 60 characters. Every other failure is reported
-with its rule in brackets, as file:line, or as the file alone for a vector, for
-the schema and for a file that is not UTF-8.
+its value written as JSON, cut to 60 characters; the value is written only until
+60 characters are passed. A schema whose arrays or objects nest deeper than the
+json module of the running Python reads is not JSON, and one that nests schemas
+deeper than Python's recursion limit lets the walk follow cannot be walked: that
+message names the member the walk stopped at, or the schema root, cut to 60
+characters. Every other failure is reported with its rule in brackets, as
+file:line, or as the file alone for a vector, for the schema and for a file that
+is not UTF-8.
 
     python3 scripts/check_tbs_numbers.py [--root <tree>] [--suite <atx-conformance>]
 
@@ -285,10 +290,25 @@ def node_types(node):
     return None
 
 
-def shown(value):
-    """value written as JSON, cut to 60 characters."""
-    text = json.dumps(value)
+def cut(text):
+    """text cut to 60 characters."""
     return text if len(text) <= 60 else text[:57] + "..."
+
+
+def shown(value):
+    """value written as JSON, cut to 60 characters.
+
+    The value is written a piece at a time, and the writing stops once 60 characters
+    are passed. json.dumps writes the whole value, and can raise RecursionError for a
+    value json.loads has read: Python 3.14.3 on macOS arm64 reads an array nested
+    110,000 deep and cannot write it.
+    """
+    text = ""
+    for chunk in json.JSONEncoder().iterencode(value):
+        text += chunk
+        if len(text) > 60:
+            break
+    return cut(text)
 
 
 def schema_members(schema):
@@ -296,19 +316,42 @@ def schema_members(schema):
     every member the schema defines, at any depth; a member defined in several places has
     a node for each. unreadable says, once per place, where a node the walk reaches has a
     type, oneOf, anyOf, allOf or properties of a JSON type JSON Schema does not allow
-    there, and what it holds. The walk reads no other keyword of a node that has a $ref,
+    there, and what it holds, or a $ref the walk cannot follow to a schema in this file
+    (one that is not a string, is not a "#/" pointer, points at nothing or at a value that
+    is not a schema, or leads back to itself), and where the walk stops at Python's
+    recursion limit. The walk reads no other keyword of a node that has a $ref,
     so the root's own properties, which main() reads, is checked apart from the walk."""
     found, nodes, unreadable = {}, {}, []
+    active = []  # the path of each object node whose walk has not returned
 
-    def resolve(node, seen):
+    missing = object()
+
+    def resolve(node, path, seen):
+        """The node a chain of $refs leads to, or None when the walk stops there. A $ref
+        already followed on the way to this node is recursion and stops the walk without
+        a message; a $ref that cannot be followed is reported, naming the member."""
+        chain = set()
         while isinstance(node, dict) and "$ref" in node:
             ref = node["$ref"]
-            if not isinstance(ref, str) or not ref.startswith("#/") or ref in seen:
+            if not isinstance(ref, str):
+                wrong(path, "$ref", ref, "a string")
                 return None, seen
+            if not ref.startswith("#/"):
+                wrong(path, "$ref", ref, 'a JSON pointer into this schema ("#/...")')
+                return None, seen
+            if ref in chain:
+                wrong(path, "$ref", ref, "a $ref chain that ends at a schema")
+                return None, seen
+            if ref in seen:
+                return None, seen
+            chain.add(ref)
             seen = seen | {ref}
             target = schema
             for part in ref[2:].split("/"):
-                target = target.get(part) if isinstance(target, dict) else None
+                target = target.get(part, missing) if isinstance(target, dict) else missing
+            if target is missing or not isinstance(target, (dict, bool)):
+                wrong(path, "$ref", ref, "a pointer to a schema in this file")
+                return None, seen
             node = target
         return node, seen
 
@@ -319,9 +362,10 @@ def schema_members(schema):
             unreadable.append(message)
 
     def walk(node, path, seen):
-        node, seen = resolve(node, seen)
+        node, seen = resolve(node, path, seen)
         if not isinstance(node, dict):
             return
+        active.append(path)
         types = node_types(node)
         if types is None:
             wrong(path, "type", node["type"], "a string or an array of strings")
@@ -344,8 +388,17 @@ def schema_members(schema):
         for key in ("items", "additionalProperties"):
             if isinstance(node.get(key), dict):
                 walk(node[key], path, seen)
+        active.pop()
 
-    walk(schema, "", frozenset())
+    try:
+        walk(schema, "", frozenset())
+    except RecursionError as exc:
+        # Each schema nested in another is one more call of walk(). active keeps the
+        # path of each object node whose walk the error left unfinished, the innermost
+        # last.
+        path = active[-1] if active else ""
+        where = f"`{cut(path)}`" if path else "the schema root"
+        unreadable.append(f"{where} nests deeper than the check can walk ({exc})")
     # main() looks the TBS keys up in the root's own properties, which the walk does
     # not read when the root has a $ref.
     if isinstance(schema, dict) and not isinstance(schema.get("properties", {}), dict):
@@ -545,6 +598,10 @@ def main():
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
     except (ValueError, OSError) as exc:
         print(f"{SCHEMA} cannot be read as JSON: {exc}", file=sys.stderr)
+        return 1
+    except RecursionError as exc:
+        print(f"{SCHEMA} cannot be read as JSON: it nests arrays or objects deeper than the "
+              f"json module of this Python can read ({exc})", file=sys.stderr)
         return 1
     members, nodes, unreadable = schema_members(schema)
     if unreadable:

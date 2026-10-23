@@ -329,6 +329,42 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
+  writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
+  3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check
+  in `json.loads` with a 16-line traceback; one nested 110,000 deep, which `json.loads` reads,
+  stopped it in the `json.dumps` call that wrote the value for the message, with a traceback of
+  104,637 lines (104,634 beside a root `$ref`); and 2,000 object schemas nested through
+  `properties` stopped the walk with a 24-line traceback, each with exit 1. The first now prints
+  `schemas/atx-credential-v1.1.schema.json cannot be read as JSON: it nests arrays or objects
+  deeper than the json module of this Python can read`, followed by Python's reason in
+  parentheses. The check now writes the value it shows only until 60 characters are passed, so the
+  second prints the usual line for a root `properties` that is not an object, with the value cut
+  to 60 characters. The third names the member the walk stopped at, cut to 60 characters, and says
+  it `nests deeper than the check can walk`. Each exits 1, and the delivered tree still passes.
+  `scripts/test_tbs_numbers.sh` adds 8 cases and runs 89, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout. It takes the depths from the deepest array
+  `json.loads` reads on the running Python and from its recursion limit, and skips the 2 read
+  cases where `json.loads` reads 2,000,000 levels and the 2 walk cases where it reads no schema
+  nested that deep, as on Python 3.9.6. (#124)
+- `scripts/check_tbs_numbers.py` reports a `$ref` in the credential schema that its walk cannot
+  follow. The walk returned without a message at a `$ref` that was not a string, did not start
+  with `#/`, or pointed at nothing, so every member under it dropped out of the `[missing]` and
+  `[unbounded]` rules: a root `$ref` of `"#/$defs/missing"` beside the root `properties` passed
+  naming 0 TBS members, and a `scanSummary` of `{"$ref": "#/$defs/missing"}` passed naming 2,
+  without `scanSummary.criticalFindings` and `scanSummary.highFindings`. A `$ref` that is not a
+  string, is not a `#/` pointer (`"#"` and an external URI included), points at nothing or at a
+  value that is not a schema, or leads back to itself through other `$ref`s now stops the check
+  with one line naming the member, or the schema root, and the `$ref`, such as
+  `schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema: the schema root has
+  "$ref": "#/$defs/missing", which is not a pointer to a schema in this file`, and exit 1. A `$ref`
+  that the walk already followed for a schema holding the one where it meets that `$ref` again is
+  recursion and still stops the walk there without a message.
+  The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 10 cases: 7 for those
+  shapes (`"#/$defs/missing"` at the root and at `scanSummary`, 5, an external URI, `"#"`,
+  `"#/$defs/did/type"` and a two-`$ref` loop), a one-line count for the root and member `"#/$defs/missing"`, and a recursive `$ref`
+  that passes, and runs 99, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout. (#125)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it
