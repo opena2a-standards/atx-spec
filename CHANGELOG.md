@@ -329,6 +329,49 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_schema_refusals.py` names the `$ref` or `$dynamicRef` whose lookup failed when a
+  fixture's validation reaches one that does not resolve, instead of searching the whole schema
+  for one that names nothing in it. With Python 3.14.3 and jsonschema 4.26.0, that search ran
+  inside the handler for the error jsonschema raised and resolved each reference against the base
+  URI of the schema root. A schema with an array nested 1,200 deep in `$defs.aa.examples`, before a
+  `$defs.zz` of `{"$ref": "#/$defs/nonexistent"}` that `scanSummary` reaches through its own
+  `$ref`, stopped the check with a 78-line `RecursionError` traceback. With a `scanSummary` that
+  declares its own `$id` and holds a `$ref` of `"#/$defs/x"` that resolves under it, beside a
+  `trustLevel` of `{"$ref": "#/$defs/nonexistent"}`, the failure line named
+  `$.properties.scanSummary['$ref']`. With a `$defs.unusedRef` of `{"$ref": "#/$defs/nonexistent"}`
+  that nothing refers to, the `ValueError` jsonschema raises for a NaN `trustScore` under a
+  `multipleOf` of 0.5 was reported as `[missing]`, naming `$['$defs'].unusedRef['$ref']`. The
+  check's validator now looks a `$ref` or `$dynamicRef` up before jsonschema's code for it does,
+  evaluates `unevaluatedItems` and `unevaluatedProperties` after the other keywords of their
+  subschema, and is registered for the JSON Schema 2020-12 dialect while a fixture is validated,
+  so it also validates a subschema that declares that `$schema`, such as the schema root where a
+  `$ref` of `#` leads back to it. The first two schemas now fail as `[missing]` on one line that
+  ends `$['$defs'].zz['$ref']: "#/$defs/nonexistent" does not resolve` and
+  `$.properties.trustLevel['$ref']: "#/$defs/nonexistent" does not resolve`, and the NaN stops the
+  check with jsonschema's `ValueError`, as it does without `$defs.unusedRef`. A lookup jsonschema
+  makes itself, for `unevaluatedItems` or `unevaluatedProperties` or in a subschema that declares
+  the `$schema` of another dialect, is reported by the reference that lookup was given, without a
+  place. The repository's own tree still passes against the test's scratch suite.
+  `scripts/test_schema_refusals.sh` adds 9 cases and runs 53, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout: a `$ref` that resolves under the `$id` of its
+  subschema, which passes, and the same beside a `trustLevel` `$ref` to nothing; a `$ref` no
+  fixture reaches before one a fixture reaches; the NaN under a `multipleOf` of 0.5; a `$ref`
+  after an array nested twice the recursion limit deep, with a one-line count, skipped where
+  `json.loads` does not read that depth; a `$ref` met under a `$ref` of `#`; and a `$ref` under a
+  subschema that declares draft-07, with a one-line count. With the check of b769ad9, 5 of them
+  fail. (#134)
+- `scripts/check_tbs_numbers.py --suite` reports a `jcs-vectors` vector whose
+  `expected.canonicalHex` holds `NaN`, `Infinity` or `-Infinity`, which RFC 8259 section 6 does
+  not permit as JSON numbers, as a vector it cannot read as JSON. With Python 3.14.3, `json.loads`
+  reads those tokens: a vector whose TBS is `{"trustLevel":NaN}` passed, as `abs(nan)` is not
+  greater than 9007199254740991, and the check printed `TBS numbers ok` with exit 0, while
+  `{"trustLevel":Infinity}` failed as a JSON number at `trustLevel` whose absolute value is greater
+  than 9007199254740991. Each now fails with exit 1 as `[vector] cannot read
+  expected.canonicalHex as JSON: NaN is not a JSON number (RFC 8259 section 6)`, naming the token
+  it holds. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 2 cases and runs
+  118, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector whose
+  TBS holds `NaN`, and vectors whose TBS holds `Infinity` and `-Infinity`, which are not reported
+  as a JSON number. With the check of b769ad9, both fail. (#134)
 - `core.md` §1.3a.2 states the member names of a v1.1 credential, in a new paragraph after the
   TBS exclusions: the members of the credential are exactly the TBS included keys and the
   excluded members, and the members of each `signatures` entry are exactly `algorithm`, `keyId`

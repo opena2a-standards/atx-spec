@@ -82,7 +82,9 @@ With --suite, each jcs-vectors/vectors/*.json of an atx-conformance checkout is
 also read: its expected.canonicalHex is decoded and parsed as JSON, and a JSON
 number at a member other than those, or one whose absolute value is greater
 than 9007199254740991, fails as [vector]. A vector that cannot be read that way
-fails as [vector], and so does a checkout with no vectors.
+fails as [vector], and so does one whose expected.canonicalHex holds NaN,
+Infinity or -Infinity, which RFC 8259 section 6 does not permit as JSON numbers,
+and a checkout with no vectors.
 
 A sentence may wrap across lines but does not cross a blank line, a heading, a
 list item or a table cell, and a sentence does not end inside a code span.
@@ -616,6 +618,11 @@ def check_statement(rel, at, spans, numeric, containers, members, tbs_keys):
     return failures
 
 
+def not_a_number(name):
+    """json.loads calls this for NaN, Infinity and -Infinity, which it reads by default."""
+    raise ValueError(f"{name} is not a JSON number (RFC 8259 section 6)")
+
+
 def check_suite(suite, numeric):
     vectors = sorted((suite / "jcs-vectors" / "vectors").glob("*.json"))
     if not vectors:
@@ -628,7 +635,8 @@ def check_suite(suite, numeric):
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
             source = "expected.canonicalHex"
-            tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"))
+            tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"),
+                             parse_constant=not_a_number)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             failures.append(f"{rel} [vector] cannot read expected.canonicalHex as JSON: {exc}")
             continue
