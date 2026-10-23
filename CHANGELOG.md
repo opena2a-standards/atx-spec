@@ -368,6 +368,26 @@ identifier registered in `core.md` §14.
   cases and runs 116: on Python 3.13.12 and 3.14.3, 115 pass and 1 is skipped
   (`ATX_CONFORMANCE_SUITE` not set), and on 3.9.6 113 pass and 3 are skipped. With the check of
   5796fc2, 12 of them fail on each of those Pythons. (#131)
+- `core.md` §12 Coverage says what the two threshold fixtures pin. The paragraph listed the
+  threshold of a key set held by one authority (§1.3 step 5) among the requirements no fixture
+  exercises, and said that a verifier that never counts signatures against that threshold, or that
+  checks only the first signature, passes the threshold cosignature fixture. atx-conformance
+  `fixtures/threshold-1of3-cosignature.json` pins the rejection of that fixture's credential cut to
+  one of its three signatures under a verifier state that holds the authority's three Ed25519 keys
+  and requires two of them, so a verifier that never counts accepts a credential the suite pins as
+  rejected, as the Conformance suite paragraph of §12 already says. The Coverage paragraph now
+  lists three parts of the step 5 rule that no fixture exercises: the member keys and the
+  threshold as the authority's DID document declares them in `thresholdKeySets` (§1.3b), where
+  `threshold-1of3-cosignature` supplies them in its verifier state instead; two signatures that
+  verify under one member key counting once; and the acceptance of a credential that meets its
+  threshold. It says that `threshold-2of3-cosignature` pins the acceptance of three signatures
+  from one authority under a verifier state that sets no threshold, and that
+  `threshold-1of3-cosignature` pins the rejection of that credential cut to one of them. The
+  sentence that requires self-attestation is unchanged, its list included, and the sections the
+  paragraph names, as `scripts/check_coverage_index.py` reads them, stay §1.3, §3.1, §3.3, §6.4
+  and §7. No requirement, fixture or verdict changes. `scripts/check_pointers.py` requires the
+  Coverage paragraph to name `threshold-1of3-cosignature`, and `scripts/test_pointers.sh` adds 3
+  cases and runs 58. (#60)
 - `scripts/check_tbs_numbers.py` reports a credential schema nested deeper than Python reads,
   writes or walks on one line, instead of stopping with a `RecursionError` traceback. With Python
   3.14.3 on macOS arm64, a root `properties` that is an array nested 200,000 deep stopped the check

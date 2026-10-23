@@ -97,9 +97,12 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # threshold step; a test that needs one bare rewrites that line. The section 1.3
 # step 5 threshold bullet, on line 55, cites section 1.3b, whose heading is line
 # 58 and whose paragraph, line 60, names the terms it defines; a test that needs
-# either without them rewrites that line. A tree with no README.md, docs/conformance.md or
-# sovereign-federation.md also gets the default one from write_readme,
-# write_conformance or write_sovereign.
+# either without them rewrites that line. The section 12 Coverage paragraph, line
+# 62, names the fixture that pins the threshold; it has no heading of its own, so
+# a section a test appends is still the next one after section 1.3b. A test that
+# needs the paragraph without the fixture rewrites that line. A tree with no
+# README.md, docs/conformance.md or sovereign-federation.md also gets the default
+# one from write_readme, write_conformance or write_sovereign.
 write_core() {
     local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
     local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
@@ -167,6 +170,8 @@ $purpose
 ### 1.3b Threshold key set declaration
 
 An authority's DID document declares its threshold key sets in a \`thresholdKeySets\` member. Each set lists its member keys in \`members\` and its threshold m in \`threshold\`.
+
+**Coverage.** The \`threshold-1of3-cosignature\` fixture pins the rejection of a credential carrying fewer signatures than the threshold of §1.3 step 5.
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
     [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
@@ -560,6 +565,29 @@ sed 's/^### 1\.3b Threshold key set declaration$/### Threshold key set declarati
     "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
 expect_fail "a core.md with no section 1.3b fails, although the bullet and section 2.3 cite it" \
     "$T" definition "core.md"
+
+# --- threshold fixture in section 12 Coverage ------------------------------
+
+T="$(new_tree coverage-threshold-fixture-bare)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^\*\*Coverage\.\*\*.*$/**Coverage.** The threshold cosignature fixture pins a credential carrying all three of its signatures, so a verifier that never counts signatures against the threshold of §1.3 step 5 passes it./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+printf '\n%s\n' 'The `threshold-1of3-cosignature` fixture is named in this paragraph, not in Coverage.' >> "$T/core.md"
+expect_fail "section 12 Coverage not naming the fixture that pins the threshold fails, even when the next paragraph names it" \
+    "$T" pointer "core.md:62"
+
+T="$(new_tree coverage-threshold-fixture-other)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^\*\*Coverage\.\*\*.*$/**Coverage.** The `threshold-2of3-cosignature` fixture pins the acceptance of a credential carrying three signatures under no threshold./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "section 12 Coverage naming only the threshold fixture that sets no threshold fails" \
+    "$T" pointer "core.md:62"
+
+T="$(new_tree coverage-threshold-fixture)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed 's/^\*\*Coverage\.\*\*.*$/**Coverage.** No fixture exercises step 7. The `threshold-2of3-cosignature` fixture pins the acceptance of a credential carrying three signatures under no threshold, and `threshold-1of3-cosignature` pins the rejection of that credential cut to one of them under a verifier state that requires two./' \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_pass "section 12 Coverage naming the fixture that pins the threshold after other sentences passes" "$T"
 
 # --- vacuous pass -----------------------------------------------------------
 
