@@ -342,12 +342,11 @@ identifier registered in `core.md` §14.
   second prints the usual line for a root `properties` that is not an object, with the value cut
   to 60 characters. The third names the member the walk stopped at, cut to 60 characters, and says
   it `nests deeper than the check can walk`. Each exits 1, and the delivered tree still passes.
-  `scripts/test_tbs_numbers.sh` adds 8 cases and runs 76, one of them skipped unless
+  `scripts/test_tbs_numbers.sh` adds 8 cases and runs 89, one of them skipped unless
   `ATX_CONFORMANCE_SUITE` names a suite checkout. It takes the depths from the deepest array
   `json.loads` reads on the running Python and from its recursion limit, and skips the 2 read
   cases where `json.loads` reads 2,000,000 levels and the 2 walk cases where it reads no schema
-  nested that deep, as on Python 3.9.6. With the check of 47ade55, 8 of the 76 fail on Python
-  3.14.3, 4 on 3.12.12 and 3.13.12, and 2 on 3.9.6. (#124)
+  nested that deep, as on Python 3.9.6. (#124)
 - `scripts/check_tbs_numbers.py` reports a `$ref` in the credential schema that its walk cannot
   follow. The walk returned without a message at a `$ref` that was not a string, did not start
   with `#/`, or pointed at nothing, so every member under it dropped out of the `[missing]` and
@@ -359,12 +358,13 @@ identifier registered in `core.md` §14.
   with one line naming the member, or the schema root, and the `$ref`, such as
   `schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema: the schema root has
   "$ref": "#/$defs/missing", which is not a pointer to a schema in this file`, and exit 1. A `$ref`
-  to a node the walk is already inside is recursion and still stops the walk without a message.
+  that the walk already followed for a schema holding the one where it meets that `$ref` again is
+  recursion and still stops the walk there without a message.
   The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 10 cases: 7 for those
   shapes (`"#/$defs/missing"` at the root and at `scanSummary`, 5, an external URI, `"#"`,
   `"#/$defs/did/type"` and a two-`$ref` loop), a one-line count for the root and member `"#/$defs/missing"`, and a recursive `$ref`
-  that passes, and runs 78, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
-  checkout; with the check of 47ade55, 7 of them fail. (#125)
+  that passes, and runs 99, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout. (#125)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it
