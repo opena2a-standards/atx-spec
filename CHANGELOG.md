@@ -365,6 +365,23 @@ identifier registered in `core.md` §14.
   `"#/$defs/did/type"` and a two-`$ref` loop), a one-line count for the root and member `"#/$defs/missing"`, and a recursive `$ref`
   that passes, and runs 99, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
   checkout. (#125)
+- `scripts/check_schema_refusals.py` reports a schema or fixture nested deeper than it can read or
+  follow on one failure line per file, where it stopped with a `RecursionError` traceback. With
+  Python 3.14.3 and jsonschema 4.26.0, an unused `$defs` member that nests 100 object schemas
+  through `properties` stopped the check in `Draft202012Validator.check_schema()` with 2,704 lines
+  of traceback (one that nests 90 passed); arrays nested 200,000 deep in the schema or in a fixture
+  stopped it in `json.loads`; and a chain of 2,000 `$ref` at `agentId`, which every fixture
+  reaches, stopped it in `iter_errors()` with 2,504 lines. Each exited 1. The 100-deep schema now
+  fails as `[missing]` with `schemas/atx-credential-v1.1.schema.json [missing] cannot be read as a
+  JSON Schema: it nests deeper than the check can follow when it compares it with the JSON Schema
+  2020-12 metaschema; its deepest place is
+  $.$defs.deepUnused.properties.a.properties.a.properties.a... (maximum recursion depth
+  exceeded)`; the 200,000-deep schema and fixture fail as files that cannot be read as JSON; and
+  with the `$ref` chain each fixture fails as `[fixture]` on one line and is left out of the
+  `[stale]` rule, as whether the schema refuses it is not known. Each of them exits with 1. The
+  repository's own tree still passes against the test's scratch suite.
+  `scripts/test_schema_refusals.sh` adds 9 cases and runs 36, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout; with the check of f339902, 8 of them fail. (#127)
 - `scripts/check_tbs_numbers.py` checks the JSON type of the schema root's own `properties`, where
   it looks up the TBS keys, also when the root has a `$ref`. The walk reads no other keyword of a
   node that has a `$ref`, so it did not check that `properties` then, and the lookup ran on what it

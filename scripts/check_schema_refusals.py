@@ -29,7 +29,10 @@ that opens with **Issuer.** that say the schema refuses ("schema refuses",
                as a fixture name, so the suite ships that fixture and the
                schema refuses it on its signatures member. A fixture the
                suite removed or renamed fails, and so does a member name
-               such as `signatures` in backticks outside the phrase.
+               such as `signatures` in backticks outside the phrase. A
+               fixture that cannot be validated against the schema (see
+               fixture) is left out of this rule, as whether the schema
+               refuses it is not known.
   missing      core.md, its section 12 Issuer line, the schema or a
                fixtures/*.json in the suite is missing, so a renamed anchor or
                a wrong --suite path cannot pass vacuously. A schema that cannot
@@ -39,9 +42,18 @@ that opens with **Issuer.** that say the schema refuses ("schema refuses",
                gives the first place the metaschema reports, as a JSON path,
                and the metaschema's message for it; where that message opens
                with the value in Python notation, the value is written as JSON,
-               cut to 60 characters.
-  fixture      a fixture that cannot be read as JSON, or has no object atx
-               member.
+               cut to 60 characters. A schema whose arrays or objects nest
+               deeper than the json module of the running Python reads fails
+               the same way, and so does one that nests deeper than the check
+               can follow when it compares it with the metaschema, within
+               Python's recursion limit; that line gives the schema's deepest
+               place as a JSON path, cut to 60 characters.
+  fixture      a fixture that cannot be read as JSON, nests arrays or objects
+               deeper than the json module of the running Python reads, has no
+               object atx member, or cannot be validated against the schema
+               because the validation goes deeper than Python's recursion
+               limit lets the check follow, as a long chain of $ref the
+               fixture reaches does.
 
 Each failure is reported as file:line with its rule in brackets.
 
@@ -114,10 +126,38 @@ def refused_on_signatures(validator, atx):
     return any(list(error.absolute_path)[:1] == ["signatures"] for error in validator.iter_errors(atx))
 
 
+def cut(text):
+    """text cut to 60 characters."""
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
 def shown(value):
     """value written as JSON, cut to 60 characters."""
-    text = json.dumps(value)
-    return text if len(text) <= 60 else text[:57] + "..."
+    return cut(json.dumps(value))
+
+
+def deepest_place(value):
+    """The JSON path of the most deeply nested array or object in value, cut to 60
+    characters. The walk keeps its own stack, so it does not stop at Python's recursion
+    limit on a value nested deeper than that."""
+    parents = [None]  # (index of the parent in parents, key) for each array or object
+    stack = [(value, 0, 0)]  # (array or object, depth, its index in parents)
+    deepest, deepest_depth = 0, 0
+    while stack:
+        node, depth, index = stack.pop()
+        if depth > deepest_depth:
+            deepest, deepest_depth = index, depth
+        members = (node.items() if isinstance(node, dict)
+                   else enumerate(node) if isinstance(node, list) else ())
+        for key, child in members:
+            if isinstance(child, (dict, list)):
+                parents.append((index, key))
+                stack.append((child, depth + 1, len(parents) - 1))
+    keys = []
+    while parents[deepest] is not None:
+        deepest, key = parents[deepest]
+        keys.append(f"[{key}]" if isinstance(key, int) else f".{key}")
+    return cut("$" + "".join(reversed(keys)))
 
 
 def schema_problem(error):
@@ -150,12 +190,20 @@ def check(root, suite):
         schema = json.loads((root / SCHEMA_FILE).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return [f"{SCHEMA_FILE} [missing] cannot be read as JSON: {exc}"]
+    except RecursionError as exc:
+        return [f"{SCHEMA_FILE} [missing] cannot be read as JSON: it nests arrays or objects "
+                f"deeper than the json module of this Python can read ({exc})"]
     # iter_errors() stops with a TypeError on a oneOf or a type of 5, and with an
     # AttributeError on a properties of 5; the metaschema refuses each of them.
     try:
         Draft202012Validator.check_schema(schema)
     except SchemaError as exc:
         return [f"{SCHEMA_FILE} [missing] cannot be read as a JSON Schema: {schema_problem(exc)}"]
+    except RecursionError as exc:
+        # check_schema() walks every subschema, whether a fixture reaches it or not.
+        return [f"{SCHEMA_FILE} [missing] cannot be read as a JSON Schema: it nests deeper than "
+                f"the check can follow when it compares it with the JSON Schema 2020-12 "
+                f"metaschema; its deepest place is {deepest_place(schema)} ({exc})"]
     validator = Draft202012Validator(schema)
 
     paths = sorted((suite / "fixtures").glob("*.json"))
@@ -164,6 +212,7 @@ def check(root, suite):
 
     failures = []
     refused = {}  # fixture name -> (atcVersion, algorithms)
+    unvalidated = {}  # the same, for a fixture the check could not validate
     for path in paths:
         rel = f"fixtures/{path.name}"
         try:
@@ -171,11 +220,22 @@ def check(root, suite):
         except (OSError, ValueError) as exc:  # ValueError: not UTF-8, or not JSON
             failures.append(f"{rel} [fixture] cannot be read as JSON: {exc}")
             continue
+        except RecursionError as exc:
+            failures.append(f"{rel} [fixture] cannot be read as JSON: it nests arrays or objects "
+                            f"deeper than the json module of this Python can read ({exc})")
+            continue
         atx = doc.get("atx") if isinstance(doc, dict) else None
         if not isinstance(atx, dict):
             failures.append(f"{rel} [fixture] has no object atx member to validate")
             continue
-        if refused_on_signatures(validator, atx):
+        try:
+            is_refused = refused_on_signatures(validator, atx)
+        except RecursionError as exc:  # as a long chain of $ref the fixture reaches can raise
+            failures.append(f"{rel} [fixture] cannot be validated against the schema: the "
+                            f"validation goes deeper than the check can follow ({exc})")
+            unvalidated[path.stem] = (atx.get("atcVersion"), algorithms(atx))
+            continue
+        if is_refused:
             refused[path.stem] = (atx.get("atcVersion"), algorithms(atx))
 
     claims = [s for s in SENTENCE_SPLIT_RE.split(para) if REFUSES_RE.search(s)]
@@ -185,6 +245,10 @@ def check(root, suite):
              for s in claims for n in NAME_RE.findall(ED25519_ONLY_RE.sub(" ", s))}
     ed25519_only = {name for name, (version, algs) in refused.items()
                     if version == "1.1" and algs == ["Ed25519"]}
+    # Whether the schema refuses a fixture it could not be validated against is not known,
+    # so the stale rules below say nothing about one.
+    unvalidated_ed25519_only = {name for name, (version, algs) in unvalidated.items()
+                                if version == "1.1" and algs == ["Ed25519"]}
 
     for name in sorted(refused):
         if name in named or (has_phrase and name in ed25519_only):
@@ -196,14 +260,14 @@ def check(root, suite):
             f"member (atcVersion {version}, signatures: {', '.join(algs) or 'none'}); no sentence "
             f"of the Issuer paragraph that says the schema refuses {how}"
         )
-    if has_phrase and not ed25519_only:
+    if has_phrase and not ed25519_only and not unvalidated_ed25519_only:
         failures.append(
             f'{where} [stale] the Issuer paragraph says the schema refuses the "{PHRASE}"; '
             f"no fixture in the suite declares atcVersion 1.1, carries Ed25519 signatures only "
             f"and is refused"
         )
     fixture_names = {path.stem for path in paths}
-    for name in sorted((named & fixture_names) - set(refused)):
+    for name in sorted((named & fixture_names) - set(refused) - set(unvalidated)):
         failures.append(
             f"{where} [stale] the Issuer paragraph says the schema refuses fixtures/{name}.json; "
             f"the schema does not refuse it on its signatures member"

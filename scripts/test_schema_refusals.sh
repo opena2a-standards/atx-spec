@@ -106,6 +106,16 @@ expect_pass() {  # expect_pass <leaf name> <root> <suite>
     fi
 }
 
+expect_lines() {  # expect_lines <leaf name> <count>: the last run reported <count> failure lines
+    local name="$1" got
+    got="$(grep -c '^  - ' "$OUT")"
+    if [ "$got" -eq "$2" ]; then
+        ok "$name"
+    else
+        not_ok "$name" "expected $2 failure line(s), got $got: $(head -c 400 "$OUT" | tr '\n' ' ')"
+    fi
+}
+
 # write_core <root> <Issuer paragraph text>
 # The Issuer paragraph is on line 5. Section 13 names a fixture the schema
 # accepts in a refusal sentence, which fails if anything outside section 12 is
@@ -140,6 +150,28 @@ for key in keys[:-1]:
 node[keys[-1]] = value
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
+PYEOF
+}
+
+# schema_nest <root> <depth> <key>...: set that member of the tree's schema to
+# <depth> object schemas, each holding the next as the member a of its
+# properties, around a string schema. The text is built rather than written
+# with json.dump, which stops at Python's recursion limit on a value this deep.
+schema_nest() {
+    local root="$1" depth="$2"
+    shift 2
+    python3 -B - "$root/schemas/atx-credential-v1.1.schema.json" "$depth" "$@" <<'PYEOF'
+import json, sys
+path, depth, keys = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+node = schema
+for key in keys[:-1]:
+    node = node.setdefault(key, {})
+node[keys[-1]] = "@NEST@"
+nest = '{"type": "object", "properties": {"a": ' * depth + '{"type": "string"}' + "}}" * depth
+with open(path, "w", encoding="utf-8") as f:
+    f.write(json.dumps(schema, indent=2).replace('"@NEST@"', nest))
 PYEOF
 }
 
@@ -326,6 +358,82 @@ expect_fail "a value longer than 60 characters is written as JSON and cut to 60"
     "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
     "$UNREADABLE \$.properties.scanSummary.properties: [\"criticalFindings\", \"highFindings\", \"mediumFindings\", \"l... is not of type 'object'" \
     '!Traceback'
+
+# A schema or fixture nested deeper than the check can read or follow fails on
+# one line per file, not with a RecursionError traceback. The depths are taken
+# from the running Python: check_schema() makes several calls for each object
+# schema it walks, so a quarter of the recursion limit is past it, while the
+# JSON text of that many nests less deep than the recursion limit.
+LIMIT="$(python3 -c 'import sys; print(sys.getrecursionlimit())')"
+TOO_DEEP=1000000  # arrays nested this deep, past what json.loads reads
+
+T="$(new_dir nested-shallow)"
+write_tree "$T" "$GOOD"
+schema_nest "$T" 20 '$defs' deepUnused
+expect_pass "an unused \$defs member nesting 20 object schemas still passes" "$T" "$S"
+
+T="$(new_dir nested-deep)"
+write_tree "$T" "$GOOD"
+schema_nest "$T" "$((LIMIT / 4))" '$defs' deepUnused
+expect_fail "an unused \$defs member nesting more object schemas than the check can follow fails naming its deepest place" \
+    "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+    "$UNREADABLE it nests deeper than the check can follow when it compares it with the JSON Schema 2020-12 metaschema; its deepest place is \$.\$defs.deepUnused.properties.a.properties.a.properties.a..." \
+    '!Traceback'
+expect_lines "a schema nested deeper than the check can follow fails on one line" 1
+
+T="$(new_dir ref-chain)"
+write_tree "$T" "$GOOD"
+python3 -B - "$T/schemas/atx-credential-v1.1.schema.json" "$LIMIT" <<'PYEOF'
+import json, sys
+path, n = sys.argv[1], int(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+for i in range(n):
+    schema["$defs"][f"chain{i}"] = {"$ref": f"#/$defs/chain{i + 1}"}
+schema["$defs"][f"chain{n}"] = {"type": "string"}
+schema["properties"]["agentId"] = {"$ref": "#/$defs/chain0"}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+expect_fail "a chain of \$ref every fixture reaches, too long to follow, fails each fixture" \
+    "$T" "$S" "fixtures/v1_1-hybrid-pq-only.json" fixture \
+    "fixtures/baseline-valid.json [fixture] cannot be validated against the schema: the validation goes deeper than the check can follow" \
+    '!Traceback' '![stale]' '![unaccounted]'
+expect_lines "each fixture the check cannot validate fails on one line, and no stale line follows" 4
+
+if python3 -c "import json; n = $TOO_DEEP; json.loads('[' * n + ']' * n)" 2>/dev/null; then
+    skip "a schema nested deeper than json.loads reads fails on one line" "json.loads reads $TOO_DEEP nested arrays"
+    skip "a fixture nested deeper than json.loads reads fails on one line" "json.loads reads $TOO_DEEP nested arrays"
+else
+    T="$(new_dir loads-deep)"
+    write_tree "$T" "$GOOD"
+    schema_set "$T" '"@DEEP@"' '$defs' deepArray
+    python3 -B - "$T/schemas/atx-credential-v1.1.schema.json" "$TOO_DEEP" <<'PYEOF'
+import sys
+path, n = sys.argv[1], int(sys.argv[2])
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text.replace('"@DEEP@"', "[" * n + "]" * n))
+PYEOF
+    expect_fail "a schema nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S" "schemas/atx-credential-v1.1.schema.json" missing \
+        "cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    expect_lines "a schema nested deeper than json.loads reads fails on one line" 1
+
+    S7="$(new_dir deep-fixture-suite)"
+    write_fixture "$S7" v1_1-baseline-valid 1.1 Ed25519
+    write_fixture "$S7" v1_1-hybrid-pq-only 1.1 ML-DSA-65
+    python3 -c "n = $TOO_DEEP; print('{\"atx\": ' + '[' * n + ']' * n + '}')" > "$S7/fixtures/deep.json"
+    T="$(new_dir deep-fixture)"
+    write_tree "$T" "$GOOD"
+    expect_fail "a fixture nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S7" "fixtures/deep.json" fixture \
+        "cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    expect_lines "a fixture nested deeper than json.loads reads fails on one line" 1
+fi
 
 T="$(new_dir tree)"
 write_tree "$T" "$GOOD"
