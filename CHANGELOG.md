@@ -344,6 +344,12 @@ identifier registered in `core.md` §14.
   a conforming issuer MUST NOT emit a `declaredPurpose` whose `capabilityJustification` has a key
   outside the credential's `capabilities`, and checks it before signing. The reference verifiers
   and fixtures in atx-conformance are not part of this change. (#51)
+- `core.md` §12: the Coverage paragraph names the four atx-conformance fixtures that declare
+  `atcVersion` 1.1, carry Ed25519 signatures only and pin ACCEPT (`v1_1-baseline-valid`,
+  `v1_1-declared-purpose-empty-whitespace`, `v1_1-declared-purpose-valid` and
+  `v1_1-no-transparency-log-index`), which §1.3 step 5 and §13 now reject for declaring no
+  ML-DSA-65 entry; until the suite regenerates them the requirement text governs for them, and the
+  pinned-verdict requirement of the Conformance suite paragraph excepts them. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
