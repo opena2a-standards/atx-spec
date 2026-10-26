@@ -329,6 +329,10 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §13, Cryptographic agility: an `atcVersion` 1.1 credential that declares no ML-DSA-65
+  entry is a signature failure (`SIGNATURE_INVALID`), whether or not the entries it declares
+  verify. `atcVersion` 1.0, frozen legacy (§14), is not constrained. The reference verifiers and
+  fixtures in atx-conformance are not part of this change. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
