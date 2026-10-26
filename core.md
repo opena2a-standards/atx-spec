@@ -665,13 +665,23 @@ useless as cover.
   it MUST NOT raise an agent's trust prior. Otherwise a signed, coherent-looking
   purpose becomes an alibi that suppresses scrutiny while the agent covertly does
   something else. The declaration tightens the test; it does not vouch for intent.
-- **Content never rejects.** A verifier MUST NOT reject a credential for the
-  content of a present `declaredPurpose`, the subset rule of §1.5.2 included: the
-  object is signed (§1.3a.2 rule 5), so a `capabilityJustification` key outside
-  `capabilities` is the issuer's non-conformance, not the holder's; a consumer
-  that computes breadth (§1.5.4) counts that key's namespace like any other, so
-  such a key can only raise the breadth class, never lower it, and a consumer MAY
-  record it as an issuer defect. The subset rule binds the issuer (§12).
+- **The declaration never rejects.** A verifier MUST NOT reject a credential
+  for what a present `declaredPurpose` declares: a sub-field that is missing
+  or outside the rules of §1.5.2 or the vocabulary of §1.5.3, the subset rule
+  of §1.5.2 included, is not a rejection ground. The strict parse of §1.3
+  step 1 and the signing-form rules of §1.3a.2 still apply to the object as
+  to every other signed member: a duplicate object member at any depth,
+  inside `declaredPurpose` included, is a `PARSE_ERROR` (the rejection the
+  conformance suite pins with `v1_1-duplicate-purpose-member`), and a JSON
+  number in it written with a fraction part or an exponent part, or whose
+  absolute value is greater than 9007199254740991, is a signature failure
+  (`SIGNATURE_INVALID`) under §1.3a.2 rule 3, because no signature covers it.
+  The object is signed (§1.3a.2 rule 5), so a `capabilityJustification` key
+  outside `capabilities` is the issuer's non-conformance, not the holder's; a
+  consumer that computes breadth (§1.5.4) counts that key's namespace like any
+  other, so such a key can only raise the breadth class, never lower it, and a
+  consumer MAY record it as an issuer defect. The subset rule binds the issuer
+  (§12).
 
 ---
 
