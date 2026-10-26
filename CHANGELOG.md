@@ -336,6 +336,11 @@ identifier registered in `core.md` §14.
 - `core.md` §1.3 step 5 names the required-suites check under `atcVersion` 1.1, in a sub-bullet
   before the threshold bullet: the check is on the declared set, not the verified set, and a
   `PARSE_ERROR` (step 1) or `EXPIRED` (step 2) precedes it. (#44)
+- `core.md` §1.5.5 and §12: a verifier never rejects a credential for the content of a present
+  `declaredPurpose`, the subset rule of §1.5.2 included, and that rule binds the issuer: a
+  conforming issuer MUST NOT emit a `declaredPurpose` whose `capabilityJustification` has a key
+  outside the credential's `capabilities`, and checks it before signing. The reference verifiers
+  and fixtures in atx-conformance are not part of this change. (#51)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
