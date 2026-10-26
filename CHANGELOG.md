@@ -329,6 +329,31 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
+  `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
+  ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
+  that of a member the credential carries with its `i` replaced by a letter outside ASCII:
+  `ıssuedAt` (U+0131 LATIN SMALL LETTER DOTLESS I) beside `issuedAt`, and `İd` (U+0130 LATIN
+  CAPITAL LETTER I WITH DOT ABOVE) beside `id`. §1.3a.2 names every member a v1.1 credential may
+  hold and has a verifier reject a credential with a member of any other name as `PARSE_ERROR`. At
+  6f600f5 it added four MUST-REJECT v1.1 credentials whose `behavioralProfile` was changed after
+  signing: `fixtures/v1_1-behavioral-profile-case-variant-member.json` renames `observationDays`
+  to `OBSERVATIONDAYS` and `fixtures/v1_1-behavioral-profile-extra-member.json` adds a fourth
+  member, `riskLevel`, each in a credential signed with the baseline profile, while
+  `fixtures/v1_1-behavioral-profile-member-outside-type.json` adds a profile whose
+  `observationDays` is the JSON string `"14"` and `fixtures/v1_1-behavioral-profile-not-object.json`
+  adds the JSON string `"sha256:ghi789"` as the profile, each to a credential signed with none.
+  §1.3a.2 rule 1 makes each a signature failure (`SIGNATURE_INVALID`). `README.md` carried the
+  verifier's summary line for 30; `docs/conformance.md` carried "30 fixtures" and "30 of 30 PASS";
+  §12 carried "30 fixtures". Each follows the suite, and the six fixtures join both fixture
+  enumerations: the two member-name fixtures beside the case-variant member fixture, and the four
+  profile fixtures as the last entry of the `v1_1-*` family. Against atx-conformance at 6f600f5
+  and at ea694e6 both reference verifiers report `summary: 36 pass, 0 fail (36 fixtures)`, and at
+  ea694e6 both reject the two member-name fixtures as `PARSE_ERROR` and the four profile fixtures
+  as `SIGNATURE_INVALID`. Each of the six carries one signature, an Ed25519 one, asserts
+  `trustLevel` 4 and pins `2026-05-24T00:00:00Z` as the verifier's clock, so the Issuer and
+  verifier-clock paragraphs of §12 hold for them as written: five fixtures still carry an ML-DSA-65
+  signature. No normative text changes. (#138)
 - `scripts/check_schema_refusals.py` names the `$ref` or `$dynamicRef` whose lookup failed when a
   fixture's validation reaches one that does not resolve, instead of searching the whole schema
   for one that names nothing in it. With Python 3.14.3 and jsonschema 4.26.0, that search ran
@@ -369,9 +394,10 @@ identifier registered in `core.md` §14.
   than 9007199254740991. Each now fails with exit 1 as `[vector] cannot read
   expected.canonicalHex as JSON: NaN is not a JSON number (RFC 8259 section 6)`, naming the token
   it holds. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 2 cases and runs
-  118, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector whose
-  TBS holds `NaN`, and vectors whose TBS holds `Infinity` and `-Infinity`, which are not reported
-  as a JSON number. With the check of b769ad9, both fail. (#134)
+  135: on Python 3.13.12 and 3.14.3, 134 pass and 1 is skipped (`ATX_CONFORMANCE_SUITE` not set),
+  and on 3.9.6 130 pass and 5 are skipped. The 2 cases are a vector whose TBS holds `NaN`, and
+  vectors whose TBS holds `Infinity` and `-Infinity`, which are not reported as a JSON number.
+  With the check of b769ad9, both fail. (#134)
 - `core.md` §1.3a.2 states the member names of a v1.1 credential, in a new paragraph after the
   TBS exclusions: the members of the credential are exactly the TBS included keys and the
   excluded members, and the members of each `signatures` entry are exactly `algorithm`, `keyId`
