@@ -39,9 +39,20 @@ A sentence may wrap across lines but does not cross a blank line, a heading, a
 list item or a table cell, and a sentence does not end inside a code span.
 Fenced code blocks are not read as sentences.
 
+A local $ref ("#/...") is read as RFC 6901 reads a JSON pointer written as a URI
+fragment: the fragment is percent-decoded as UTF-8, "~1" and "~0" in a reference
+token are read as "/" and "~", and a token applied to an array names the element
+at that index when it is "0" or a decimal number with no leading zero.
+
 A tree fails with a message that says why when core.md is missing, is not UTF-8
-or has no section 1.3a.2 heading, and when the schema is missing or is not JSON.
-Every other failure is reported as file:line with its rule in brackets.
+or has no section 1.3a.2 heading, and when the schema is missing, is not JSON or
+gives a TBS key a $ref, at its own node or at the end of a chain of $refs from
+it, that the check cannot follow to a schema in this file: one that is not a
+string, does not start with "#/", is not a JSON pointer as RFC 6901 writes one
+in a URI fragment, points at nothing or at a value that is not a schema, or
+leads back to itself. That message names the key and the $ref written as JSON,
+cut to 60 characters. Every other failure is reported as file:line with its rule
+in brackets.
 
     python3 scripts/check_tbs_member_names.py [--root <tree>]
 
@@ -53,6 +64,7 @@ import json
 import pathlib
 import re
 import sys
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = "schemas/atx-credential-v1.1.schema.json"
@@ -80,6 +92,14 @@ CONDITION_RE = re.compile(r"\bis\s+([A-Za-z]+(?:[\s-]+[A-Za-z]+){0,2}?)\s+only\s
 CODE_RE = re.compile(r"`([^`]+)`")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:#+\s|\d+\.\s|[-*+]\s|\|)")
+
+# RFC 6901: a JSON pointer in a URI fragment is percent-encoded UTF-8 (section 6), a
+# "~" in it is written only as "~0" or "~1" (section 3), and a reference token applied
+# to an array is "0" or a decimal number with no leading zero (section 4).
+PERCENT_FAULT_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+TILDE_FAULT_RE = re.compile(r"~(?![01])")
+INDEX_RE = re.compile(r"0|[1-9][0-9]*")
+NOWHERE = object()  # what a JSON pointer that points at nothing leads to
 
 
 def blocks(lines):
@@ -174,30 +194,101 @@ def included_keys(lines, start, end):
     return None
 
 
+def cut(text):
+    """text cut to 60 characters."""
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def shown(value):
+    """value written as JSON, cut to 60 characters.
+
+    The value is written a piece at a time, and the writing stops once 60 characters
+    are passed. json.dumps writes the whole value, and can raise RecursionError for a
+    value json.loads has read: Python 3.14.3 on macOS arm64 reads an array nested
+    110,000 deep and cannot write it.
+    """
+    text = ""
+    for chunk in json.JSONEncoder().iterencode(value):
+        text += chunk
+        if len(text) > 60:
+            break
+    return cut(text)
+
+
+def pointer_tokens(ref):
+    """(reference tokens, None) for a $ref that starts with "#/", read as RFC 6901 reads
+    a JSON pointer written as a URI fragment, or (None, why it is not one)."""
+    if PERCENT_FAULT_RE.search(ref):
+        return None, 'a "%" in it is not followed by two hexadecimal digits'
+    try:
+        pointer = urllib.parse.unquote(ref[1:], errors="strict")
+    except UnicodeDecodeError:
+        return None, "the octets it percent-encodes are not UTF-8"
+    if TILDE_FAULT_RE.search(pointer):
+        return None, 'a reference token holds a "~" that is not followed by "0" or "1"'
+    # Section 4 reads "~1" before "~0", so "~01" is "~1" and not "/".
+    return tuple(token.replace("~1", "/").replace("~0", "~")
+                 for token in pointer[1:].split("/")), None
+
+
+def pointed_at(document, tokens):
+    """The value reference tokens lead to from document (RFC 6901 section 4), or NOWHERE.
+
+    A token applied to an array names an element only when it is "0" or a decimal number
+    with no leading zero, below the array's length. A token longer than the length is
+    written in decimal is past the end, and is not converted: int() raises ValueError for
+    a string of more than 4300 digits on Python 3.13 and 3.14.
+    """
+    for token in tokens:
+        if isinstance(document, dict):
+            document = document.get(token, NOWHERE)
+        elif (isinstance(document, list) and INDEX_RE.fullmatch(token)
+              and len(token) <= len(str(len(document))) and int(token) < len(document)):
+            document = document[int(token)]
+        else:
+            return NOWHERE
+    return document
+
+
 def closed_members(schema, key):
-    """Sorted member names of the schema's node for a top-level key when it is a closed
-    object, or None: "object" among its types, properties listed, additionalProperties false."""
+    """(sorted member names, None) of the schema's node for a top-level key when it is a
+    closed object: "object" among its types, properties listed, additionalProperties
+    false. (None, None) when it is not one, and (None, why) when a $ref of the node, or
+    one its chain of $refs leads to, cannot be followed to a schema in this file. The
+    chain compares the reference tokens of each pointer, so two spellings of one pointer
+    are one pointer."""
     properties = schema.get("properties") if isinstance(schema, dict) else None
     node = properties.get(key) if isinstance(properties, dict) else None
-    seen = set()
+    chain = set()
     while isinstance(node, dict) and "$ref" in node:
         ref = node["$ref"]
-        if not isinstance(ref, str) or not ref.startswith("#/") or ref in seen:
-            return None
-        seen.add(ref)
-        target = schema
-        for part in ref[2:].split("/"):
-            target = target.get(part) if isinstance(target, dict) else None
-        node = target
+        if not isinstance(ref, str):
+            return None, unfollowed(key, ref, "a string")
+        if not ref.startswith("#/"):
+            return None, unfollowed(key, ref, 'a JSON pointer into this schema ("#/...")')
+        tokens, fault = pointer_tokens(ref)
+        if fault:
+            return None, unfollowed(key, ref, f"a JSON pointer (RFC 6901): {fault}")
+        if tokens in chain:
+            return None, unfollowed(key, ref, "a $ref chain that ends at a schema")
+        chain.add(tokens)
+        node = pointed_at(schema, tokens)
+        if node is NOWHERE or not isinstance(node, (dict, bool)):
+            return None, unfollowed(key, ref, "a pointer to a schema in this file")
     if not isinstance(node, dict):
-        return None
+        return None, None
     types = node.get("type")
     types = types if isinstance(types, list) else [types]
     members = node.get("properties")
     if ("object" not in types or not isinstance(members, dict) or not members
             or node.get("additionalProperties") is not False):
-        return None
-    return sorted(members)
+        return None, None
+    return sorted(members), None
+
+
+def unfollowed(key, ref, allowed):
+    """Why a $ref met at a top-level key's node cannot be followed, naming the key."""
+    return f'`{key}` has "$ref": {shown(ref)}, which is not {allowed}'
 
 
 def code_names(sentence):
@@ -303,11 +394,17 @@ def main():
     key_lines = {}
     for line, key in keys:
         key_lines.setdefault(key, line)
-    closed = {}
+    closed, unreadable = {}, []
     for key in key_lines:
-        members = closed_members(schema, key)
-        if members is not None:
+        members, problem = closed_members(schema, key)
+        if problem:
+            unreadable.append(problem)
+        elif members is not None:
             closed[key] = members
+    if unreadable:
+        for problem in unreadable:
+            print(f"{SCHEMA} cannot be read as a JSON Schema: {problem}", file=sys.stderr)
+        return 1
 
     failures = []
     if not closed:

@@ -19,6 +19,11 @@ HMA_README='https://github.com/opena2a-org/hackmyagent/blob/main/README.md'
 AIP_SPEC='https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md'
 HMA_ROW="Its static, semantic and adversarial checks gate trust level; the [HackMyAgent README]($HMA_README) states how many of each it ships."
 AIM_ROW="It computes the trust score specified in [AIP §6.1]($AIP_SPEC), a multi-factor algorithm, which feeds into ATX trust score."
+BROKER='AAP broker profile §6.8'
+BROKER_PROFILE='https://github.com/opena2a-standards/agent-authorization-protocol/blob/main/AAP-BROKER-PROFILE.md'
+BROKER_LINK="[$BROKER]($BROKER_PROFILE#68-presentation-binding)"
+STOLEN="**Stolen credentials replay (T-5004 Credential Reuse).** Deployments where impersonation matters MUST pair ATX presentation with proof of the presenter's identity, in the form $BROKER_LINK defines: a signature under the agent's AIP identity key on a network binding, and the OS peer credentials of the presenting process on a local socket."
+BEARER="Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with proof of the presenter's identity, as $BROKER_LINK defines it: over a network, a proof-of-possession channel such as the AIP challenge; on a local socket, the OS peer credentials of the presenting process."
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -100,9 +105,13 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # either without them rewrites that line. The section 12 Coverage paragraph, line
 # 62, names the fixture that pins the threshold; it has no heading of its own, so
 # a section a test appends is still the next one after section 1.3b. A test that
-# needs the paragraph without the fixture rewrites that line. A tree with no
-# README.md, docs/conformance.md or sovereign-federation.md also gets the default
-# one from write_readme, write_conformance or write_sovereign.
+# needs the paragraph without the fixture rewrites that line. The section 13
+# stolen credentials paragraph, line 64, cites AAP broker profile section 6.8
+# and names both presentation binding forms; it has no heading either, and a
+# test that needs it without them rewrites that line. A tree with no README.md,
+# docs/conformance.md, docs/use-cases.md or sovereign-federation.md also gets
+# the default one from write_readme, write_conformance, write_use_cases or
+# write_sovereign.
 write_core() {
     local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
     local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
@@ -172,9 +181,12 @@ $purpose
 An authority's DID document declares its threshold key sets in a \`thresholdKeySets\` member. Each set lists its member keys in \`members\` and its threshold m in \`threshold\`.
 
 **Coverage.** The \`threshold-1of3-cosignature\` fixture pins the rejection of a credential carrying fewer signatures than the threshold of §1.3 step 5.
+
+$STOLEN
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
     [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
+    [ -e "$1/docs/use-cases.md" ] || write_use_cases "$1"
     [ -e "$1/sovereign-federation.md" ] || write_sovereign "$1"
 }
 
@@ -208,6 +220,9 @@ EOF
 }
 
 # write_readme <root> [<use case 3 "where it stops" text>]
+# Use case 1's bearer artifact paragraph, line 7, cites AAP broker profile
+# section 6.8, so AAP is named there, before use case 3. A test that needs the
+# paragraph without the citation or a binding form rewrites that line.
 write_readme() {
     local stops="${2-They are not permission. That is a broker policy decision under AAP.}"
     cat > "$1/README.md" <<EOF
@@ -217,7 +232,7 @@ write_readme() {
 
 ### A stranger's agent calls you and you cannot phone home on every request
 
-AAP is named here, before use case 3.
+$BEARER
 
 ### An auditor asks what each agent was allowed to attempt, and what scanned it
 
@@ -244,9 +259,27 @@ Conformance targets are defined in core.md §12, which cites §1.3 step 5 too.
 EOF
 }
 
+# write_use_cases <root> [<text after the bearer artifact paragraph's first sentence>]
+# The paragraph is line 5; the next paragraph names both binding forms and cites
+# AAP broker profile section 6.8 outside it, so a paragraph that leaves out
+# either fails on its own.
+write_use_cases() {
+    local rest="${2-$BEARER}"
+    mkdir -p "$1/docs"
+    cat > "$1/docs/use-cases.md" <<EOF
+# Use cases
+
+### A stranger's agent calls you and you cannot phone home on every request
+
+Where it stops today: an ATX is a bearer artifact. $rest
+
+The AIP challenge and the OS peer credentials of $BROKER_LINK are named in this paragraph, not in the one above.
+EOF
+}
+
 # --- the delivered tree -----------------------------------------------------
 
-expect_pass "the repository's own core.md, README.md, docs/conformance.md and sovereign-federation.md pass" "$REPO"
+expect_pass "the repository's own core.md, README.md, docs/conformance.md, docs/use-cases.md and sovereign-federation.md pass" "$REPO"
 
 # --- pointer ----------------------------------------------------------------
 
@@ -588,6 +621,77 @@ write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; sch
 sed 's/^\*\*Coverage\.\*\*.*$/**Coverage.** No fixture exercises step 7. The `threshold-2of3-cosignature` fixture pins the acceptance of a credential carrying three signatures under no threshold, and `threshold-1of3-cosignature` pins the rejection of that credential cut to one of them under a verifier state that requires two./' \
     "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
 expect_pass "section 12 Coverage naming the fixture that pins the threshold after other sentences passes" "$T"
+
+# --- presentation binding ---------------------------------------------------
+
+# Each paragraph as it read when it named only a proof-of-possession channel.
+STOLEN_KEY_ONLY="**Stolen credentials replay (T-5004 Credential Reuse).** Deployments where impersonation matters MUST pair ATX presentation with a proof-of-possession channel (AIP identity keys); ATX alone does not provide one."
+BEARER_KEY_ONLY="Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with a proof-of-possession channel such as the AIP challenge."
+
+T="$(new_tree stolen-key-only)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed "s|^\*\*Stolen credentials replay.*\$|$STOLEN_KEY_ONLY|" "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "the section 13 stolen credentials paragraph naming only the AIP key fails for the local socket form" \
+    "$T" binding "core.md:64"
+expect_fail "the section 13 stolen credentials paragraph naming only the AIP key fails for the section 6.8 pointer" \
+    "$T" pointer "core.md:64"
+
+T="$(new_tree stolen-no-peer-credentials)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed "s|^\*\*Stolen credentials replay.*\$|**Stolen credentials replay.** Deployments MUST pair ATX presentation with a signature under the agent's AIP identity key, in the form $BROKER_LINK defines.|" \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+printf '\n%s\n' 'On a local socket, the OS peer credentials of the presenting process are named in this paragraph, not in the one above.' >> "$T/core.md"
+expect_fail "the section 13 stolen credentials paragraph citing section 6.8 without the local socket form fails, even when the next paragraph names it" \
+    "$T" binding "core.md:64"
+
+T="$(new_tree stolen-no-aip)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed "s|^\*\*Stolen credentials replay.*\$|**Stolen credentials replay.** Deployments MUST pair ATX presentation with the OS peer credentials of the presenting process, in the form $BROKER_LINK defines.|" \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "the section 13 stolen credentials paragraph naming only the local socket form fails, even when the AIM row names AIP" \
+    "$T" binding "core.md:64"
+
+T="$(new_tree stolen-no-pointer)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed "s|^\*\*Stolen credentials replay.*\$|**Stolen credentials replay.** Deployments MUST pair ATX presentation with a signature under the agent's AIP identity key on a network binding, and the OS peer credentials of the presenting process on a local socket.|" \
+    "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+printf '\n%s\n' "Both forms are defined in $BROKER_LINK, cited in this paragraph, not in the one above." >> "$T/core.md"
+expect_fail "the section 13 stolen credentials paragraph naming both forms without citing section 6.8 fails, even when the next paragraph cites it" \
+    "$T" pointer "core.md:64"
+
+T="$(new_tree no-stolen-paragraph)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+grep -v '^\*\*Stolen credentials replay' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "a core.md with no section 13 stolen credentials paragraph fails instead of passing vacuously" \
+    "$T" pointer "core.md"
+
+T="$(new_tree readme-key-only)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+sed "s|^Presenting it proves what was attested.*\$|$BEARER_KEY_ONLY|" "$T/README.md" > "$T/README.tmp" && mv "$T/README.tmp" "$T/README.md"
+expect_fail "the README bearer artifact paragraph naming only the AIP challenge fails for the local socket form" \
+    "$T" binding "README.md:7"
+expect_fail "the README bearer artifact paragraph naming only the AIP challenge fails for the section 6.8 pointer" \
+    "$T" pointer "README.md:7"
+
+T="$(new_tree use-cases-key-only)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_use_cases "$T" "$BEARER_KEY_ONLY"
+expect_fail "the docs/use-cases.md bearer artifact paragraph naming only the AIP challenge fails for the local socket form, even when the next paragraph names it" \
+    "$T" binding "docs/use-cases.md:5"
+expect_fail "the docs/use-cases.md bearer artifact paragraph naming only the AIP challenge fails for the section 6.8 pointer, even when the next paragraph cites it" \
+    "$T" pointer "docs/use-cases.md:5"
+
+T="$(new_tree use-cases-wrapped)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_use_cases "$T" "A deployment pairs ATX presentation with proof of the presenter's identity, as $BROKER_LINK defines it: over a network, the AIP challenge; on a local socket, the OS peer
+credentials of the presenting process."
+expect_pass "a binding form may wrap across a soft line break" "$T"
+
+T="$(new_tree no-use-cases)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+rm "$T/docs/use-cases.md"
+expect_fail "a tree with no docs/use-cases.md fails instead of passing vacuously" \
+    "$T" pointer "docs/use-cases.md"
 
 # --- vacuous pass -----------------------------------------------------------
 

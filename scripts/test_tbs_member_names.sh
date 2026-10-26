@@ -51,6 +51,19 @@ expect_pass() {  # expect_pass <leaf name> <root>
     fi
 }
 
+expect_pass_printing() {  # expect_pass_printing <leaf name> <root> <text>: exit 0, text printed
+    local name="$1" rc
+    run_check "$2"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        not_ok "$name" "expected exit 0, got $rc: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    elif ! grep -qF -- "$3" "$OUT"; then
+        not_ok "$name" "exit 0 but '$3' not printed: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    else
+        ok "$name"
+    fi
+}
+
 # expect_fail <leaf name> <root> <text>...
 # Exit 1 and every text reported; a text that starts with ! must not be reported.
 expect_fail() {
@@ -169,6 +182,31 @@ node[keys[-1]] = value
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
 PYEOF
+}
+
+# schema_ref <tree> <name, as a JSON string> <$ref> [array]: move the schema of
+# properties.scanSummary in the tree's schema to $defs.<name>, as the one element of
+# an array when "array" is given, and set properties.scanSummary to {"$ref": <$ref>}.
+schema_ref() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" "${4-}" <<'PYEOF'
+import json, sys
+path, name, ref, array = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], sys.argv[4]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+summary = schema["properties"]["scanSummary"]
+schema["$defs"][name] = [summary] if array else summary
+schema["properties"]["scanSummary"] = {"$ref": ref}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+}
+
+one_line() {  # one_line <leaf name>: the last run printed exactly one line
+    if [ "$(grep -c '' "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
 }
 
 # --- the delivered tree -----------------------------------------------------
@@ -293,6 +331,145 @@ printf '{"properties": {"scanSummary": {"type": "object"}, "behavioralProfile": 
     > "$T/schemas/atx-credential-v1.1.schema.json"
 expect_fail "a schema that types no TBS key as a closed object fails instead of passing" "$T" \
     "core.md:3 [none]"
+
+# --- a $ref is a JSON pointer written as a URI fragment (RFC 6901) -----------
+
+# The fragment is percent-decoded as UTF-8, "~1" and "~0" in a reference token read
+# as "/" and "~", and a token applied to an array names the element at that index.
+# Each $ref below leads to the schema of scanSummary, so the check passes and names
+# the two closed objects of the delivered schema.
+TWO='each of the 2 TBS key(s) the schema types as a closed object (behavioralProfile, scanSummary)'
+
+T="$(tree ref-tilde-one "$RULE2")"
+schema_ref "$T" '"scan/summary"' '#/$defs/scan~1summary'
+expect_pass_printing "a \$ref that writes the \"/\" of a \$defs name as ~1 is followed" "$T" "$TWO"
+
+T="$(tree ref-tilde-zero "$RULE2")"
+schema_ref "$T" '"scan~summary"' '#/$defs/scan~0summary'
+expect_pass_printing "a \$ref that writes the \"~\" of a \$defs name as ~0 is followed" "$T" "$TWO"
+
+T="$(tree ref-tilde-order "$RULE2")"
+schema_ref "$T" '"scan~1summary"' '#/$defs/scan~01summary'
+expect_pass_printing "a \$ref of ~01 is read as \"~1\", not as \"/\"" "$T" "$TWO"
+
+T="$(tree ref-percent "$RULE2")"
+schema_ref "$T" '"scan summary"' '#/$defs/scan%20summary'
+expect_pass_printing "a \$ref that percent-encodes the space of a \$defs name is followed" "$T" "$TWO"
+
+T="$(tree ref-percent-utf8 "$RULE2")"
+schema_ref "$T" '"scané"' '#/$defs/scan%C3%A9'
+expect_pass_printing "a \$ref that percent-encodes the UTF-8 octets of a \$defs name is followed" "$T" "$TWO"
+
+T="$(tree ref-percent-once "$RULE2")"
+schema_ref "$T" '"scan%41"' '#/$defs/scan%2541'
+expect_pass_printing "a \$ref of %2541 is read as \"%41\", decoded once" "$T" "$TWO"
+
+T="$(tree ref-array-index "$RULE2")"
+schema_ref "$T" '"alts"' '#/$defs/alts/0' array
+expect_pass_printing "a \$ref that names an array element by its index is followed" "$T" "$TWO"
+
+# A closed object reached through such a $ref needs its member set stated.
+T="$(tree ref-tilde-one-unstated "$RULE2_BEFORE")"
+schema_ref "$T" '"scan/summary"' '#/$defs/scan~1summary'
+expect_fail "a closed object behind a \$ref written with ~1 needs its member set stated" "$T" \
+    "core.md:10 $UNSTATED"' `scanSummary` may hold' "!$UNSTATED"' `behavioralProfile`'
+
+# A $ref the check cannot follow stops it naming the key and the $ref, instead of
+# leaving the key out of the closed objects.
+UNREADABLE='schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema:'
+
+T="$(tree ref-missing "$RULE2")"
+schema_set "$T" '{"$ref": "#/$defs/missing"}' properties scanSummary
+expect_fail "a \$ref to a missing \$defs entry fails instead of leaving the key out" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '!TBS member names ok'
+one_line "a \$ref to a missing \$defs entry is reported on one line"
+
+T="$(tree ref-not-included "$RULE2")"
+schema_set "$T" '{"$ref": "#/$defs/missing"}' properties createdAt
+expect_pass "a \$ref the check cannot follow at a key the TBS leaves out is not read" "$T"
+
+T="$(tree ref-number "$RULE2")"
+schema_set "$T" '{"$ref": 5}' properties scanSummary
+expect_fail "a \$ref that is not a string fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": 5, which is not a string'
+
+T="$(tree ref-external "$RULE2")"
+schema_set "$T" '{"$ref": "https://example.com/scan-summary.json"}' properties scanSummary
+expect_fail "a \$ref to an external URI fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "https://example.com/scan-summary.json", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-hash "$RULE2")"
+schema_set "$T" '{"$ref": "#"}' properties scanSummary
+expect_fail "a \$ref of \"#\" fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-not-schema "$RULE2")"
+schema_set "$T" '{"$ref": "#/$defs/did/type"}' properties scanSummary
+expect_fail "a \$ref to a value that is not a schema fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/did/type", which is not a pointer to a schema in this file'
+
+T="$(tree ref-loop "$RULE2")"
+schema_set "$T" '{"$ref": "#/$defs/loopB"}' '$defs' loopA
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' '$defs' loopB
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' properties scanSummary
+expect_fail "a \$ref chain that leads back to itself fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/loopA", which is not a $ref chain that ends at a schema'
+
+# The chain compares the pointers it has followed by their reference tokens, so a
+# $ref that spells one of them another way leads back to it.
+T="$(tree ref-loop-respelled "$RULE2")"
+schema_set "$T" '{"$ref": "#/$defs/loop%41"}' '$defs' loopA
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' properties scanSummary
+expect_fail "a \$ref chain that leads back to itself through a percent-encoded letter fails naming the key" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/loop%41", which is not a $ref chain that ends at a schema'
+
+# Each $ref below is not a JSON pointer and is reported so, although $defs holds the
+# name that a reading which keeps the fault as written would look up.
+NOT_POINTER='which is not a JSON pointer (RFC 6901):'
+
+T="$(tree ref-bad-tilde "$RULE2")"
+schema_ref "$T" '"scan~2summary"' '#/$defs/scan~2summary'
+expect_fail "a \$ref with a \"~\" followed by neither 0 nor 1 is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan~2summary", '"$NOT_POINTER"' a reference token holds a "~" that is not followed by "0" or "1"'
+
+T="$(tree ref-bad-percent "$RULE2")"
+schema_ref "$T" '"scan%summary"' '#/$defs/scan%summary'
+expect_fail "a \$ref with a \"%\" not followed by two hexadecimal digits is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan%summary", '"$NOT_POINTER"' a "%" in it is not followed by two hexadecimal digits'
+
+T="$(tree ref-bad-utf8 "$RULE2")"
+schema_ref "$T" '"scan�summary"' '#/$defs/scan%FFsummary'
+expect_fail "a \$ref that percent-encodes octets that are not UTF-8 is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/scan%FFsummary", '"$NOT_POINTER"' the octets it percent-encodes are not UTF-8' \
+    '!Traceback'
+
+# RFC 6901 section 4: a token applied to an array is "0" or a decimal number with no
+# leading zero, and "-" names the element after the last one, which does not exist.
+T="$(tree ref-array-leading-zero "$RULE2")"
+schema_ref "$T" '"alts"' '#/$defs/alts/00' array
+expect_fail "a \$ref whose array index has a leading zero points at nothing" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/00", which is not a pointer to a schema in this file'
+
+T="$(tree ref-array-dash "$RULE2")"
+schema_ref "$T" '"alts"' '#/$defs/alts/-' array
+expect_fail "a \$ref of \"-\" into an array points at nothing" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/-", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+T="$(tree ref-array-past-end "$RULE2")"
+schema_ref "$T" '"alts"' '#/$defs/alts/1' array
+expect_fail "a \$ref past the last element of an array points at nothing" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/1", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+# 5,000 digits: int() raises ValueError for a string of more than 4300 digits on
+# Python 3.13 and 3.14. The $ref is shown cut to 60 characters.
+T="$(tree ref-array-long-index "$RULE2")"
+schema_ref "$T" '"alts"' "#/\$defs/alts/$(printf '%05000d' 0 | tr 0 1)" array
+expect_fail "a \$ref whose array index has 5,000 digits points at nothing" "$T" \
+    "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/'"$(printf '%043d' 0 | tr 0 1)"'..., which is not a pointer to a schema in this file' \
+    '!Traceback'
 
 # --- the anchors ------------------------------------------------------------
 

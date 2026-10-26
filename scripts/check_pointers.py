@@ -49,6 +49,17 @@ requires. Without that name the paragraph listed that threshold among the
 requirements no fixture exercises and said that a verifier that never counts
 signatures against it passes the threshold cosignature fixture.
 
+An ATX is a bearer artifact, so a deployment where impersonation matters binds
+each presentation to its presenter, in the form AAP broker profile section 6.8
+defines for the binding the presentation arrives on: a signature under the
+agent's AIP identity key on a network binding, and the OS peer credentials of
+the presenting process on a local socket, where no key is involved. The stolen
+credentials paragraph of core.md section 13, and the paragraphs of README.md
+and docs/use-cases.md that say where an ATX stops as a bearer artifact, cite
+that section and name both forms, AIP and peer credentials ([binding]). Each
+named only a proof-of-possession channel under AIP, which left out the local
+socket binding, where the broker profile binds the presenter with no key.
+
 A heading's section runs to the next heading at the same or a higher level; a
 list item runs to the next blank line or the next list item, numbered or not; a
 table row is one line. References may wrap across lines, since Markdown renders
@@ -69,10 +80,10 @@ subject ("checks what you signed") or used as a noun ("a sign of progress").
 
     python3 scripts/check_pointers.py [--root <tree>]
 
-Exit 0 when every section carries its references, every section in DEFINITIONS
-names what it defines and every sentence naming the forge lab carries its
-caveat, 1 otherwise. A document or opening line that is missing also fails, so
-a renamed section cannot pass vacuously.
+Exit 0 when every section carries its references and the binding forms it has
+to name, every section in DEFINITIONS names what it defines and every sentence
+naming the forge lab carries its caveat, 1 otherwise. A document or opening
+line that is missing also fails, so a renamed section cannot pass vacuously.
 """
 
 import argparse
@@ -86,6 +97,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ATP_REVOCATION = "ATP-SPEC v1.0.0-rc1 §8.1"
 REVOCATION_SCHEMA = "https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json"
 AUTHORIZATION = "AAP"
+BROKER_BINDING = "AAP broker profile §6.8"
+BROKER_PROFILE = "https://github.com/opena2a-standards/agent-authorization-protocol/blob/main/AAP-BROKER-PROFILE.md"
+# The two forms in which BROKER_BINDING binds a presentation to its presenter: a
+# signature under the agent's AIP identity key on a network binding, and the OS
+# peer credentials of the presenting process on a local socket.
+BINDING_FORMS = ("AIP", "peer credentials")
 HMA_README = "https://github.com/opena2a-org/hackmyagent/blob/main/README.md"
 AIP_TRUST = "AIP §6.1"
 AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/main/AIP-SPEC.md"
@@ -111,6 +128,13 @@ POINTERS = [
     ("sovereign-federation.md", "Threshold signing means", (THRESHOLD, THRESHOLD_DECLARATION)),
     ("core.md", "   - Threshold key sets.", (THRESHOLD_DECLARATION,)),
     ("core.md", "**Coverage.**", (THRESHOLD_FIXTURE,)),
+    ("core.md", "**Stolen credentials replay", (BROKER_BINDING, BROKER_PROFILE)),
+    ("README.md", "Presenting it proves what was attested", (BROKER_BINDING, BROKER_PROFILE)),
+    (
+        "docs/use-cases.md",
+        "Where it stops today: an ATX is a bearer artifact.",
+        (BROKER_BINDING, BROKER_PROFILE),
+    ),
 ]
 
 # Sections that a pointer above cites as where something is defined, and the
@@ -198,6 +222,15 @@ def check(root):
                     f"count {count.group(0)!r}, which {references[0]} owns; link to it and drop "
                     f"the number"
                 )
+        if BROKER_BINDING in references:
+            for form in BINDING_FORMS:
+                if form not in body:
+                    failures.append(
+                        f"{rel}:{start + 1} [binding] the section opened by {opening!r} does not "
+                        f"name {form!r}; name both forms {BROKER_BINDING} binds a presenter in: a "
+                        f"signature under the agent's AIP identity key on a network binding, and "
+                        f"the OS peer credentials of the presenting process on a local socket"
+                    )
         if AUTHORIZATION not in references:
             continue
         for sentence in SENTENCE_END_RE.split(body):

@@ -29,7 +29,7 @@ go run . ../../fixtures
 
 Where it stops today: an ATX is a bearer artifact.
 
-Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with a proof-of-possession channel such as the AIP challenge.
+Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with proof of the presenter's identity, as [AAP broker profile §6.8](https://github.com/opena2a-standards/agent-authorization-protocol/blob/main/AAP-BROKER-PROFILE.md#68-presentation-binding) defines it: over a network, a proof-of-possession channel such as the AIP challenge; on a local socket, the OS peer credentials of the presenting process.
 
 ### The agent you approved last week is not the one acting now
 
