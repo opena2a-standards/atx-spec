@@ -329,6 +329,27 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §13, Cryptographic agility: an `atcVersion` 1.1 credential that declares no ML-DSA-65
+  entry is a signature failure (`SIGNATURE_INVALID`), whether or not the entries it declares
+  verify. `atcVersion` 1.0, frozen legacy (§14), is not constrained. The reference verifiers and
+  fixtures in atx-conformance are not part of this change. (#44)
+- `core.md` §1.3 step 5 names the required-suites check under `atcVersion` 1.1, in a sub-bullet
+  before the threshold bullet: the check is on the declared set, not the verified set, and a
+  `PARSE_ERROR` (step 1) or `EXPIRED` (step 2) precedes it. (#44)
+- `core.md` §1.5.5 and §12: a verifier never rejects a credential for what a present
+  `declaredPurpose` declares, a sub-field missing or outside §1.5.2 or §1.5.3 and the subset rule
+  of §1.5.2 included; the strict parse of §1.3 step 1 (a duplicate object member at any depth is a
+  `PARSE_ERROR`) and the signing-form rules of §1.3a.2 (a number outside the integer form and range
+  of rule 3 is `SIGNATURE_INVALID`) still apply to the object. That subset rule binds the issuer:
+  a conforming issuer MUST NOT emit a `declaredPurpose` whose `capabilityJustification` has a key
+  outside the credential's `capabilities`, and checks it before signing. The reference verifiers
+  and fixtures in atx-conformance are not part of this change. (#51)
+- `core.md` §12: the Coverage paragraph names the four atx-conformance fixtures that declare
+  `atcVersion` 1.1, carry Ed25519 signatures only and pin ACCEPT (`v1_1-baseline-valid`,
+  `v1_1-declared-purpose-empty-whitespace`, `v1_1-declared-purpose-valid` and
+  `v1_1-no-transparency-log-index`), which §1.3 step 5 and §13 now reject for declaring no
+  ML-DSA-65 entry; until the suite regenerates them the requirement text governs for them, and the
+  pinned-verdict requirement of the Conformance suite paragraph excepts them. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
