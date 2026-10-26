@@ -394,9 +394,10 @@ identifier registered in `core.md` §14.
   than 9007199254740991. Each now fails with exit 1 as `[vector] cannot read
   expected.canonicalHex as JSON: NaN is not a JSON number (RFC 8259 section 6)`, naming the token
   it holds. The delivered tree still passes. `scripts/test_tbs_numbers.sh` adds 2 cases and runs
-  118, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector whose
-  TBS holds `NaN`, and vectors whose TBS holds `Infinity` and `-Infinity`, which are not reported
-  as a JSON number. With the check of b769ad9, both fail. (#134)
+  135: on Python 3.13.12 and 3.14.3, 134 pass and 1 is skipped (`ATX_CONFORMANCE_SUITE` not set),
+  and on 3.9.6 130 pass and 5 are skipped. The 2 cases are a vector whose TBS holds `NaN`, and
+  vectors whose TBS holds `Infinity` and `-Infinity`, which are not reported as a JSON number.
+  With the check of b769ad9, both fail. (#134)
 - `core.md` §1.3a.2 states the member names of a v1.1 credential, in a new paragraph after the
   TBS exclusions: the members of the credential are exactly the TBS included keys and the
   excluded members, and the members of each `signatures` entry are exactly `algorithm`, `keyId`
