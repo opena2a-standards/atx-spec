@@ -49,6 +49,19 @@ expect_pass() {  # expect_pass <leaf name> <root>
     fi
 }
 
+expect_pass_printing() {  # expect_pass_printing <leaf name> <root> <text>: exit 0, text printed
+    local name="$1" rc
+    run_check "$2"
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        not_ok "$name" "expected exit 0, got $rc: $(head -c 900 "$OUT" | tr '\n' ' ')"
+    elif ! grep -qF -- "$3" "$OUT"; then
+        not_ok "$name" "exit 0 but '$3' not printed: $(head -c 900 "$OUT" | tr '\n' ' ')"
+    else
+        ok "$name"
+    fi
+}
+
 # expect_fail <leaf name> <root> <text>...
 # Exit 1 and every text reported; a text that starts with ! must not be reported.
 expect_fail() {
@@ -118,6 +131,32 @@ node[keys[-1]] = value
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
 PYEOF
+}
+
+# schema_ref <tree> <name, as a JSON string> <$ref> [array]: move the schema of
+# properties.behavioralProfile.properties.generatedAt in the tree's schema to
+# $defs.<name>, as the one element of an array when "array" is given, and set that
+# member to {"$ref": <$ref>}.
+schema_ref() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" "${4-}" <<'PYEOF'
+import json, sys
+path, name, ref, array = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], sys.argv[4]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+members = schema["properties"]["behavioralProfile"]["properties"]
+schema["$defs"][name] = [members["generatedAt"]] if array else members["generatedAt"]
+members["generatedAt"] = {"$ref": ref}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+}
+
+one_line() {  # one_line <leaf name>: the last run printed exactly one line
+    if [ "$(grep -c '' "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line: $(head -c 900 "$OUT" | tr '\n' ' ')"
+    fi
 }
 
 # Rule 1 as it read before it stated the forms: lines 12-18, the deferrals on 14 and 16.
@@ -336,6 +375,146 @@ T="$(tree no-members "$NEW")"
 schema_set "$T" '{"type": "object"}' properties behavioralProfile
 expect_fail "a schema that defines no behavioralProfile member fails instead of passing" "$T" \
     "[members] defines no behavioralProfile member"
+
+# --- a $ref is a JSON pointer written as a URI fragment (RFC 6901) -----------
+
+# The fragment is percent-decoded as UTF-8, "~1" and "~0" in a reference token read
+# as "/" and "~", and a token applied to an array names the element at that index.
+# Each $ref below leads to the schema of generatedAt, so the check passes and names
+# the two members the delivered schema types as integer or as a date-time string.
+TWO='the form of each of the 2 behavioralProfile member(s) the schema types as integer or as a date-time string (generatedAt, observationDays)'
+
+T="$(tree ref-tilde-one "$NEW")"
+schema_ref "$T" '"gen/at"' '#/$defs/gen~1at'
+expect_pass_printing "a \$ref that writes the \"/\" of a \$defs name as ~1 is followed" "$T" "$TWO"
+
+T="$(tree ref-tilde-zero "$NEW")"
+schema_ref "$T" '"gen~at"' '#/$defs/gen~0at'
+expect_pass_printing "a \$ref that writes the \"~\" of a \$defs name as ~0 is followed" "$T" "$TWO"
+
+T="$(tree ref-tilde-order "$NEW")"
+schema_ref "$T" '"gen~1at"' '#/$defs/gen~01at'
+expect_pass_printing "a \$ref of ~01 is read as \"~1\", not as \"/\"" "$T" "$TWO"
+
+T="$(tree ref-percent "$NEW")"
+schema_ref "$T" '"gen at"' '#/$defs/gen%20at'
+expect_pass_printing "a \$ref that percent-encodes the space of a \$defs name is followed" "$T" "$TWO"
+
+T="$(tree ref-percent-utf8 "$NEW")"
+schema_ref "$T" '"gené"' '#/$defs/gen%C3%A9'
+expect_pass_printing "a \$ref that percent-encodes the UTF-8 octets of a \$defs name is followed" "$T" "$TWO"
+
+T="$(tree ref-percent-once "$NEW")"
+schema_ref "$T" '"gen%41"' '#/$defs/gen%2541'
+expect_pass_printing "a \$ref of %2541 is read as \"%41\", decoded once" "$T" "$TWO"
+
+T="$(tree ref-array-index "$NEW")"
+schema_ref "$T" '"alts"' '#/$defs/alts/0' array
+expect_pass_printing "a \$ref that names an array element by its index is followed" "$T" "$TWO"
+
+# A member reached through such a $ref needs its form stated.
+T="$(tree ref-tilde-one-unstated "$HEAD
+$INTEGER")"
+schema_ref "$T" '"gen/at"' '#/$defs/gen~1at'
+expect_fail "a date-time member behind a \$ref written with ~1 needs its own form" "$T" \
+    "$DATETIME_FORM" "![integer-form]"
+
+# A $ref the walk cannot follow stops the check naming the member and the $ref,
+# instead of dropping the member from the check.
+UNREADABLE='schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema:'
+
+T="$(tree ref-missing "$NEW")"
+schema_set "$T" '{"$ref": "#/$defs/missing"}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref to a missing \$defs entry fails instead of dropping the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '!profile forms ok'
+one_line "a \$ref to a missing \$defs entry is reported on one line"
+
+T="$(tree root-ref-missing "$NEW")"
+schema_set "$T" '"#/$defs/missing"' '$ref'
+expect_fail "a \$ref at the schema root to a missing \$defs entry fails naming the schema root" "$T" \
+    "$UNREADABLE"' the schema root has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '![members]'
+
+T="$(tree ref-number "$NEW")"
+schema_set "$T" '{"$ref": 5}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref that is not a string fails naming the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": 5, which is not a string'
+
+T="$(tree ref-external "$NEW")"
+schema_set "$T" '{"$ref": "https://example.com/time.json"}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref to an external URI fails naming the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "https://example.com/time.json", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-hash "$NEW")"
+schema_set "$T" '{"$ref": "#"}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref of \"#\" fails naming the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-not-schema "$NEW")"
+schema_set "$T" '{"$ref": "#/$defs/did/type"}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref to a value that is not a schema fails naming the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/did/type", which is not a pointer to a schema in this file'
+
+T="$(tree ref-loop "$NEW")"
+schema_set "$T" '{"$ref": "#/$defs/loopB"}' '$defs' loopA
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' '$defs' loopB
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' properties behavioralProfile properties generatedAt
+expect_fail "a \$ref chain that leads back to itself fails naming the member" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/loopA", which is not a $ref chain that ends at a schema'
+
+# A $ref to a pointer the walk already followed on the way is recursion, not a failure.
+T="$(tree ref-recursive "$NEW")"
+schema_set "$T" '{"type": "object", "properties": {"child": {"$ref": "#/$defs/treeNode"}}}' '$defs' treeNode
+schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties behavioralProfile properties node
+expect_pass "a recursive \$ref passes" "$T"
+
+# Each $ref below is not a JSON pointer and is reported so, although $defs holds the
+# name that a reading which keeps the fault as written would look up.
+NOT_POINTER='which is not a JSON pointer (RFC 6901):'
+
+T="$(tree ref-bad-tilde "$NEW")"
+schema_ref "$T" '"gen~2at"' '#/$defs/gen~2at'
+expect_fail "a \$ref with a \"~\" followed by neither 0 nor 1 is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/gen~2at", '"$NOT_POINTER"' a reference token holds a "~" that is not followed by "0" or "1"'
+
+T="$(tree ref-bad-percent "$NEW")"
+schema_ref "$T" '"gen%at"' '#/$defs/gen%at'
+expect_fail "a \$ref with a \"%\" not followed by two hexadecimal digits is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/gen%at", '"$NOT_POINTER"' a "%" in it is not followed by two hexadecimal digits'
+
+T="$(tree ref-bad-utf8 "$NEW")"
+schema_ref "$T" '"gen�at"' '#/$defs/gen%FFat'
+expect_fail "a \$ref that percent-encodes octets that are not UTF-8 is not a JSON pointer" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/gen%FFat", '"$NOT_POINTER"' the octets it percent-encodes are not UTF-8' \
+    '!Traceback'
+
+# RFC 6901 section 4: a token applied to an array is "0" or a decimal number with no
+# leading zero, and "-" names the element after the last one, which does not exist.
+T="$(tree ref-array-leading-zero "$NEW")"
+schema_ref "$T" '"alts"' '#/$defs/alts/00' array
+expect_fail "a \$ref whose array index has a leading zero points at nothing" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/alts/00", which is not a pointer to a schema in this file'
+
+T="$(tree ref-array-dash "$NEW")"
+schema_ref "$T" '"alts"' '#/$defs/alts/-' array
+expect_fail "a \$ref of \"-\" into an array points at nothing" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/alts/-", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+T="$(tree ref-array-past-end "$NEW")"
+schema_ref "$T" '"alts"' '#/$defs/alts/1' array
+expect_fail "a \$ref past the last element of an array points at nothing" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/alts/1", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+# 5,000 digits: int() raises ValueError for a string of more than 4300 digits on
+# Python 3.13 and 3.14. The $ref is shown cut to 60 characters.
+T="$(tree ref-array-long-index "$NEW")"
+schema_ref "$T" '"alts"' "#/\$defs/alts/$(printf '%05000d' 0 | tr 0 1)" array
+expect_fail "a \$ref whose array index has 5,000 digits points at nothing" "$T" \
+    "$UNREADABLE"' `behavioralProfile.generatedAt` has "$ref": "#/$defs/alts/'"$(printf '%043d' 0 | tr 0 1)"'..., which is not a pointer to a schema in this file' \
+    '!Traceback'
 
 # --- the anchors ------------------------------------------------------------
 

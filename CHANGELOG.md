@@ -354,6 +354,40 @@ identifier registered in `core.md` §14.
   `trustLevel` 4 and pins `2026-05-24T00:00:00Z` as the verifier's clock, so the Issuer and
   verifier-clock paragraphs of §12 hold for them as written: five fixtures still carry an ML-DSA-65
   signature. No normative text changes. (#138)
+- `scripts/check_tbs_timestamps.py`, `scripts/check_tbs_member_names.py` and
+  `scripts/check_profile_forms.py` follow a local `$ref` as RFC 6901 reads a JSON pointer written
+  as a URI fragment, as `scripts/check_tbs_numbers.py` does since #131. Each split the `$ref` on
+  `/` and looked each part up as an object member, without reading `~1` and `~0`, percent-decoding
+  or indexing an array, and dropped the member under a `$ref` it could not follow without a
+  message. With the schema of `issuedAt` moved to a `$defs` entry named `time/stamp` and
+  `issuedAt` set to `{"$ref": "#/$defs/time~1stamp"}`, a valid pointer to it,
+  `check_tbs_timestamps.py` exited 0 naming 2 date-time members (`behavioralProfile.generatedAt`,
+  `expiresAt`); with `scanSummary` behind `"#/$defs/scan~1summary"`, `check_tbs_member_names.py`
+  exited 0 naming 1 closed object (`behavioralProfile`); and with `behavioralProfile.generatedAt`
+  behind `"#/$defs/gen~1at"`, `check_profile_forms.py` exited 0 naming 1 member
+  (`observationDays`). The fragment is now percent-decoded as UTF-8, `~1` and `~0` in a reference
+  token are read as `/` and `~`, and a token applied to an array names the element at that index
+  when it is `0` or a decimal number with no leading zero, so on those trees the checks name 3, 2
+  and 2, as on the delivered tree; a token such as `00` or `-`, or one past the end of the array,
+  points at nothing. With `issuedAt`, `scanSummary` or `behavioralProfile.generatedAt` set to
+  `{"$ref": "#/$defs/missing"}`, its check exited 0 without that member, and a `$ref` with a `~`
+  not followed by `0` or `1`, or a `%` not followed by two hexadecimal digits, was looked up as
+  written, so with a `$defs` entry of that name each check passed. A `$ref` the check cannot follow
+  to a schema in this file (one that is not a string, does not start with `#/`, is not a JSON
+  pointer as RFC 6901 writes one in a URI fragment, points at nothing or at a value that is not a
+  schema, or leads back to itself) now stops it with exit 1 and a line that begins
+  `schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema:` and names the member,
+  or the schema root, the `$ref` and why; each of the three `"#/$defs/missing"` trees prints one
+  such line. `check_tbs_member_names.py` reads only the `$ref` chain of each TBS key's own node, so
+  a `$ref` at a key the TBS leaves out is not read. In `check_tbs_timestamps.py` and
+  `check_profile_forms.py` a recursive `$ref`, one to a pointer the walk already followed on the
+  way to it, is not reported, and `check_tbs_timestamps.py` stops the walk where that pointer was
+  first followed also when the `$ref` percent-encodes a letter of it. The delivered tree still
+  passes each check. `scripts/test_tbs_timestamps.sh` adds 25 cases and runs 73, one of them
+  skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout, and
+  `scripts/test_tbs_member_names.sh` and `scripts/test_profile_forms.sh` each add 24 and run 60;
+  on Python 3.9.6, 3.13.12 and 3.14.3 every case of the three files passes but that skip. With the
+  checks of da5d2c9, 22 of the added cases fail in each file. (#137)
 - `scripts/check_schema_refusals.py` names the `$ref` or `$dynamicRef` whose lookup failed when a
   fixture's validation reaches one that does not resolve, instead of searching the whole schema
   for one that names nothing in it. With Python 3.14.3 and jsonschema 4.26.0, that search ran

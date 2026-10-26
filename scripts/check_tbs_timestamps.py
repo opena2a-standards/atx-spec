@@ -11,7 +11,11 @@ says which text that is. A verifier that carries the wire string verbatim and
 one that writes it in UTC to whole seconds sign or verify different bytes for a
 value written with a numeric offset or a fractional second. The schema is walked
 through properties, items, additionalProperties, oneOf, anyOf, allOf and local
-$ref.
+$ref. A local $ref ("#/...") is read as RFC 6901 reads a JSON pointer written as
+a URI fragment: the fragment is percent-decoded as UTF-8, "~1" and "~0" in a
+reference token are read as "/" and "~", and a token applied to an array names
+the element at that index when it is "0" or a decimal number with no leading
+zero.
 
   missing   For each such member, a sentence of section 1.3a.2 names it in
             backticks, as `member` or as a dotted path such as `parent.member`,
@@ -40,7 +44,14 @@ list item or a table cell, and a sentence does not end inside a code span.
 Fenced code blocks are not read as sentences.
 
 A tree fails with a message that says why when core.md is missing, is not UTF-8
-or has no section 1.3a.2 heading, and when the schema is missing or is not JSON.
+or has no section 1.3a.2 heading, and when the schema is missing, is not JSON or
+has a $ref the walk cannot follow to a schema in this file: one that is not a
+string, does not start with "#/", is not a JSON pointer as RFC 6901 writes one
+in a URI fragment, points at nothing or at a value that is not a schema, or
+leads back to itself. That message names the member whose schema holds the
+$ref, or the schema root, and the $ref written as JSON, cut to 60 characters. A
+$ref to a pointer the walk already followed on the way to it, however the $ref
+spells that pointer, is recursion: the walk stops there without a message.
 Every other failure is reported with its rule in brackets, as file:line, or as
 the file alone for a vector.
 
@@ -54,6 +65,7 @@ import json
 import pathlib
 import re
 import sys
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMA = "schemas/atx-credential-v1.1.schema.json"
@@ -79,6 +91,14 @@ PROJECTED_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", re.ASCII)
 CODE_RE = re.compile(r"`([^`]+)`")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:#+\s|\d+\.\s|[-*+]\s|\|)")
+
+# RFC 6901: a JSON pointer in a URI fragment is percent-encoded UTF-8 (section 6), a
+# "~" in it is written only as "~0" or "~1" (section 3), and a reference token applied
+# to an array is "0" or a decimal number with no leading zero (section 4).
+PERCENT_FAULT_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+TILDE_FAULT_RE = re.compile(r"~(?![01])")
+INDEX_RE = re.compile(r"0|[1-9][0-9]*")
+NOWHERE = object()  # what a JSON pointer that points at nothing leads to
 
 
 def blocks(lines):
@@ -199,24 +219,111 @@ def included_keys(lines, start, end):
     return None
 
 
-def date_time_members(schema):
-    """Sorted dotted paths of every member the schema types with format date-time, at any depth."""
-    found = set()
+def cut(text):
+    """text cut to 60 characters."""
+    return text if len(text) <= 60 else text[:57] + "..."
 
-    def resolve(node, seen):
+
+def shown(value):
+    """value written as JSON, cut to 60 characters.
+
+    The value is written a piece at a time, and the writing stops once 60 characters
+    are passed. json.dumps writes the whole value, and can raise RecursionError for a
+    value json.loads has read: Python 3.14.3 on macOS arm64 reads an array nested
+    110,000 deep and cannot write it.
+    """
+    text = ""
+    for chunk in json.JSONEncoder().iterencode(value):
+        text += chunk
+        if len(text) > 60:
+            break
+    return cut(text)
+
+
+def pointer_tokens(ref):
+    """(reference tokens, None) for a $ref that starts with "#/", read as RFC 6901 reads
+    a JSON pointer written as a URI fragment, or (None, why it is not one)."""
+    if PERCENT_FAULT_RE.search(ref):
+        return None, 'a "%" in it is not followed by two hexadecimal digits'
+    try:
+        pointer = urllib.parse.unquote(ref[1:], errors="strict")
+    except UnicodeDecodeError:
+        return None, "the octets it percent-encodes are not UTF-8"
+    if TILDE_FAULT_RE.search(pointer):
+        return None, 'a reference token holds a "~" that is not followed by "0" or "1"'
+    # Section 4 reads "~1" before "~0", so "~01" is "~1" and not "/".
+    return tuple(token.replace("~1", "/").replace("~0", "~")
+                 for token in pointer[1:].split("/")), None
+
+
+def pointed_at(document, tokens):
+    """The value reference tokens lead to from document (RFC 6901 section 4), or NOWHERE.
+
+    A token applied to an array names an element only when it is "0" or a decimal number
+    with no leading zero, below the array's length. A token longer than the length is
+    written in decimal is past the end, and is not converted: int() raises ValueError for
+    a string of more than 4300 digits on Python 3.13 and 3.14.
+    """
+    for token in tokens:
+        if isinstance(document, dict):
+            document = document.get(token, NOWHERE)
+        elif (isinstance(document, list) and INDEX_RE.fullmatch(token)
+              and len(token) <= len(str(len(document))) and int(token) < len(document)):
+            document = document[int(token)]
+        else:
+            return NOWHERE
+    return document
+
+
+def date_time_members(schema):
+    """(sorted dotted paths, [unreadable]) for every member the schema types with format
+    date-time, at any depth. unreadable says, once per place, where the walk reaches a
+    $ref it cannot follow to a schema in this file (one that is not a string, does not
+    start with "#/", is not a JSON pointer as RFC 6901 writes one in a URI fragment,
+    points at nothing or at a value that is not a schema, or leads back to itself)."""
+    found, unreadable = set(), []
+
+    def resolve(node, path, seen):
+        """The node a chain of $refs leads to, or None when the walk stops there. A $ref
+        whose pointer was already followed on the way to this node, however that $ref
+        spells it, is recursion and stops the walk without a message; a $ref that cannot
+        be followed is reported, naming the member. chain and seen hold the reference
+        tokens of each pointer, so two spellings of one pointer are one pointer."""
+        chain = set()
         while isinstance(node, dict) and "$ref" in node:
             ref = node["$ref"]
-            if not isinstance(ref, str) or not ref.startswith("#/") or ref in seen:
+            if not isinstance(ref, str):
+                wrong(path, ref, "a string")
                 return None, seen
-            seen = seen | {ref}
-            target = schema
-            for part in ref[2:].split("/"):
-                target = target.get(part) if isinstance(target, dict) else None
+            if not ref.startswith("#/"):
+                wrong(path, ref, 'a JSON pointer into this schema ("#/...")')
+                return None, seen
+            tokens, fault = pointer_tokens(ref)
+            if fault:
+                wrong(path, ref, f"a JSON pointer (RFC 6901): {fault}")
+                return None, seen
+            if tokens in chain:
+                wrong(path, ref, "a $ref chain that ends at a schema")
+                return None, seen
+            if tokens in seen:
+                return None, seen
+            chain.add(tokens)
+            seen = seen | {tokens}
+            target = pointed_at(schema, tokens)
+            if target is NOWHERE or not isinstance(target, (dict, bool)):
+                wrong(path, ref, "a pointer to a schema in this file")
+                return None, seen
             node = target
         return node, seen
 
+    def wrong(path, ref, allowed):
+        where = f"`{path}`" if path else "the schema root"
+        message = f'{where} has "$ref": {shown(ref)}, which is not {allowed}'
+        if message not in unreadable:
+            unreadable.append(message)
+
     def walk(node, path, seen):
-        node, seen = resolve(node, seen)
+        node, seen = resolve(node, path, seen)
         if not isinstance(node, dict):
             return
         if path and node.get("format") == DATE_TIME:
@@ -234,7 +341,7 @@ def date_time_members(schema):
                 walk(node[key], path, seen)
 
     walk(schema, "", frozenset())
-    return sorted(found)
+    return sorted(found), unreadable
 
 
 def refers_to(name, path):
@@ -315,6 +422,11 @@ def main():
     except (ValueError, OSError) as exc:
         print(f"{SCHEMA} cannot be read as JSON: {exc}", file=sys.stderr)
         return 1
+    date_times, unreadable = date_time_members(schema)
+    if unreadable:
+        for problem in unreadable:
+            print(f"{SCHEMA} cannot be read as a JSON Schema: {problem}", file=sys.stderr)
+        return 1
 
     lines = core.splitlines()
     section = section_range(lines)
@@ -331,7 +443,7 @@ def main():
     key_lines = {}
     for line, key in keys:
         key_lines.setdefault(key, line)
-    members = [path for path in date_time_members(schema) if path.split(".")[0] in key_lines]
+    members = [path for path in date_times if path.split(".")[0] in key_lines]
 
     failures = []
     if not members:

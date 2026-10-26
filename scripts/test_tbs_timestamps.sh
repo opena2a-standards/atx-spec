@@ -65,6 +65,19 @@ expect_pass() {  # expect_pass <leaf name> <root> [suite]
     fi
 }
 
+expect_pass_printing() {  # expect_pass_printing <leaf name> <root> <text>: exit 0, text printed
+    local name="$1" rc
+    run_check "$2" -
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+        not_ok "$name" "expected exit 0, got $rc: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    elif ! grep -qF -- "$3" "$OUT"; then
+        not_ok "$name" "exit 0 but '$3' not printed: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    else
+        ok "$name"
+    fi
+}
+
 # expect_fail <leaf name> <root> <suite, or -> <text>...
 # Exit 1 and every text reported; a text that starts with ! must not be reported.
 expect_fail() {
@@ -182,6 +195,31 @@ node[keys[-1]] = value
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
 PYEOF
+}
+
+# schema_ref <tree> <name, as a JSON string> <$ref> [array]: move the schema of
+# properties.issuedAt in the tree's schema to $defs.<name>, as the one element of an
+# array when "array" is given, and set properties.issuedAt to {"$ref": <$ref>}.
+schema_ref() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" "${4-}" <<'PYEOF'
+import json, sys
+path, name, ref, array = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], sys.argv[4]
+with open(path, encoding="utf-8") as f:
+    schema = json.load(f)
+issued = schema["properties"]["issuedAt"]
+schema["$defs"][name] = [issued] if array else issued
+schema["properties"]["issuedAt"] = {"$ref": ref}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(schema, f, indent=2)
+PYEOF
+}
+
+one_line() {  # one_line <leaf name>: the last run printed exactly one line
+    if [ "$(grep -c '' "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
 }
 
 vector() {  # vector <suite> <name> <canonical TBS as JSON>: a jcs-vectors/vectors/<name>.json
@@ -331,6 +369,153 @@ printf '{"properties": {"issuedAt": {"type": "string"}, "expiresAt": {"type": "s
     > "$T/schemas/atx-credential-v1.1.schema.json"
 expect_fail "a schema that types no TBS member as a date-time fails instead of passing" "$T" - \
     "core.md:3 [none]"
+
+# --- a $ref is a JSON pointer written as a URI fragment (RFC 6901) -----------
+
+# The fragment is percent-decoded as UTF-8, "~1" and "~0" in a reference token read
+# as "/" and "~", and a token applied to an array names the element at that index.
+# Each $ref below leads to the schema of issuedAt, so the check passes and names
+# the three timestamps the delivered schema types.
+THREE='each of the 3 TBS member(s) the schema types as a date-time (behavioralProfile.generatedAt, expiresAt, issuedAt)'
+
+T="$(tree ref-tilde-one "$RULE7")"
+schema_ref "$T" '"time/stamp"' '#/$defs/time~1stamp'
+expect_pass_printing "a \$ref that writes the \"/\" of a \$defs name as ~1 is followed" "$T" "$THREE"
+
+T="$(tree ref-tilde-zero "$RULE7")"
+schema_ref "$T" '"time~stamp"' '#/$defs/time~0stamp'
+expect_pass_printing "a \$ref that writes the \"~\" of a \$defs name as ~0 is followed" "$T" "$THREE"
+
+T="$(tree ref-tilde-order "$RULE7")"
+schema_ref "$T" '"time~1stamp"' '#/$defs/time~01stamp'
+expect_pass_printing "a \$ref of ~01 is read as \"~1\", not as \"/\"" "$T" "$THREE"
+
+T="$(tree ref-percent "$RULE7")"
+schema_ref "$T" '"time stamp"' '#/$defs/time%20stamp'
+expect_pass_printing "a \$ref that percent-encodes the space of a \$defs name is followed" "$T" "$THREE"
+
+T="$(tree ref-percent-utf8 "$RULE7")"
+schema_ref "$T" '"timeé"' '#/$defs/time%C3%A9'
+expect_pass_printing "a \$ref that percent-encodes the UTF-8 octets of a \$defs name is followed" "$T" "$THREE"
+
+T="$(tree ref-percent-once "$RULE7")"
+schema_ref "$T" '"time%41"' '#/$defs/time%2541'
+expect_pass_printing "a \$ref of %2541 is read as \"%41\", decoded once" "$T" "$THREE"
+
+T="$(tree ref-array-index "$RULE7")"
+schema_ref "$T" '"alts"' '#/$defs/alts/0' array
+expect_pass_printing "a \$ref that names an array element by its index is followed" "$T" "$THREE"
+
+# A timestamp reached through such a $ref is one the section has to name.
+T="$(tree ref-tilde-one-missing '`expiresAt` is written in UTC to whole seconds.')"
+schema_ref "$T" '"time/stamp"' '#/$defs/time~1stamp'
+expect_fail "a timestamp behind a \$ref written with ~1 is a member the section names" "$T" - \
+    "core.md:10 $MISSING"' `issuedAt`' "!$MISSING"' `expiresAt`'
+
+# A $ref the walk cannot follow stops the check naming the member and the $ref,
+# instead of dropping the member from the check.
+UNREADABLE='schemas/atx-credential-v1.1.schema.json cannot be read as a JSON Schema:'
+
+T="$(tree ref-missing "$RULE7")"
+schema_set "$T" '{"$ref": "#/$defs/missing"}' properties issuedAt
+expect_fail "a \$ref to a missing \$defs entry fails instead of dropping the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '!TBS timestamps ok'
+one_line "a \$ref to a missing \$defs entry is reported on one line"
+
+T="$(tree root-ref-missing "$RULE7")"
+schema_set "$T" '"#/$defs/missing"' '$ref'
+expect_fail "a \$ref at the schema root to a missing \$defs entry fails naming the schema root" "$T" - \
+    "$UNREADABLE"' the schema root has "$ref": "#/$defs/missing", which is not a pointer to a schema in this file' \
+    '![none]'
+
+T="$(tree ref-number "$RULE7")"
+schema_set "$T" '{"$ref": 5}' properties issuedAt
+expect_fail "a \$ref that is not a string fails naming the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": 5, which is not a string'
+
+T="$(tree ref-external "$RULE7")"
+schema_set "$T" '{"$ref": "https://example.com/time.json"}' properties issuedAt
+expect_fail "a \$ref to an external URI fails naming the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "https://example.com/time.json", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-hash "$RULE7")"
+schema_set "$T" '{"$ref": "#"}' properties issuedAt
+expect_fail "a \$ref of \"#\" fails naming the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#", which is not a JSON pointer into this schema ("#/...")'
+
+T="$(tree ref-not-schema "$RULE7")"
+schema_set "$T" '{"$ref": "#/$defs/did/type"}' properties issuedAt
+expect_fail "a \$ref to a value that is not a schema fails naming the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/did/type", which is not a pointer to a schema in this file'
+
+T="$(tree ref-loop "$RULE7")"
+schema_set "$T" '{"$ref": "#/$defs/loopB"}' '$defs' loopA
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' '$defs' loopB
+schema_set "$T" '{"$ref": "#/$defs/loopA"}' properties issuedAt
+expect_fail "a \$ref chain that leads back to itself fails naming the member" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/loopA", which is not a $ref chain that ends at a schema'
+
+# A $ref to a pointer the walk already followed on the way is recursion, not a
+# failure, however the $ref spells the pointer: the walk stops where the pointer
+# was first followed.
+T="$(tree ref-recursive "$RULE7")"
+schema_set "$T" '{"type": "object", "properties": {"child": {"$ref": "#/$defs/treeNode"}}}' '$defs' treeNode
+schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties scanSummary properties node
+expect_pass "a recursive \$ref passes" "$T"
+
+T="$(tree ref-recursive-respelled "$RULE7")"
+schema_set "$T" '{"type": "object", "properties": {"stamp": {"type": "string", "format": "date-time"}, "child": {"$ref": "#/$defs/tree%4Eode"}}}' '$defs' treeNode
+schema_set "$T" '{"$ref": "#/$defs/treeNode"}' properties scanSummary properties node
+expect_fail "a recursive \$ref that percent-encodes a letter of the pointer stops the walk where it was first followed" \
+    "$T" - "core.md:10 $MISSING"' `scanSummary.node.stamp`' '!`scanSummary.node.child.stamp`'
+
+# Each $ref below is not a JSON pointer and is reported so, although $defs holds the
+# name that a reading which keeps the fault as written would look up.
+NOT_POINTER='which is not a JSON pointer (RFC 6901):'
+
+T="$(tree ref-bad-tilde "$RULE7")"
+schema_ref "$T" '"time~2stamp"' '#/$defs/time~2stamp'
+expect_fail "a \$ref with a \"~\" followed by neither 0 nor 1 is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/time~2stamp", '"$NOT_POINTER"' a reference token holds a "~" that is not followed by "0" or "1"'
+
+T="$(tree ref-bad-percent "$RULE7")"
+schema_ref "$T" '"time%stamp"' '#/$defs/time%stamp'
+expect_fail "a \$ref with a \"%\" not followed by two hexadecimal digits is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/time%stamp", '"$NOT_POINTER"' a "%" in it is not followed by two hexadecimal digits'
+
+T="$(tree ref-bad-utf8 "$RULE7")"
+schema_ref "$T" '"time�stamp"' '#/$defs/time%FFstamp'
+expect_fail "a \$ref that percent-encodes octets that are not UTF-8 is not a JSON pointer" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/time%FFstamp", '"$NOT_POINTER"' the octets it percent-encodes are not UTF-8' \
+    '!Traceback'
+
+# RFC 6901 section 4: a token applied to an array is "0" or a decimal number with no
+# leading zero, and "-" names the element after the last one, which does not exist.
+T="$(tree ref-array-leading-zero "$RULE7")"
+schema_ref "$T" '"alts"' '#/$defs/alts/00' array
+expect_fail "a \$ref whose array index has a leading zero points at nothing" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/alts/00", which is not a pointer to a schema in this file'
+
+T="$(tree ref-array-dash "$RULE7")"
+schema_ref "$T" '"alts"' '#/$defs/alts/-' array
+expect_fail "a \$ref of \"-\" into an array points at nothing" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/alts/-", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+T="$(tree ref-array-past-end "$RULE7")"
+schema_ref "$T" '"alts"' '#/$defs/alts/1' array
+expect_fail "a \$ref past the last element of an array points at nothing" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/alts/1", which is not a pointer to a schema in this file' \
+    '!Traceback'
+
+# 5,000 digits: int() raises ValueError for a string of more than 4300 digits on
+# Python 3.13 and 3.14. The $ref is shown cut to 60 characters.
+T="$(tree ref-array-long-index "$RULE7")"
+schema_ref "$T" '"alts"' "#/\$defs/alts/$(printf '%05000d' 0 | tr 0 1)" array
+expect_fail "a \$ref whose array index has 5,000 digits points at nothing" "$T" - \
+    "$UNREADABLE"' `issuedAt` has "$ref": "#/$defs/alts/'"$(printf '%043d' 0 | tr 0 1)"'..., which is not a pointer to a schema in this file' \
+    '!Traceback'
 
 # --- the anchors ------------------------------------------------------------
 
