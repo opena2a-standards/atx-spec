@@ -333,6 +333,9 @@ identifier registered in `core.md` §14.
   entry is a signature failure (`SIGNATURE_INVALID`), whether or not the entries it declares
   verify. `atcVersion` 1.0, frozen legacy (§14), is not constrained. The reference verifiers and
   fixtures in atx-conformance are not part of this change. (#44)
+- `core.md` §1.3 step 5 names the required-suites check under `atcVersion` 1.1, in a sub-bullet
+  before the threshold bullet: the check is on the declared set, not the verified set, and a
+  `PARSE_ERROR` (step 1) or `EXPIRED` (step 2) precedes it. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
