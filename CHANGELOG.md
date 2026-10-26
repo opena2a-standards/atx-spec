@@ -388,6 +388,19 @@ identifier registered in `core.md` §14.
   `scripts/test_tbs_member_names.sh` and `scripts/test_profile_forms.sh` each add 24 and run 60;
   on Python 3.9.6, 3.13.12 and 3.14.3 every case of the three files passes but that skip. With the
   checks of da5d2c9, 22 of the added cases fail in each file. (#137)
+- `core.md` §13, Stolen credentials replay, names both forms in which a deployment binds an ATX
+  presentation to its presenter, as AAP broker profile §6.8 defines them: on a network binding, a
+  signature under the agent's AIP identity key, the key registered for the agent DID under AIP,
+  since an ATX 1.1 credential carries no public key of the agent; on a local socket, the OS peer
+  credentials of the presenting process, checked against the process identity the operator
+  registered for that agent DID, with no key involved. It named only "a proof-of-possession
+  channel (AIP identity keys)", which leaves out the local socket binding, where the broker
+  profile binds the presenter with no key. No BCP 14 statement is added or removed: the
+  paragraph's one MUST now names the form for each binding. The paragraphs of `README.md` and
+  `docs/use-cases.md` that say where an ATX stops as a bearer artifact name the local socket form
+  beside the AIP challenge and cite the same section. `scripts/check_pointers.py` checks that the
+  three paragraphs cite AAP broker profile §6.8 and name both forms, AIP and peer credentials
+  (`[binding]`), and `scripts/test_pointers.sh` adds 12 cases.
 - `scripts/check_schema_refusals.py` names the `$ref` or `$dynamicRef` whose lookup failed when a
   fixture's validation reaches one that does not resolve, instead of searching the whole schema
   for one that names nothing in it. With Python 3.14.3 and jsonschema 4.26.0, that search ran
