@@ -329,6 +329,9 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `sovereign-federation.md` §3.2 names the community root in its example trust list by the
+  registry DID, `did:opena2a:registry:opena2a.org`, in place of `did:opena2a:authority:opena2a.org`.
+  (opena2a-standards/did-method-opena2a#20)
 - The stated conformance-suite count follows the suite to **41** fixtures: atx-conformance added
   five v1.1 `declaredPurpose` fixtures, `fixtures/v1_1-declared-purpose-integer-*.json`, at
   579e811. `README.md` carried the verifier's summary line for 36, `docs/conformance.md` "36

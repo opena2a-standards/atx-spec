@@ -108,7 +108,7 @@ The trust list is not a global registry. Each sovereign maintains its own. Two s
 
 ```
 gov.uk trust list:
-  did:opena2a:authority:opena2a.org        Allowed   (root, for community packages)
+  did:opena2a:registry:opena2a.org         Allowed   (root, for community packages)
   did:opena2a:authority:gov.us             Allowed   (allied nation)
   did:opena2a:authority:europa.eu          Allowed   (regional bloc)
   did:opena2a:authority:digital.govt.nz    Allowed
