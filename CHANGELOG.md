@@ -329,6 +329,12 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **41** fixtures: atx-conformance added
+  five v1.1 `declaredPurpose` fixtures, `fixtures/v1_1-declared-purpose-integer-*.json`, at
+  579e811. `README.md` carried the verifier's summary line for 36, `docs/conformance.md` "36
+  fixtures" and "36 of 36 PASS", and §12 "36 fixtures"; each now states 41. Both reference
+  verifiers report `summary: 41 pass, 0 fail (41 fixtures)` against atx-conformance at 2328506.
+  The fixture enumerations of `docs/conformance.md` and §12 are unchanged.
 - `core.md` §13, Cryptographic agility: an `atcVersion` 1.1 credential that declares no ML-DSA-65
   entry is a signature failure (`SIGNATURE_INVALID`), whether or not the entries it declares
   verify. `atcVersion` 1.0, frozen legacy (§14), is not constrained. The reference verifiers and

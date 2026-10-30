@@ -24,7 +24,7 @@ What you can do today: run the reference verifier against the pinned fixtures fr
 git clone https://github.com/opena2a-standards/atx-conformance
 cd atx-conformance/verifiers/go
 go run . ../../fixtures
-# summary: 36 pass, 0 fail (36 fixtures)
+# summary: 41 pass, 0 fail (41 fixtures)
 ```
 
 Where it stops today: an ATX is a bearer artifact.
@@ -46,6 +46,10 @@ ATX 1.1 signs capabilities, the scan summary and the declared purpose inside the
 Where it stops today: capabilities in an ATX describe what the build is attested to be able to do.
 
 They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
+
+## Who this is for
+
+Security leaders deciding what to require of an agent vendor, identity architects placing ATX beside the certificates, tokens and DIDs they run, engineers who operate a verifier, developers who implement one, auditors who read the evidence it leaves, and standards reviewers. [Who reads this](docs/use-cases.md#who-reads-this) names the question each one brings and the section of `core.md` that answers it.
 
 ## Documentation
 
