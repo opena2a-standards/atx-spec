@@ -47,6 +47,10 @@ Where it stops today: capabilities in an ATX describe what the build is attested
 
 They are not permission. Whether an agent may touch a given resource is a broker policy decision under AAP.
 
+## Who this is for
+
+Security leaders deciding what to require of an agent vendor, identity architects placing ATX beside the certificates, tokens and DIDs they run, engineers who operate a verifier, developers who implement one, auditors who read the evidence it leaves, and standards reviewers. [Who reads this](docs/use-cases.md#who-reads-this) names the question each one brings and the section of `core.md` that answers it.
+
 ## Documentation
 
 | Doc | Scope |
