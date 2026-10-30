@@ -224,9 +224,16 @@ cat > "$T/notes.md" <<'EOF'
 EOF
 expect_fail "a JSON chain naming the root second fails" "$T" chain-order "notes.md:3"
 
+T="$(new_tree registry-root-last)"
+printf 'Intro.\n6. Cosigned ATX has issuerChain = [did:opena2a:authority:gov.x, did:opena2a:registry:opena2a.org].\n' > "$T/notes.md"
+expect_fail "a chain naming the registry DID, the community root of sovereign-federation.md section 3.2, last fails" \
+    "$T" chain-order "notes.md:2"
+
 T="$(new_tree root-first)"
 cat > "$T/notes.md" <<'EOF'
 The issuing node writes `issuerChain` = [did:opena2a:authority:opena2a.org, did:opena2a:authority:gov.x] before gov.x signs.
+
+The issuing node writes `issuerChain` = [did:opena2a:registry:opena2a.org, did:opena2a:authority:gov.x] before gov.x signs.
 
 ```json
 { "issuerChain": [ "did:opena2a:authority:opena2a.org" ] }

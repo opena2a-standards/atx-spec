@@ -43,8 +43,12 @@ Rules, each failure reported as file:line with its rule in brackets:
                 not a step the root takes, and pass.
   chain-order   an issuerChain written out as a list, `issuerChain = [...]` in
                 prose or `"issuerChain": [...]` in JSON, that names the root
-                authority did:opena2a:authority:opena2a.org together with other
-                authorities names the root first.
+                together with other authorities names the root first. The root
+                is did:opena2a:registry:opena2a.org, the registry DID that
+                sovereign-federation.md section 3.2 lists as the community
+                root, or did:opena2a:authority:opena2a.org, the conformance
+                test DID the core.md worked credential keeps, or the bare
+                opena2a.org.
   missing       core.md and sovereign-federation.md each say what a verifier
                 does with an issuer that is not on its list (the phrase
                 "untrusted issuer"), so rewording that away cannot pass
@@ -71,8 +75,9 @@ HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 REQUIRED = ("core.md", "sovereign-federation.md")
 
+ROOT_REGISTRY = "did:opena2a:registry:opena2a.org"
 ROOT_AUTHORITY = "did:opena2a:authority:opena2a.org"
-ROOT_FORMS = {ROOT_AUTHORITY, "opena2a.org"}
+ROOT_FORMS = {ROOT_REGISTRY, ROOT_AUTHORITY, "opena2a.org"}
 
 NEWLINE_RE = re.compile(r"\n")
 BLOCK_SPLIT_RE = re.compile(r"\n[ \t]*\n")

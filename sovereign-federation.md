@@ -181,7 +181,7 @@ If gov.x is not on Y's list, directly or through an imported root list, the veri
 
 The root acts as a neutral recognizer. This is exactly the role Verisign plays for cross CA TLS in WebPKI today. The root does not vouch for the agent. It vouches, through its published trust list, that the issuing authority is a recognized member of the federation.
 
-A credential can also carry the root's own cosignature, which trust level 4 requires (core.md §7). The root adds it at issuance, not at verification, and the chain is settled before anyone signs: under ATX 1.1 `issuerChain` is inside the signed bytes (core.md §1.3a.2), so an authority appended after the first signature invalidates that signature. The issuing node writes `issuerChain` = [did:opena2a:authority:opena2a.org, did:opena2a:authority:gov.x], root first as core.md §1.3a.2 rule 4 requires, before gov.x signs. The root then verifies the gov.x signature, checks that gov.x is on the root's trust list, and adds its own signature over the same canonical bytes.
+A credential can also carry the root's own cosignature, which trust level 4 requires (core.md §7). The root adds it at issuance, not at verification, and the chain is settled before anyone signs: under ATX 1.1 `issuerChain` is inside the signed bytes (core.md §1.3a.2), so an authority appended after the first signature invalidates that signature. The issuing node writes `issuerChain` = [did:opena2a:registry:opena2a.org, did:opena2a:authority:gov.x], root first as core.md §1.3a.2 rule 4 requires, before gov.x signs. The root then verifies the gov.x signature, checks that gov.x is on the root's trust list, and adds its own signature over the same canonical bytes.
 
 ### 4.3 The deny path
 
