@@ -329,6 +329,9 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §2 item 2, the DID method `did:opena2a`, cites `did-method-opena2a`
+  Sections 3.1 and 3.1.1 for the `did:opena2a` string form, its ABNF and the unescaped form that
+  signed ATX artifacts carry, and does not restate them. (opena2a-standards/did-method-opena2a#24)
 - `sovereign-federation.md` §3.2 names the community root in its example trust list by the
   registry DID, `did:opena2a:registry:opena2a.org`, in place of `did:opena2a:authority:opena2a.org`,
   and §4.2 writes the same DID at element 0 of the mediated-path `issuerChain`, so the two sections
