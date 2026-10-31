@@ -329,6 +329,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `sovereign-federation.md` §3.2 names the community root in its example trust list by the
+  registry DID, `did:opena2a:registry:opena2a.org`, in place of `did:opena2a:authority:opena2a.org`,
+  and §4.2 writes the same DID at element 0 of the mediated-path `issuerChain`, so the two sections
+  name one root and a credential built as §4.2 describes verifies under the §3.2 list (`core.md`
+  §1.3 step 4: a chain DID that is not a trusted issuer contributes no eligible key). The
+  `chain-order` rule of `scripts/check_mediation.py` counts `did:opena2a:registry:opena2a.org` as a
+  root form beside `did:opena2a:authority:opena2a.org` and the bare `opena2a.org`, so a chain that
+  names the registry DID after another authority fails the rule instead of passing as a chain
+  without the root; `scripts/test_mediation.sh` covers that case and a registry-first chain.
+  (opena2a-standards/did-method-opena2a#20)
 - The stated conformance-suite count follows the suite to **41** fixtures: atx-conformance added
   five v1.1 `declaredPurpose` fixtures, `fixtures/v1_1-declared-purpose-integer-*.json`, at
   579e811. `README.md` carried the verifier's summary line for 36, `docs/conformance.md` "36
