@@ -1278,8 +1278,10 @@ identifier registered in `core.md` §14.
   said ATP is pushed into the IETF as a Working Group draft; no ATP Internet-Draft exists, and a
   working group draft is one a working group has adopted, so section 2 now describes the IETF
   work as intended: an individual Internet-Draft, as AIP and AAP already have, and then a request
-  to a working group to adopt it. A version negotiation, if one is added, is specified in ATP. No
-  BCP 14 statement is added or removed.
+  to a working group to adopt it. ATP-SPEC.md Section 10.4, added in
+  opena2a-standards/agent-trust-protocol#116, states that ATP defines no version or suite
+  negotiation: versions and suites change by specification revision, never by an exchange on the
+  verification path. No BCP 14 statement is added or removed. (#59)
 - §12 Coverage names the k-of-n threshold issuance of §3.1 step 8 (cosignatures from 2 of 3 key
   holders) among the requirements no fixture exercises, and adds §3.1 step 8 to the requirements
   an implementation self-attests. The atx-conformance `notCovered` list cites §3.1 step 8 and the
