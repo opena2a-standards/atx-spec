@@ -329,6 +329,30 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §12: the Coverage paragraph names five atx-conformance fixtures that declare
+  `atcVersion` 1.1, carry Ed25519 signatures only and pin ACCEPT, the four it named and
+  `v1_1-declared-purpose-integer-signed`, which atx-conformance added at 579e811, and the
+  Conformance suite paragraph excepts the five from its pinned-verdict requirement. The
+  required-suites rule of §1.3 step 5 rejects each of them as `SIGNATURE_INVALID` for declaring no
+  ML-DSA-65 entry, so with four named, §12 required the pinned ACCEPT for that fixture while §1.3
+  step 5 rejects it. At 88615df, 5 of the suite's 41 fixtures pin ACCEPT on an `atcVersion` 1.1
+  credential that declares no ML-DSA-65 entry. (#149)
+- `scripts/check_conformance_counts.py` also checks the fixtures `core.md` §12 excepts from the
+  pinned-verdict requirement against the suite. It reads each fixture's `atx.atcVersion`, the
+  algorithm of each `atx.signatures` entry and `expected.verifyResult`, and fails when a fixture
+  that pins ACCEPT on an `atcVersion` 1.1 credential that declares no ML-DSA-65 entry is not named
+  in backticks in a sentence of the Coverage paragraph that names the required-suites rule or says
+  "excepts"; when a name in those sentences is not such a fixture of the suite; when a number of
+  them stated in those sentences or in the sentence of the Conformance suite paragraph that says
+  "excepts" ("other than the five that", "Five fixtures", "each of the five") differs from the
+  number the suite ships; when the Conformance suite paragraph excepts none of them while the
+  suite ships one; or when a fixture cannot be read as JSON. The conformance counts workflow runs
+  the check against atx-conformance at main, so a fixture of that kind the suite adds makes the
+  check exit 1 there until §12 names it. Against the `core.md` of 32da8ab and atx-conformance at
+  88615df the check names `v1_1-declared-purpose-integer-signed` and the three numbers of §12
+  that state four, and exits 1; on this tree it exits 0. `scripts/test_conformance_counts.sh`
+  adds 22 cases and runs 45, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout. (#149)
 - `core.md` §1.3a.2, Member names, states that inside `declaredPurpose` the strict parse of §1.3
   step 1 treats as a duplicate member two members of one object, at any depth, whose names are
   equal once ASCII letters `A` to `Z` are replaced by their lower-case letters (`category` and
