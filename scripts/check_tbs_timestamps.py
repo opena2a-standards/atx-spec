@@ -382,24 +382,43 @@ def check_suite(suite, members):
     failures, read = [], 0
     for path in vectors:
         rel = path.relative_to(suite).as_posix()
+        source = "the file"
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
+            source = "expected.canonicalHex"
             tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             failures.append(f"{rel} [vector] cannot read expected.canonicalHex as JSON: {exc}")
             continue
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] cannot read {source} as JSON: it nests arrays or "
+                            f"objects deeper than the json module of this Python can read ({exc})")
+            continue
         if not isinstance(tbs, dict):
             failures.append(f"{rel} [vector] expected.canonicalHex is not a JSON object")
             continue
-        for member in members:
-            if "." not in member and member not in tbs:
+        # Each array nested in another is one more call of values_at(), so the values of
+        # every member are all found before any is reported. None marks a TBS key the
+        # TBS leaves out.
+        try:
+            found = [
+                (member, None if "." not in member and member not in tbs
+                 else list(values_at(tbs, member.split("."))))
+                for member in members
+            ]
+        except RecursionError as exc:
+            failures.append(f"{rel} [vector] expected.canonicalHex nests deeper than the check "
+                            f"can walk ({exc})")
+            continue
+        for member, values in found:
+            if values is None:
                 failures.append(f"{rel} [vector] leaves the TBS key `{member}` out of its TBS")
                 continue
-            for value in values_at(tbs, member.split(".")):
+            for value in values:
                 read += 1
                 if not isinstance(value, str) or not PROJECTED_RE.fullmatch(value):
                     failures.append(
-                        f"{rel} [vector] holds `{member}` as {json.dumps(value)}, which is not "
+                        f"{rel} [vector] holds `{member}` as {shown(value)}, which is not "
                         f"written in UTC to whole seconds (YYYY-MM-DDTHH:MM:SSZ)"
                     )
     return len(vectors), read, failures

@@ -340,6 +340,33 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_timestamps.py --suite` reports a jcs-vector nested deeper than
+  `json.loads` reads, or one whose TBS holds a timestamp member inside arrays nested deeper than
+  the check's walk follows, on one failure line that names the vector file, as
+  `scripts/check_tbs_numbers.py` does, instead of stopping with a `RecursionError` traceback.
+  With Python 3.14.3 on macOS arm64, a vector whose `expected.canonicalHex` is
+  `{"issuedAt": X}`, with X the string `"2026-01-01T00:00:00Z"` inside 3,000 nested arrays,
+  stopped the check in its walk of the TBS with a 20-line traceback; with Python 3.9.6, the same
+  vector, and one with X inside 110,000 nested arrays, stopped it in `json.loads` with a 14-line
+  traceback; each exited 1. The first now prints
+  `jcs-vectors/vectors/<name>.json [vector] expected.canonicalHex nests deeper than the check can
+  walk`, the second `jcs-vectors/vectors/<name>.json [vector] cannot read expected.canonicalHex
+  as JSON: it nests arrays or objects deeper than the json module of this Python can read`, or
+  `cannot read the file as JSON: ...` when the vector file itself is nested that deep. Each is
+  followed by Python's reason in parentheses, the check exits 1, and the vectors after it are
+  still read. The value a vector holds at a timestamp member is now shown cut to 60
+  characters, as the check shows schema values: with Python 3.14.3, an `issuedAt` of 100,000
+  objects each nested in the one before stopped `json.dumps` with a traceback. The values are
+  all found before any is reported, so a vector the walk cannot finish reports no other failure.
+  `scripts/test_tbs_timestamps.sh` adds 8 cases and runs 85, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout: a vector file and an `expected.canonicalHex`
+  nested twice as deep as `json.loads` reads, an `issuedAt` inside arrays nested twice the
+  recursion limit deep, and an `issuedAt` of objects nested 100 short of the deepest array
+  `json.loads` reads, each beside a second vector whose failure is still reported, and each with
+  a one-line count. The depths are taken as `scripts/test_tbs_numbers.sh` takes them, and the
+  walk cases are skipped where `json.loads` reads no value nested that deep, as on Python 3.9.6.
+  On Python 3.9.6, 3.13.12 and 3.14.3 every case passes or is skipped. With the check of
+  624f0fc, 8 of the added cases fail on Python 3.14.3, 7 on 3.13.12 and 5 on 3.9.6. (#155)
 - `docs/use-cases.md`: the command block of the use case "Your identity team asks where ATX sits
   beside what it runs" starts with `git clone https://github.com/opena2a-standards/atx-conformance`,
   as the block of the use case before it does. Without that line, run in a fresh shell from an
