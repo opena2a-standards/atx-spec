@@ -153,6 +153,7 @@ What the specification does: ATX replaces neither the identity system nor the au
 How to see it work: the `cross-issuer-key` fixture names one authority as its issuer and is signed with a key of a different trusted authority. The signature is valid over the canonical bytes, and the reference verifier still rejects it, because the key does not belong to the issuer.
 
 ```sh
+git clone https://github.com/opena2a-standards/atx-conformance
 cd atx-conformance/verifiers/go
 go run . ../../fixtures/cross-issuer-key.json
 ```

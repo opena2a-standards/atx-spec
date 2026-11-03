@@ -10,6 +10,17 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_command_blocks.py` + `scripts/test_command_blocks.sh`: a `cd` to a relative path in
+  a fenced `sh`, `bash`, `shell` or `zsh` block of the Markdown documents lands in the directory the
+  block starts in, or in or below a directory that an earlier `git clone` or `mkdir` of the same
+  block made, or the check fails as `[unmade]`. Each block is read as if it ran from an empty
+  directory of its own, so a block does not inherit the clone of the block before it; the
+  docstring states how a line is read and when a `cd` is not checked. `CHANGELOG.md` and `errata/`
+  are not read. Against the tree at 32da8ab the check reports `[unmade]` at
+  `docs/use-cases.md:156`, the cross-issuer-key block, and exits 1; it passes on this tree, where
+  it reads 3 shell blocks and 3 `cd` commands. It exits 2 on a usage error, needs only python3 and
+  is not yet run by CI. The test runs 50 cases with bash and python3; against the tree at 32da8ab 1
+  of them fails, the case that reads the delivered tree. (#150)
 - `scripts/check_tbs_member_names.py` + `scripts/test_tbs_member_names.sh`: each TBS key that
   `schemas/atx-credential-v1.1.schema.json` types as an object with `additionalProperties` false
   (a closed object) has a sentence of `core.md` §1.3a.2 that names it and each member the schema
@@ -329,6 +340,14 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `docs/use-cases.md`: the command block of the use case "Your identity team asks where ATX sits
+  beside what it runs" starts with `git clone https://github.com/opena2a-standards/atx-conformance`,
+  as the block of the use case before it does. Without that line, run in a fresh shell from an
+  empty directory, its `cd` failed and `go run` then exited 1 with `go.mod file not found`; run in
+  the shell that the block before it leaves in `atx-conformance/verifiers/go`, its `cd` printed an
+  error line that the quoted output does not show. Run either way against atx-conformance at
+  88615df, its `go run` line now prints the output the section quotes; in the second shell the
+  block first makes a second clone inside the first. (#150)
 - `core.md` §12: the Coverage paragraph names five atx-conformance fixtures that declare
   `atcVersion` 1.1, carry Ed25519 signatures only and pin ACCEPT, the four it named and
   `v1_1-declared-purpose-integer-signed`, which atx-conformance added at 579e811, and the
