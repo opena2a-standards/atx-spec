@@ -329,6 +329,14 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2, Member names, states that inside `declaredPurpose` the strict parse of §1.3
+  step 1 treats as a duplicate member two members of one object, at any depth, whose names are
+  equal once ASCII letters `A` to `Z` are replaced by their lower-case letters (`category` and
+  `Category`): a verifier rejects such a credential as `PARSE_ERROR` even when the signature
+  covers both names, and an issuer does not emit one. §1.5.5 names this beside the duplicate-member
+  and number-form outcomes it lists inside `declaredPurpose`. Before this, the paragraph compared
+  names code point for code point and said the signature covers every name `declaredPurpose`
+  holds, and did not say whether such a pair is a parse error. (#147)
 - `core.md` §1.3 step 5, the required-suites bullet, names where its rule comes from: §1.1, which
   requires an ML-DSA-65 signature, and the sentence of §13, Cryptographic agility, that rejects an
   `atcVersion` 1.1 credential declaring none. It says the rule is not a requirement of the family

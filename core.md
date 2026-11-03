@@ -222,7 +222,15 @@ the credential does not parse (`PARSE_ERROR`). An issuer MUST NOT emit such a
 member. Rules 1 and 2 below do the same for the members of `behavioralProfile`
 and `scanSummary`, with a signature failure as the outcome, and rule 5
 includes `declaredPurpose` as the credential writes it, so the signature
-covers every name it holds. JSON decoders differ in which names they treat as
+covers every name it holds. Inside `declaredPurpose` the strict parse of §1.3
+step 1 also treats as a duplicate member two members of one object, at any
+depth, whose names are equal once each ASCII letter `A` to `Z` in them is
+replaced by its lower-case letter, such as `category` and `Category`: a
+verifier MUST reject such a credential as `PARSE_ERROR` even when the
+signature covers both names, and an issuer MUST NOT emit one. A decoder that
+ignores letter case reads the two as one member and keeps one of their
+values, so two verifiers could act on different purposes from one
+credential. JSON decoders differ in which names they treat as
 one: some ignore letter case, some fold Unicode case, and some map one naming
 convention onto another. Without this rule, a decoder could read a member that
 the signature does not cover as one it covers, and two decoders could read
@@ -672,7 +680,9 @@ useless as cover.
   step 1 and the signing-form rules of §1.3a.2 still apply to the object as
   to every other signed member: a duplicate object member at any depth,
   inside `declaredPurpose` included, is a `PARSE_ERROR` (the rejection the
-  conformance suite pins with `v1_1-duplicate-purpose-member`), and a JSON
+  conformance suite pins with `v1_1-duplicate-purpose-member`), as is a pair
+  of members of one object inside `declaredPurpose` whose names differ only
+  in ASCII letter case (§1.3a.2, Member names), and a JSON
   number in it written with a fraction part or an exponent part, or whose
   absolute value is greater than 9007199254740991, is a signature failure
   (`SIGNATURE_INVALID`) under §1.3a.2 rule 3, because no signature covers it.
