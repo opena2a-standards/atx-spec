@@ -24,6 +24,7 @@ BROKER_PROFILE='https://github.com/opena2a-standards/agent-authorization-protoco
 BROKER_LINK="[$BROKER]($BROKER_PROFILE#68-presentation-binding)"
 STOLEN="**Stolen credentials replay (T-5004 Credential Reuse).** Deployments where impersonation matters MUST pair ATX presentation with proof of the presenter's identity, in the form $BROKER_LINK defines: a signature under the agent's AIP identity key on a network binding, and the OS peer credentials of the presenting process on a local socket."
 BEARER="Presenting it proves what was attested about the agent build, not that the presenter is that agent, so a deployment pairs ATX presentation with proof of the presenter's identity, as $BROKER_LINK defines it: over a network, a proof-of-possession channel such as the AIP challenge; on a local socket, the OS peer credentials of the presenting process."
+SUITES="A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`), whether or not the entries it declares verify. The rule comes from §1.1, which requires an ML-DSA-65 signature, and from the sentence of §13 that rejects a \`1.1\` credential declaring none. It is not a requirement of the family signature gate (AAP §9.4), so a verifier checks it in addition to the gate."
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -108,10 +109,17 @@ expect_pass() {  # expect_pass <leaf name> <root>
 # needs the paragraph without the fixture rewrites that line. The section 13
 # stolen credentials paragraph, line 64, cites AAP broker profile section 6.8
 # and names both presentation binding forms; it has no heading either, and a
-# test that needs it without them rewrites that line. A tree with no README.md,
-# docs/conformance.md, docs/use-cases.md or sovereign-federation.md also gets
-# the default one from write_readme, write_conformance, write_use_cases or
-# write_sovereign.
+# test that needs it without them rewrites that line. The section 1.3 step 5
+# required-suites bullet, line 67, follows that paragraph under a step 5 item of
+# its own, line 66, with no heading, so the line numbers above it stay put: it
+# cites sections 1.1 and 13 and says its rule is not the family signature
+# gate's. The bullet after it, line 68, cites both sections and states a
+# rejection under the gate, so a required-suites bullet that leaves a citation
+# out, or a section that runs on into the next bullet, fails on its own; a test
+# that needs another required-suites bullet rewrites line 67 with write_suites.
+# A tree with no README.md, docs/conformance.md, docs/use-cases.md or
+# sovereign-federation.md also gets the default one from write_readme,
+# write_conformance, write_use_cases or write_sovereign.
 write_core() {
     local purpose="${4-Neither is permission: that is a broker policy decision under AAP.}"
     local authz="${5-AAP is the authorization layer. ATX presents the credential.}"
@@ -183,6 +191,10 @@ An authority's DID document declares its threshold key sets in a \`thresholdKeyS
 **Coverage.** The \`threshold-1of3-cosignature\` fixture pins the rejection of a credential carrying fewer signatures than the threshold of §1.3 step 5.
 
 $STOLEN
+
+5. Verify every remaining declared signature under the family signature gate.
+   - Required suites under \`atcVersion\` 1.1. $SUITES
+   - Declared entries. An ML-DSA-65 entry that does not verify is rejected under the family signature gate (AAP §9.4); §1.1 and §13 are cited in this bullet, not in the one above.
 EOF
     [ -e "$1/README.md" ] || write_readme "$1"
     [ -e "$1/docs/conformance.md" ] || write_conformance "$1"
@@ -275,6 +287,15 @@ Where it stops today: an ATX is a bearer artifact. $rest
 
 The AIP challenge and the OS peer credentials of $BROKER_LINK are named in this paragraph, not in the one above.
 EOF
+}
+
+# write_suites <root> <text>
+# Rewrites the section 1.3 step 5 required-suites bullet of core.md, line 67,
+# to its title followed by <text>. The text passes through the environment, so
+# it may hold a line break, a backtick or a "&" verbatim.
+write_suites() {
+    SUITES_TEXT="$2" awk '/^   - Required suites under /{print "   - Required suites under `atcVersion` 1.1. " ENVIRON["SUITES_TEXT"]; next} {print}' \
+        "$1/core.md" > "$1/core.tmp" && mv "$1/core.tmp" "$1/core.md"
 }
 
 # --- the delivered tree -----------------------------------------------------
@@ -692,6 +713,59 @@ write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; sch
 rm "$T/docs/use-cases.md"
 expect_fail "a tree with no docs/use-cases.md fails instead of passing vacuously" \
     "$T" pointer "docs/use-cases.md"
+
+# --- required suites under atcVersion 1.1 -----------------------------------
+
+# The bullet as it read when it put its rule under the family signature gate.
+SUITES_UNDER_GATE="A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`) under the family signature gate (§13, Cryptographic agility), whether or not the entries it declares verify: the check is on the declared set, not the verified set, and a \`PARSE_ERROR\` (step 1) or \`EXPIRED\` (step 2) precedes it."
+
+T="$(new_tree suites-under-gate)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "$SUITES_UNDER_GATE"
+expect_fail "the section 1.3 step 5 required-suites bullet stating its rejection under the family signature gate fails, although the sentence says \"not\"" \
+    "$T" gate "core.md:67"
+expect_fail "the section 1.3 step 5 required-suites bullet citing section 13 but not section 1.1 fails, even when the next bullet cites it" \
+    "$T" pointer "core.md:67"
+
+T="$(new_tree suites-under-gate-cited)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`) under the family signature gate, whether or not the entries it declares verify, as §1.1 and §13 require."
+expect_fail "a required-suites bullet citing sections 1.1 and 13 that states its rejection under the family signature gate fails" \
+    "$T" gate "core.md:67"
+
+T="$(new_tree suites-under-aap-section)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "A \`1.1\` credential that declares no ML-DSA-65 entry is rejected under AAP §9.4, as §1.1 and §13 require."
+expect_fail "a required-suites bullet that names the gate by AAP section 9.4 in its rejection fails" \
+    "$T" gate "core.md:67"
+
+T="$(new_tree suites-gate-requires)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`), as §1.1 and §13 require. The family signature gate requires that entry too."
+expect_fail "a required-suites bullet saying the family signature gate requires the entry fails, even when its rejection names no gate" \
+    "$T" gate "core.md:67"
+
+T="$(new_tree suites-no-requirement)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`), as the sentence of §13 that rejects it states."
+expect_fail "a required-suites bullet that names no gate but cites only section 13 fails, even when the next bullet cites section 1.1" \
+    "$T" pointer "core.md:67"
+
+T="$(new_tree suites-next-bullet-gate)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+expect_pass "a rejection under the family signature gate in the bullet after the required-suites bullet does not fail it" "$T"
+
+T="$(new_tree suites-gate-does-not-wrapped)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+write_suites "$T" "A \`1.1\` credential that declares no ML-DSA-65 entry is a signature failure (\`SIGNATURE_INVALID\`): §1.1 requires that entry and
+     §13 rejects a credential without it. The family signature gate (AAP §9.4) does not require it."
+expect_pass "a required-suites bullet whose citations wrap across a soft line break and that says the gate does not require the entry passes" "$T"
+
+T="$(new_tree no-required-suites-bullet)"
+write_core "$T" "Specified in $ATP, schema \`$SCHEMA\`." "Wire format: $ATP; schema \`$SCHEMA\`."
+grep -v '^   - Required suites under ' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "a core.md with no section 1.3 step 5 required-suites bullet fails instead of passing vacuously" \
+    "$T" pointer "core.md"
 
 # --- vacuous pass -----------------------------------------------------------
 

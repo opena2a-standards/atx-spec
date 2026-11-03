@@ -329,6 +329,22 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3 step 5, the required-suites bullet, names where its rule comes from: §1.1, which
+  requires an ML-DSA-65 signature, and the sentence of §13, Cryptographic agility, that rejects an
+  `atcVersion` 1.1 credential declaring none. It says the rule is not a requirement of the family
+  signature gate (AAP §9.4), so a verifier checks it in addition to the gate. The bullet called
+  such a credential a signature failure "under the family signature gate (§13, Cryptographic
+  agility)", while §13 states the gate as requiring each declared entry to verify and a verifying
+  Ed25519 entry beside an ML-DSA-65 entry, and not that an ML-DSA-65 entry be declared. The
+  rejection, its `SIGNATURE_INVALID` code, the check on the declared set and the `PARSE_ERROR` and
+  `EXPIRED` that precede it are unchanged, and no BCP 14 statement is added or removed.
+  `scripts/check_pointers.py` requires the bullet to cite §1.1 and §13 (`[pointer]`), and each
+  sentence of it that names the family signature gate or AAP §9.4 to say "not" and state no
+  rejection (`[gate]`); against the `core.md` of 32da8ab it reports both at line 143 and exits 1,
+  and on this tree it passes with 18 sections. A list item's section now also ends at a nested list
+  item, as the script's description says, so the threshold bullet after the required-suites bullet
+  is not read as part of it; the 17 sections the script read before are unchanged.
+  `scripts/test_pointers.sh` adds 9 cases and runs 79. (#146)
 - `scripts/check_tbs_timestamps.py`, `scripts/check_tbs_member_names.py` and
   `scripts/check_profile_forms.py` report a credential schema nested deeper than `json.loads`
   reads, and `check_tbs_timestamps.py` and `check_profile_forms.py` one nested deeper than their
