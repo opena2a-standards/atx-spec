@@ -340,6 +340,21 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py --suite` and `scripts/check_tbs_timestamps.py --suite` name the
+  vector file, not `expected.canonicalHex`, when the file is what could not be read. With Python
+  3.14.3, a vector file that holds the text `not json` printed
+  `jcs-vectors/vectors/<name>.json [vector] cannot read expected.canonicalHex as JSON: Expecting
+  value: line 1 column 1 (char 0)`, a vector file of the two bytes 0xff 0xfe the same lead with a
+  codec error, and a `*.json` path that is a directory the same lead with `[Errno 21] Is a
+  directory`. Each now prints `cannot read the file as JSON: ...`, the words each check already
+  printed for a vector file nested deeper than `json.loads` reads; the check exits 1 and the vector
+  after it is still read. The line says `cannot read expected.canonicalHex as JSON: ...` when the
+  file is JSON and that value is not hexadecimal, its bytes are not UTF-8 or its text is not JSON,
+  and for a JSON file that does not hold that value as a string, as with `{}`, `[]`,
+  `{"expected": {}}` and `{"expected": {"canonicalHex": 7}}`. `scripts/test_tbs_numbers.sh` adds 7
+  cases and runs 142, and `scripts/test_tbs_timestamps.sh` adds 7 and runs 92. On Python 3.9.6,
+  3.13.12 and 3.14.3 every case passes or is skipped. With the checks of b019390, 4 of the added
+  cases in each file fail on Python 3.14.3. (#160)
 - `scripts/check_revocation_fixture_key.py --suite` reports a fixture nested deeper than
   `json.loads` reads on one failure line that names the fixture, as `scripts/check_tbs_numbers.py`
   reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.
