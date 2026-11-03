@@ -76,6 +76,9 @@ def check(root, suite):
         items = json.loads(index_file.read_text(encoding="utf-8")).get("notCovered")
     except (ValueError, AttributeError) as exc:
         return [f"conformance.json [notCovered] not a JSON object: {exc}"]
+    except RecursionError as exc:
+        return [f"conformance.json [notCovered] cannot be read as JSON: it nests arrays or objects "
+                f"deeper than the json module of this Python can read ({exc})"]
     if not isinstance(items, list) or not items:
         return ["conformance.json [notCovered] no notCovered list, or an empty one"]
 

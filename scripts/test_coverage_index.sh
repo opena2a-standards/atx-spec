@@ -196,6 +196,52 @@ write_suite "$S5"
 expect_fail "an empty notCovered list fails instead of passing vacuously" \
     "$T" "$S5" "conformance.json" notCovered "an empty one"
 
+# --- a conformance.json nested deeper than Python reads ---------------------
+
+# It stops the check with one failure line, not with a RecursionError traceback.
+# The depth json.loads reads depends on the Python version and the stack size,
+# so the case is built from the deepest array json.loads reads here, found by
+# bisection up to 2,000,000.
+LOADS_DEPTH="$(python3 -B -c '
+import json
+low, high = 0, 2000000
+while low < high:
+    mid = (low + high + 1) // 2
+    try:
+        json.loads("[" * mid + "0" + "]" * mid)
+        low = mid
+    except RecursionError:
+        high = mid - 1
+print(low)
+')"
+
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    S6="$(new_dir deep-suite)"
+    python3 -B -c '
+import sys
+n = int(sys.argv[1])
+with open(sys.argv[2], "w", encoding="utf-8") as f:
+    f.write("[" * n + "0" + "]" * n)
+' "$((2 * LOADS_DEPTH))" "$S6/conformance.json"
+    expect_fail "a conformance.json nested deeper than json.loads reads fails as not JSON" \
+        "$T" "$S6" "conformance.json" notCovered \
+        "cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read"
+    if grep -q 'Traceback' "$OUT"; then
+        not_ok "a conformance.json nested deeper than json.loads reads prints no traceback" \
+            "$(head -c 400 "$OUT" | tr '\n' ' ')"
+    elif [ "$(grep -c '^  - ' "$OUT")" -ne 1 ]; then
+        not_ok "a conformance.json nested deeper than json.loads reads prints no traceback" \
+            "expected one failure line: $(head -c 400 "$OUT" | tr '\n' ' ')"
+    else
+        ok "a conformance.json nested deeper than json.loads reads prints no traceback"
+    fi
+else
+    skip "a conformance.json nested deeper than json.loads reads fails as not JSON" \
+        "json.loads reads 2,000,000 levels here"
+    skip "a conformance.json nested deeper than json.loads reads prints no traceback" \
+        "json.loads reads 2,000,000 levels here"
+fi
+
 # --- summary ----------------------------------------------------------------
 
 printf '1..%d\n' "$COUNT"
