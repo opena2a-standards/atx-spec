@@ -10,6 +10,17 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_command_blocks.py` + `scripts/test_command_blocks.sh`: a `cd` to a relative path in
+  a fenced `sh`, `bash`, `shell` or `zsh` block of the Markdown documents lands in the directory the
+  block starts in, or in or below a directory that an earlier `git clone` or `mkdir` of the same
+  block made, or the check fails as `[unmade]`. Each block is read as if it ran from an empty
+  directory of its own, so a block does not inherit the clone of the block before it; the
+  docstring states how a line is read and when a `cd` is not checked. `CHANGELOG.md` and `errata/`
+  are not read. Against the tree at 32da8ab the check reports `[unmade]` at
+  `docs/use-cases.md:156`, the cross-issuer-key block, and exits 1; it passes on this tree, where
+  it reads 3 shell blocks and 3 `cd` commands. It exits 2 on a usage error, needs only python3 and
+  is not yet run by CI. The test runs 50 cases with bash and python3; against the tree at 32da8ab 1
+  of them fails, the case that reads the delivered tree. (#150)
 - `scripts/check_tbs_member_names.py` + `scripts/test_tbs_member_names.sh`: each TBS key that
   `schemas/atx-credential-v1.1.schema.json` types as an object with `additionalProperties` false
   (a closed object) has a sentence of `core.md` §1.3a.2 that names it and each member the schema
@@ -329,6 +340,62 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `docs/use-cases.md`: the command block of the use case "Your identity team asks where ATX sits
+  beside what it runs" starts with `git clone https://github.com/opena2a-standards/atx-conformance`,
+  as the block of the use case before it does. Without that line, run in a fresh shell from an
+  empty directory, its `cd` failed and `go run` then exited 1 with `go.mod file not found`; run in
+  the shell that the block before it leaves in `atx-conformance/verifiers/go`, its `cd` printed an
+  error line that the quoted output does not show. Run either way against atx-conformance at
+  88615df, its `go run` line now prints the output the section quotes; in the second shell the
+  block first makes a second clone inside the first. (#150)
+- `core.md` §12: the Coverage paragraph names five atx-conformance fixtures that declare
+  `atcVersion` 1.1, carry Ed25519 signatures only and pin ACCEPT, the four it named and
+  `v1_1-declared-purpose-integer-signed`, which atx-conformance added at 579e811, and the
+  Conformance suite paragraph excepts the five from its pinned-verdict requirement. The
+  required-suites rule of §1.3 step 5 rejects each of them as `SIGNATURE_INVALID` for declaring no
+  ML-DSA-65 entry, so with four named, §12 required the pinned ACCEPT for that fixture while §1.3
+  step 5 rejects it. At 88615df, 5 of the suite's 41 fixtures pin ACCEPT on an `atcVersion` 1.1
+  credential that declares no ML-DSA-65 entry. (#149)
+- `scripts/check_conformance_counts.py` also checks the fixtures `core.md` §12 excepts from the
+  pinned-verdict requirement against the suite. It reads each fixture's `atx.atcVersion`, the
+  algorithm of each `atx.signatures` entry and `expected.verifyResult`, and fails when a fixture
+  that pins ACCEPT on an `atcVersion` 1.1 credential that declares no ML-DSA-65 entry is not named
+  in backticks in a sentence of the Coverage paragraph that names the required-suites rule or says
+  "excepts"; when a name in those sentences is not such a fixture of the suite; when a number of
+  them stated in those sentences or in the sentence of the Conformance suite paragraph that says
+  "excepts" ("other than the five that", "Five fixtures", "each of the five") differs from the
+  number the suite ships; when the Conformance suite paragraph excepts none of them while the
+  suite ships one; or when a fixture cannot be read as JSON. The conformance counts workflow runs
+  the check against atx-conformance at main, so a fixture of that kind the suite adds makes the
+  check exit 1 there until §12 names it. Against the `core.md` of 32da8ab and atx-conformance at
+  88615df the check names `v1_1-declared-purpose-integer-signed` and the three numbers of §12
+  that state four, and exits 1; on this tree it exits 0. `scripts/test_conformance_counts.sh`
+  adds 22 cases and runs 45, one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite
+  checkout. (#149)
+- `core.md` §1.3a.2, Member names, states that inside `declaredPurpose` the strict parse of §1.3
+  step 1 treats as a duplicate member two members of one object, at any depth, whose names are
+  equal once ASCII letters `A` to `Z` are replaced by their lower-case letters (`category` and
+  `Category`): a verifier rejects such a credential as `PARSE_ERROR` even when the signature
+  covers both names, and an issuer does not emit one. §1.5.5 names this beside the duplicate-member
+  and number-form outcomes it lists inside `declaredPurpose`. Before this, the paragraph compared
+  names code point for code point and said the signature covers every name `declaredPurpose`
+  holds, and did not say whether such a pair is a parse error. (#147)
+- `core.md` §1.3 step 5, the required-suites bullet, names where its rule comes from: §1.1, which
+  requires an ML-DSA-65 signature, and the sentence of §13, Cryptographic agility, that rejects an
+  `atcVersion` 1.1 credential declaring none. It says the rule is not a requirement of the family
+  signature gate (AAP §9.4), so a verifier checks it in addition to the gate. The bullet called
+  such a credential a signature failure "under the family signature gate (§13, Cryptographic
+  agility)", while §13 states the gate as requiring each declared entry to verify and a verifying
+  Ed25519 entry beside an ML-DSA-65 entry, and not that an ML-DSA-65 entry be declared. The
+  rejection, its `SIGNATURE_INVALID` code, the check on the declared set and the `PARSE_ERROR` and
+  `EXPIRED` that precede it are unchanged, and no BCP 14 statement is added or removed.
+  `scripts/check_pointers.py` requires the bullet to cite §1.1 and §13 (`[pointer]`), and each
+  sentence of it that names the family signature gate or AAP §9.4 to say "not" and state no
+  rejection (`[gate]`); against the `core.md` of 32da8ab it reports both at line 143 and exits 1,
+  and on this tree it passes with 18 sections. A list item's section now also ends at a nested list
+  item, as the script's description says, so the threshold bullet after the required-suites bullet
+  is not read as part of it; the 17 sections the script read before are unchanged.
+  `scripts/test_pointers.sh` adds 9 cases and runs 79. (#146)
 - `scripts/check_tbs_timestamps.py`, `scripts/check_tbs_member_names.py` and
   `scripts/check_profile_forms.py` report a credential schema nested deeper than `json.loads`
   reads, and `check_tbs_timestamps.py` and `check_profile_forms.py` one nested deeper than their

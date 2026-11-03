@@ -49,6 +49,20 @@ requires. Without that name the paragraph listed that threshold among the
 requirements no fixture exercises and said that a verifier that never counts
 signatures against it passes the threshold cosignature fixture.
 
+An atcVersion 1.1 credential that declares no ML-DSA-65 entry is rejected
+because core.md section 1.1 requires that signature and a sentence of section
+13, Cryptographic agility, rejects a 1.1 credential without it. The family
+signature gate of AAP section 9.4, which section 1.3 step 5 applies to the
+signatures a credential declares, is not where that rule comes from: as section
+13 states the gate, it requires each declared entry to verify and an ML-DSA-65
+entry to have a verifying Ed25519 entry beside it. So the step 5 bullet on the
+required suites cites sections 1.1 and 13, and each sentence of it that names
+the gate, as "family signature gate" or "AAP §9.4", says "not" and states no
+rejection: no "signature failure", no SIGNATURE_INVALID and no form of "reject"
+([gate]). The bullet called such a credential a signature failure "under the
+family signature gate (§13, Cryptographic agility)", which hands a reader who
+implements AAP section 9.4 a requirement the gate does not state.
+
 An ATX is a bearer artifact, so a deployment where impersonation matters binds
 each presentation to its presenter, in the form AAP broker profile section 6.8
 defines for the binding the presentation arrives on: a signature under the
@@ -61,10 +75,11 @@ named only a proof-of-possession channel under AIP, which left out the local
 socket binding, where the broker profile binds the presenter with no key.
 
 A heading's section runs to the next heading at the same or a higher level; a
-list item runs to the next blank line or the next list item, numbered or not; a
-table row is one line. References may wrap across lines, since Markdown renders
-a soft line break as a space. Each failure is reported as file:line with its
-rule in brackets.
+list item runs to the next blank line or the next list item, numbered or not and
+nested or not, so a bullet's section stops where the next bullet under the same
+step opens; a table row is one line. References may wrap across lines, since
+Markdown renders a soft line break as a space. Each failure is reported as
+file:line with its rule in brackets.
 
 The forge lab at specs.opena2a.org/lab/forge signs a simplified object of its
 own, not the JCS(TBS) of core.md §1.3a.2, and that object does not validate
@@ -81,9 +96,11 @@ subject ("checks what you signed") or used as a noun ("a sign of progress").
     python3 scripts/check_pointers.py [--root <tree>]
 
 Exit 0 when every section carries its references and the binding forms it has
-to name, every section in DEFINITIONS names what it defines and every sentence
-naming the forge lab carries its caveat, 1 otherwise. A document or opening
-line that is missing also fails, so a renamed section cannot pass vacuously.
+to name, no sentence of the required-suites bullet gives its rule to the family
+signature gate, every section in DEFINITIONS names what it defines and every
+sentence naming the forge lab carries its caveat, 1 otherwise. A document or
+opening line that is missing also fails, so a renamed section cannot pass
+vacuously.
 """
 
 import argparse
@@ -109,9 +126,15 @@ AIP_SPEC = "https://github.com/opena2a-standards/agent-identity-protocol/blob/ma
 THRESHOLD = "§1.3 step 5"
 THRESHOLD_DECLARATION = "§1.3b"
 THRESHOLD_FIXTURE = "`threshold-1of3-cosignature`"
+# Where the rule that an atcVersion 1.1 credential declares an ML-DSA-65 entry
+# comes from: the signature section 1.1 requires, and the section 13 sentence
+# that rejects a 1.1 credential without it.
+SUITES_REQUIREMENT = "§1.1"
+SUITES_REJECTION = "§13"
 
 HMA_ROW = "| HackMyAgent |"
 AIM_ROW = "| AIM |"
+REQUIRED_SUITES = "   - Required suites under `atcVersion` 1.1."
 
 POINTERS = [
     ("core.md", "5. **The revocation list format.**", (ATP_REVOCATION, REVOCATION_SCHEMA)),
@@ -127,6 +150,7 @@ POINTERS = [
     ("sovereign-federation.md", "* 3 HSMs", (THRESHOLD,)),
     ("sovereign-federation.md", "Threshold signing means", (THRESHOLD, THRESHOLD_DECLARATION)),
     ("core.md", "   - Threshold key sets.", (THRESHOLD_DECLARATION,)),
+    ("core.md", REQUIRED_SUITES, (SUITES_REQUIREMENT, SUITES_REJECTION)),
     ("core.md", "**Coverage.**", (THRESHOLD_FIXTURE,)),
     ("core.md", "**Stolen credentials replay", (BROKER_BINDING, BROKER_PROFILE)),
     ("README.md", "Presenting it proves what was attested", (BROKER_BINDING, BROKER_PROFILE)),
@@ -157,6 +181,13 @@ HISTORY_DIRS = {"errata"}
 # Sections whose counts belong to the source they cite.
 FIGURES = {("core.md", HMA_ROW), ("core.md", AIM_ROW)}
 
+# Sections whose rule is not the family signature gate's. A sentence of one that
+# names the gate says "not" and states no rejection.
+NOT_THE_GATE = {("core.md", REQUIRED_SUITES)}
+GATE_RE = re.compile(r"\bfamily\s+signature\s+gate\b|\bAAP\s+§\s*9\.4(?!\d)", re.IGNORECASE)
+NEGATION_RE = re.compile(r"\bnot\b|n't\b", re.IGNORECASE)
+REJECTION_RE = re.compile(r"\bsignature\s+failure|\bSIGNATURE_INVALID\b|\breject", re.IGNORECASE)
+
 HEADING_RE = re.compile(r"^(#+)\s")
 NEWLINE_RE = re.compile(r"\n")
 SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
@@ -182,7 +213,7 @@ def section(lines, start):
             other = HEADING_RE.match(line)
             if other and len(other.group(1)) <= len(heading.group(1)):
                 break
-        elif not line.strip() or ITEM_RE.match(line):
+        elif not line.strip() or ITEM_RE.match(line.lstrip()):
             break
         end += 1
     return lines[start:end]
@@ -230,6 +261,18 @@ def check(root):
                         f"name {form!r}; name both forms {BROKER_BINDING} binds a presenter in: a "
                         f"signature under the agent's AIP identity key on a network binding, and "
                         f"the OS peer credentials of the presenting process on a local socket"
+                    )
+        if (rel, opening) in NOT_THE_GATE:
+            for sentence in SENTENCE_END_RE.split(body):
+                if not GATE_RE.search(sentence):
+                    continue
+                if REJECTION_RE.search(sentence) or not NEGATION_RE.search(sentence):
+                    failures.append(
+                        f"{rel}:{start + 1} [gate] the section opened by {opening!r} gives its "
+                        f"rule to the family signature gate: {sentence[:100]!r}; the rule is "
+                        f"{SUITES_REQUIREMENT}'s and {SUITES_REJECTION}'s, so cite them for it and "
+                        f"name the gate (AAP §9.4) only in a sentence that says the rule is not "
+                        f"the gate's and states no rejection"
                     )
         if AUTHORIZATION not in references:
             continue
@@ -357,8 +400,9 @@ def main():
     failures += lab_failures
     if failures:
         print(
-            "sections do not name where what they describe is specified, a cited section "
-            "does not name what it defines, or a sentence overstates the forge lab:\n",
+            "sections do not name where what they describe is specified, a bullet gives its "
+            "rule to the family signature gate, a cited section does not name what it "
+            "defines, or a sentence overstates the forge lab:\n",
             file=sys.stderr,
         )
         for f in failures:
