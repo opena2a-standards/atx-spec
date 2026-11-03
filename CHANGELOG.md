@@ -340,6 +340,18 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_coverage_index.py --suite` reports a `conformance.json` whose arrays or objects
+  nest deeper than `json.loads` reads on one failure line, as `scripts/check_tbs_numbers.py`
+  reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.
+  With Python 3.14.3 on macOS arm64, a `conformance.json` of 232,438 nested arrays stopped the
+  check with a 19-line traceback and exit 1; it now prints
+  `conformance.json [notCovered] cannot be read as JSON: it nests arrays or objects deeper than
+  the json module of this Python can read`, followed by Python's reason in parentheses, and
+  exits 1. `scripts/test_coverage_index.sh` adds 2 cases and runs 14, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout: a `conformance.json` nested twice as deep as
+  the deepest array `json.loads` reads here, which must fail naming the file with no traceback
+  and one failure line. On Python 3.9.6 and 3.14.3 every case passes or is skipped; with the
+  check of b019390, both added cases fail on each. (#158)
 - `scripts/check_tbs_timestamps.py --suite` reports a jcs-vector nested deeper than
   `json.loads` reads, or one whose TBS holds a timestamp member inside arrays nested deeper than
   the check's walk follows, on one failure line that names the vector file, as
