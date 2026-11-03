@@ -329,6 +329,36 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_timestamps.py`, `scripts/check_tbs_member_names.py` and
+  `scripts/check_profile_forms.py` report a credential schema nested deeper than `json.loads`
+  reads, and `check_tbs_timestamps.py` and `check_profile_forms.py` one nested deeper than their
+  walk of the schema follows, on one line that names the schema file, as
+  `scripts/check_tbs_numbers.py` does, instead of stopping with a `RecursionError` traceback.
+  With Python 3.14.3 on macOS arm64, a schema whose
+  `properties.revokedAt` is 5,000 object schemas, each nested in the one before through
+  `properties` (`{"type": "object", "properties": {"a": ...}}`, innermost `{}`), stopped
+  `check_tbs_timestamps.py` and `check_profile_forms.py` in their walk of the schema with a 24-line
+  traceback; with Python 3.9.6, a schema whose `properties.issuedAt` is `{"$ref": X}`, with X an
+  array nested 110,000 deep, stopped each of the three checks in `json.loads` with a 12-line
+  traceback; each exited 1. The first now prints `schemas/atx-credential-v1.1.schema.json cannot
+  be read as a JSON Schema:` and
+  `` `revokedAt.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a...` nests deeper than the check can
+  walk ``, the member where the walk stopped cut to 60 characters; the second prints
+  `schemas/atx-credential-v1.1.schema.json cannot be read as JSON: it nests arrays or objects
+  deeper than the json module of this Python can read`. Each is followed by Python's reason in
+  parentheses and exits 1. The delivered tree still passes each check.
+  `scripts/test_tbs_timestamps.sh` adds 4 cases and runs 77, one of them skipped unless
+  `ATX_CONFORMANCE_SUITE` names a suite checkout, `scripts/test_profile_forms.sh` adds 4 and runs
+  64, and `scripts/test_tbs_member_names.sh` adds 3 and runs 63: a schema nested deeper than
+  `json.loads` reads, with a one-line count, in each file; schemas nested twice the recursion limit
+  deep, which fail naming the member, with a one-line count, in the first two; and, in the third,
+  the same schemas at a key the TBS leaves out, which pass, as the check reads only the `$ref`
+  chain of each TBS key's own node. The cases take their depths as `scripts/test_tbs_numbers.sh`
+  does, and the ones nested twice the recursion limit deep are skipped where `json.loads` reads no
+  schema nested that deep, as on Python 3.9.6. On Python 3.9.6, 3.13.12 and 3.14.3 every case of
+  the three files passes or is skipped. With the checks of 32da8ab, 4 of the added cases fail in
+  `test_tbs_timestamps.sh` and in `test_profile_forms.sh` and 2 in `test_tbs_member_names.sh` on
+  Python 3.13.12 and 3.14.3, and 2 in each file on 3.9.6. (#144)
 - `core.md` §2 item 2, the DID method `did:opena2a`, cites `did-method-opena2a`
   Sections 3.1 and 3.1.1 for the `did:opena2a` string form, its ABNF and the unescaped form that
   signed ATX artifacts carry, and does not restate them. (opena2a-standards/did-method-opena2a#24)

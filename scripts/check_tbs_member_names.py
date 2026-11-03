@@ -378,6 +378,10 @@ def main():
     except (ValueError, OSError) as exc:
         print(f"{SCHEMA} cannot be read as JSON: {exc}", file=sys.stderr)
         return 1
+    except RecursionError as exc:
+        print(f"{SCHEMA} cannot be read as JSON: it nests arrays or objects deeper than the "
+              f"json module of this Python can read ({exc})", file=sys.stderr)
+        return 1
 
     lines = core.splitlines()
     section = section_range(lines)

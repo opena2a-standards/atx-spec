@@ -21,6 +21,7 @@ OUT="$TMP/out.txt"
 
 COUNT=0
 FAILED=0
+SKIPPED=0
 
 ok() {  # ok <leaf test name>
     COUNT=$((COUNT + 1))
@@ -32,6 +33,12 @@ not_ok() {  # not_ok <leaf test name> <why>
     FAILED=$((FAILED + 1))
     printf 'not ok %d - %s\n' "$COUNT" "$1"
     printf '  ---\n  reason: %s\n  ---\n' "$2"
+}
+
+skip() {  # skip <leaf test name> <why>
+    COUNT=$((COUNT + 1))
+    SKIPPED=$((SKIPPED + 1))
+    printf 'ok %d - %s # SKIP %s\n' "$COUNT" "$1" "$2"
 }
 
 run_check() {  # run_check <root> [extra argument]...
@@ -198,6 +205,26 @@ schema["$defs"][name] = [summary] if array else summary
 schema["properties"]["scanSummary"] = {"$ref": ref}
 with open(path, "w", encoding="utf-8") as f:
     json.dump(schema, f, indent=2)
+PYEOF
+}
+
+# schema_deep <tree> <depth> <array|properties>: replace the string "@@DEEP@@" in the
+# tree's schema, set there by schema_set, with an array nested <depth> deep, or with
+# <depth> object schemas each nested in the one before through properties.a. The value
+# is spliced in as text: json.dump raises RecursionError for one nested deeper than
+# Python's recursion limit.
+schema_deep() {
+    python3 -B - "$1/schemas/atx-credential-v1.1.schema.json" "$2" "$3" <<'PYEOF'
+import sys
+path, depth, kind = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+if kind == "array":
+    deep = "[" * depth + "0" + "]" * depth
+else:
+    deep = '{"type": "object", "properties": {"a": ' * depth + "{}" + "}}" * depth
+with open(path, encoding="utf-8") as f:
+    text = f.read()
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text.replace('"@@DEEP@@"', deep, 1))
 PYEOF
 }
 
@@ -471,6 +498,55 @@ expect_fail "a \$ref whose array index has 5,000 digits points at nothing" "$T" 
     "$UNREADABLE"' `scanSummary` has "$ref": "#/$defs/alts/'"$(printf '%043d' 0 | tr 0 1)"'..., which is not a pointer to a schema in this file' \
     '!Traceback'
 
+# --- a schema nested deeper than Python reads -------------------------------
+
+# A schema json.loads cannot read stops the check with one line, not with a
+# RecursionError traceback. The depth at which json.loads stops depends on the
+# Python version and the stack size, so the case is built from the deepest array
+# json.loads reads here, found by bisection up to 2,000,000.
+LOADS_DEPTH="$(python3 -B -c '
+import json
+low, high = 0, 2000000
+while low < high:
+    mid = (low + high + 1) // 2
+    try:
+        json.loads("[" * mid + "0" + "]" * mid)
+        low = mid
+    except RecursionError:
+        high = mid - 1
+print(low)
+')"
+# Twice the recursion limit.
+WALK_DEPTH="$(python3 -B -c 'import sys; print(2 * sys.getrecursionlimit())')"
+
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    T="$(tree deep-read "$RULE2")"
+    schema_set "$T" '{"$ref": "@@DEEP@@"}' properties issuedAt
+    schema_deep "$T" "$((2 * LOADS_DEPTH))" array
+    expect_fail "a schema nested deeper than json.loads reads fails as not JSON" "$T" \
+        "schemas/atx-credential-v1.1.schema.json cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read" \
+        '!Traceback'
+    one_line "a schema nested deeper than json.loads reads is reported on one line"
+else
+    skip "a schema nested deeper than json.loads reads fails as not JSON" \
+        "json.loads reads 2,000,000 levels here"
+    skip "a schema nested deeper than json.loads reads is reported on one line" \
+        "json.loads reads 2,000,000 levels here"
+fi
+
+# The check reads only the $ref chain of each TBS key's own node, so schemas nested
+# twice the recursion limit deep under a key the TBS leaves out are not walked. Two
+# JSON levels per schema: the schema and its properties.
+if [ "$LOADS_DEPTH" -gt $((2 * WALK_DEPTH + 100)) ]; then
+    T="$(tree deep-not-read "$RULE2")"
+    schema_set "$T" '"@@DEEP@@"' properties revokedAt
+    schema_deep "$T" "$WALK_DEPTH" properties
+    expect_pass "schemas nested twice the recursion limit deep at a key the TBS leaves out are not read" "$T"
+else
+    skip "schemas nested twice the recursion limit deep at a key the TBS leaves out are not read" \
+        "json.loads reads no schema nested that deep here"
+fi
+
 # --- the anchors ------------------------------------------------------------
 
 T="$(tree no-section "$RULE2")"
@@ -509,4 +585,4 @@ if [ "$FAILED" -ne 0 ]; then
     printf '# %d of %d test(s) failed\n' "$FAILED" "$COUNT"
     exit 1
 fi
-printf '# %d test(s) passed\n' "$COUNT"
+printf '# %d test(s) passed, %d skipped\n' "$((COUNT - SKIPPED))" "$SKIPPED"

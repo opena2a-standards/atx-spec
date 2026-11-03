@@ -280,8 +280,10 @@ def date_time_members(schema):
     date-time, at any depth. unreadable says, once per place, where the walk reaches a
     $ref it cannot follow to a schema in this file (one that is not a string, does not
     start with "#/", is not a JSON pointer as RFC 6901 writes one in a URI fragment,
-    points at nothing or at a value that is not a schema, or leads back to itself)."""
+    points at nothing or at a value that is not a schema, or leads back to itself), and
+    where the walk stops at Python's recursion limit."""
     found, unreadable = set(), []
+    active = []  # the path of each object node whose walk has not returned
 
     def resolve(node, path, seen):
         """The node a chain of $refs leads to, or None when the walk stops there. A $ref
@@ -326,6 +328,7 @@ def date_time_members(schema):
         node, seen = resolve(node, path, seen)
         if not isinstance(node, dict):
             return
+        active.append(path)
         if path and node.get("format") == DATE_TIME:
             found.add(path)
         for key in ("oneOf", "anyOf", "allOf"):
@@ -339,8 +342,17 @@ def date_time_members(schema):
         for key in ("items", "additionalProperties"):
             if isinstance(node.get(key), dict):
                 walk(node[key], path, seen)
+        active.pop()
 
-    walk(schema, "", frozenset())
+    try:
+        walk(schema, "", frozenset())
+    except RecursionError as exc:
+        # Each schema nested in another is one more call of walk(). active keeps the
+        # path of each object node whose walk the error left unfinished, the innermost
+        # last.
+        path = active[-1] if active else ""
+        where = f"`{cut(path)}`" if path else "the schema root"
+        unreadable.append(f"{where} nests deeper than the check can walk ({exc})")
     return sorted(found), unreadable
 
 
@@ -421,6 +433,10 @@ def main():
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
     except (ValueError, OSError) as exc:
         print(f"{SCHEMA} cannot be read as JSON: {exc}", file=sys.stderr)
+        return 1
+    except RecursionError as exc:
+        print(f"{SCHEMA} cannot be read as JSON: it nests arrays or objects deeper than the "
+              f"json module of this Python can read ({exc})", file=sys.stderr)
         return 1
     date_times, unreadable = date_time_members(schema)
     if unreadable:
