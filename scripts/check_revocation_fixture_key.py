@@ -32,7 +32,9 @@ with its rule in brackets:
            verifier a revocation list, so a renamed anchor or a wrong --suite
            path cannot pass vacuously.
   fixture  a fixture that cannot be read as JSON, or whose revocation list is
-           not an object with an entries array of objects.
+           not an object with an entries array of objects. A fixture whose
+           arrays or objects nest deeper than the json module of the running
+           Python reads cannot be read as JSON; its message says so.
 
 --root names the tree whose core.md is read (default: this repository);
 scripts/test_revocation_fixture_key.sh uses it on scratch trees. Needs only
@@ -104,6 +106,10 @@ def list_keys(suite):
             doc = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:  # ValueError: not UTF-8, or not JSON
             failures.append(f"{rel} [fixture] cannot be read as JSON: {exc}")
+            continue
+        except RecursionError as exc:
+            failures.append(f"{rel} [fixture] cannot be read as JSON: it nests arrays or objects "
+                            f"deeper than the json module of this Python can read ({exc})")
             continue
         state = doc.get("verifierState") if isinstance(doc, dict) else None
         crl = state.get("crl") if isinstance(state, dict) else None

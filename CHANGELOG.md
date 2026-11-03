@@ -340,6 +340,23 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_revocation_fixture_key.py --suite` reports a fixture nested deeper than
+  `json.loads` reads on one failure line that names the fixture, as `scripts/check_tbs_numbers.py`
+  reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.
+  With a suite whose `fixtures/` held one file, an array nested 232,474 deep, the check stopped
+  with a traceback of 21 lines on Python 3.14.3 on macOS arm64 and of 16 lines on Python 3.9.6,
+  and exited 1. It now prints `fixtures/<name>.json [fixture] cannot be read as JSON: it nests
+  arrays or objects deeper than the json module of this Python can read`, followed by Python's
+  reason in parentheses, exits 1, and still reads the fixtures after it; for that suite the
+  `[missing]` line that no fixture gives the verifier a revocation list follows it, as it follows
+  a fixture that is not JSON. `scripts/test_revocation_fixture_key.sh` adds 4 cases and runs 24,
+  one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a fixture of arrays
+  and one of objects, each nested twice as deep as `json.loads` reads, the first beside a fixture
+  whose revocation list is still reported and the second alone in its suite, each with a one-line
+  count. The depth is found by bisection, as `scripts/test_tbs_numbers.sh` finds it, and the
+  cases are skipped where `json.loads` reads 2,000,000 levels. On Python 3.9.6, 3.13.12 and
+  3.14.3 every case passes or is skipped. With the check of b019390, the 4 added cases fail on
+  each of them. (#159)
 - `scripts/check_coverage_index.py --suite` reports a `conformance.json` whose arrays or objects
   nest deeper than `json.loads` reads on one failure line, as `scripts/check_tbs_numbers.py`
   reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.
