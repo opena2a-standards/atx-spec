@@ -388,7 +388,7 @@ def check_suite(suite, members):
             source = "expected.canonicalHex"
             tbs = json.loads(bytes.fromhex(doc["expected"]["canonicalHex"]).decode("utf-8"))
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            failures.append(f"{rel} [vector] cannot read expected.canonicalHex as JSON: {exc}")
+            failures.append(f"{rel} [vector] cannot read {source} as JSON: {exc}")
             continue
         except RecursionError as exc:
             failures.append(f"{rel} [vector] cannot read {source} as JSON: it nests arrays or "

@@ -1043,6 +1043,68 @@ else
         "json.loads reads no value nested that deep here"
 fi
 
+# The line names what could not be read: the vector file when it cannot be opened, is
+# not UTF-8 or is not JSON, and expected.canonicalHex when the file is JSON and that
+# value does not decode or parse. The vector after each is still read.
+SCORE='jcs-vectors/vectors/02-score-number.json [vector] holds the JSON number 87.5 at `trustScore`'
+SCORE_TBS='{"trustLevel":4,"trustScore":87.5}'
+
+S="$TMP/suite-file-not-json"
+mkdir -p "$S/jcs-vectors/vectors"
+printf 'not json' > "$S/jcs-vectors/vectors/01-not-json.json"
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "a vector file that is not JSON fails naming the file, not expected.canonicalHex" "$T" "$S" \
+    'jcs-vectors/vectors/01-not-json.json [vector] cannot read the file as JSON: Expecting value' \
+    "$SCORE" '!expected.canonicalHex'
+
+S="$TMP/suite-file-not-utf8"
+mkdir -p "$S/jcs-vectors/vectors"
+printf '\377\376' > "$S/jcs-vectors/vectors/01-not-utf8.json"
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "a vector file that is not UTF-8 fails naming the file, not expected.canonicalHex" "$T" "$S" \
+    "jcs-vectors/vectors/01-not-utf8.json [vector] cannot read the file as JSON: 'utf-8' codec can't decode" \
+    "$SCORE" '!expected.canonicalHex'
+
+S="$TMP/suite-file-directory"
+mkdir -p "$S/jcs-vectors/vectors/01-directory.json"
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "a vector path that is a directory fails naming the file, not expected.canonicalHex" "$T" "$S" \
+    'jcs-vectors/vectors/01-directory.json [vector] cannot read the file as JSON: ' \
+    "$SCORE" '!expected.canonicalHex'
+
+S="$TMP/suite-hex-not-hex"
+mkdir -p "$S/jcs-vectors/vectors"
+printf '{"expected": {"canonicalHex": "zz"}}\n' > "$S/jcs-vectors/vectors/01-not-hex.json"
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "an expected.canonicalHex that is not hexadecimal fails naming that value, not the file" "$T" "$S" \
+    'jcs-vectors/vectors/01-not-hex.json [vector] cannot read expected.canonicalHex as JSON: non-hexadecimal number' \
+    "$SCORE" '!cannot read the file'
+
+S="$TMP/suite-hex-not-utf8"
+mkdir -p "$S/jcs-vectors/vectors"
+printf '{"expected": {"canonicalHex": "fffe"}}\n' > "$S/jcs-vectors/vectors/01-hex-not-utf8.json"
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "an expected.canonicalHex whose bytes are not UTF-8 fails naming that value, not the file" "$T" "$S" \
+    "jcs-vectors/vectors/01-hex-not-utf8.json [vector] cannot read expected.canonicalHex as JSON: 'utf-8' codec can't decode" \
+    "$SCORE" '!cannot read the file'
+
+S="$TMP/suite-hex-not-json"
+vector "$S" 01-hex-not-json 'not json'
+vector "$S" 02-score-number "$SCORE_TBS"
+expect_fail "an expected.canonicalHex whose text is not JSON fails naming that value, not the file" "$T" "$S" \
+    'jcs-vectors/vectors/01-hex-not-json.json [vector] cannot read expected.canonicalHex as JSON: Expecting value' \
+    "$SCORE" '!cannot read the file'
+
+# What the line names is decided vector by vector: the file that follows a vector whose
+# expected.canonicalHex failed is named as the file.
+S="$TMP/suite-hex-then-file"
+vector "$S" 01-hex-not-json 'not json'
+printf 'not json' > "$S/jcs-vectors/vectors/02-not-json.json"
+expect_fail "a vector file that is not JSON after a vector whose expected.canonicalHex is not JSON fails naming each" \
+    "$T" "$S" \
+    'jcs-vectors/vectors/01-hex-not-json.json [vector] cannot read expected.canonicalHex as JSON: Expecting value' \
+    'jcs-vectors/vectors/02-not-json.json [vector] cannot read the file as JSON: Expecting value'
+
 S="$TMP/suite-empty"
 mkdir -p "$S"
 expect_fail "a suite without jcs-vectors fails instead of passing" "$T" "$S" "has no jcs-vectors"

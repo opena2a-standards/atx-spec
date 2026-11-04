@@ -340,6 +340,38 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_tbs_numbers.py --suite` and `scripts/check_tbs_timestamps.py --suite` name the
+  vector file, not `expected.canonicalHex`, when the file is what could not be read. With Python
+  3.14.3, a vector file that holds the text `not json` printed
+  `jcs-vectors/vectors/<name>.json [vector] cannot read expected.canonicalHex as JSON: Expecting
+  value: line 1 column 1 (char 0)`, a vector file of the two bytes 0xff 0xfe the same lead with a
+  codec error, and a `*.json` path that is a directory the same lead with `[Errno 21] Is a
+  directory`. Each now prints `cannot read the file as JSON: ...`, the words each check already
+  printed for a vector file nested deeper than `json.loads` reads; the check exits 1 and the vector
+  after it is still read. The line says `cannot read expected.canonicalHex as JSON: ...` when the
+  file is JSON and that value is not hexadecimal, its bytes are not UTF-8 or its text is not JSON,
+  and for a JSON file that does not hold that value as a string, as with `{}`, `[]`,
+  `{"expected": {}}` and `{"expected": {"canonicalHex": 7}}`. `scripts/test_tbs_numbers.sh` adds 7
+  cases and runs 142, and `scripts/test_tbs_timestamps.sh` adds 7 and runs 92. On Python 3.9.6,
+  3.13.12 and 3.14.3 every case passes or is skipped. With the checks of b019390, 4 of the added
+  cases in each file fail on Python 3.14.3. (#160)
+- `scripts/check_revocation_fixture_key.py --suite` reports a fixture nested deeper than
+  `json.loads` reads on one failure line that names the fixture, as `scripts/check_tbs_numbers.py`
+  reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.
+  With a suite whose `fixtures/` held one file, an array nested 232,474 deep, the check stopped
+  with a traceback of 21 lines on Python 3.14.3 on macOS arm64 and of 16 lines on Python 3.9.6,
+  and exited 1. It now prints `fixtures/<name>.json [fixture] cannot be read as JSON: it nests
+  arrays or objects deeper than the json module of this Python can read`, followed by Python's
+  reason in parentheses, exits 1, and still reads the fixtures after it; for that suite the
+  `[missing]` line that no fixture gives the verifier a revocation list follows it, as it follows
+  a fixture that is not JSON. `scripts/test_revocation_fixture_key.sh` adds 4 cases and runs 24,
+  one of them skipped unless `ATX_CONFORMANCE_SUITE` names a suite checkout: a fixture of arrays
+  and one of objects, each nested twice as deep as `json.loads` reads, the first beside a fixture
+  whose revocation list is still reported and the second alone in its suite, each with a one-line
+  count. The depth is found by bisection, as `scripts/test_tbs_numbers.sh` finds it, and the
+  cases are skipped where `json.loads` reads 2,000,000 levels. On Python 3.9.6, 3.13.12 and
+  3.14.3 every case passes or is skipped. With the check of b019390, the 4 added cases fail on
+  each of them. (#159)
 - `scripts/check_coverage_index.py --suite` reports a `conformance.json` whose arrays or objects
   nest deeper than `json.loads` reads on one failure line, as `scripts/check_tbs_numbers.py`
   reports a jcs-vector nested that deep, instead of stopping with a `RecursionError` traceback.

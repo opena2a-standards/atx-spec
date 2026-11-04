@@ -54,8 +54,10 @@ new_dir() {  # new_dir <name> -> path to an empty scratch directory
     printf '%s' "$TMP/$1"
 }
 
-expect_fail() {  # expect_fail <leaf name> <root> <suite> <where> <rule> [<detail>]
-    local name="$1" root="$2" suite="$3" where="$4" rule="$5" detail="${6-}" rc
+expect_fail() {  # expect_fail <leaf name> <root> <suite> <where> <rule> [<detail> ...]
+    # A detail that starts with ! must not be reported.
+    local name="$1" root="$2" suite="$3" where="$4" rule="$5" detail rc
+    shift 5
     run_check "$root" "$suite"
     rc=$?
     if [ "$rc" -ne 1 ]; then
@@ -66,11 +68,31 @@ expect_fail() {  # expect_fail <leaf name> <root> <suite> <where> <rule> [<detai
         not_ok "$name" "exit 1 but '$where [$rule]' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
         return
     fi
-    if [ -n "$detail" ] && ! grep -qF -- "$detail" "$OUT"; then
-        not_ok "$name" "exit 1 but '$detail' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
-        return
-    fi
+    for detail in "$@"; do
+        case "$detail" in
+            '!'*)
+                if grep -qF -- "${detail#!}" "$OUT"; then
+                    not_ok "$name" "'${detail#!}' reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
+                    return
+                fi
+                ;;
+            *)
+                if ! grep -qF -- "$detail" "$OUT"; then
+                    not_ok "$name" "exit 1 but '$detail' not reported: $(head -c 400 "$OUT" | tr '\n' ' ')"
+                    return
+                fi
+                ;;
+        esac
+    done
     ok "$name"
+}
+
+one_line_naming() {  # one_line_naming <leaf name> <text>: the last run printed one line with it
+    if [ "$(grep -cF -- "$2" "$OUT")" -eq 1 ]; then
+        ok "$1"
+    else
+        not_ok "$1" "expected one line naming '$2': $(head -c 400 "$OUT" | tr '\n' ' ')"
+    fi
 }
 
 expect_pass() {  # expect_pass <leaf name> <root> <suite>
@@ -116,6 +138,38 @@ write_fixture() {
     printf '{"name": "%s", "verifierState": {"clockRfc3339": "2026-05-24T00:00:00Z", "crl": {"version": 1, "entries": [{%s"revokedAt": "2026-05-23T12:00:00Z", "reason": "test"}]}}, "atx": {"agentId": "agent_test_001"}}\n' \
         "$name" "$members" > "$suite/fixtures/$name.json"
 }
+
+# fixture_deep <suite> <name> <depth> <array|object>
+# A fixture that is an array nested <depth> deep ([[...0...]]), or <depth>
+# objects each nested in the one before through a ({"a": {"a": ... 1}}).
+fixture_deep() {
+    mkdir -p "$1/fixtures"
+    python3 -B -c '
+import sys
+depth, kind = int(sys.argv[1]), sys.argv[2]
+if kind == "array":
+    sys.stdout.write("[" * depth + "0" + "]" * depth)
+else:
+    sys.stdout.write("{\"a\": " * depth + "1" + "}" * depth)
+' "$3" "$4" > "$1/fixtures/$2.json"
+}
+
+# The depth at which json.loads stops with a RecursionError depends on the
+# Python version and the stack size, so the deep fixtures are built from the
+# deepest array json.loads reads here, found by bisection up to 2,000,000, as
+# scripts/test_tbs_numbers.sh finds it.
+LOADS_DEPTH="$(python3 -B -c '
+import json
+low, high = 0, 2000000
+while low < high:
+    mid = (low + high + 1) // 2
+    try:
+        json.loads("[" * mid + "0" + "]" * mid)
+        low = mid
+    except RecursionError:
+        high = mid - 1
+print(low)
+')"
 
 # The fixtures of the atx-conformance suite that matter here: two revocation
 # fixtures whose list entries name the agent by agentId, and one without a list.
@@ -244,6 +298,42 @@ printf '{"name": "odd", "verifierState": {"crl": {"version": 1, "entries": {"age
     > "$S5/fixtures/odd.json"
 expect_fail "a revocation list whose entries are not an array of objects fails" \
     "$T" "$S5" "fixtures/odd.json" fixture "entries array of objects"
+
+# A fixture nested twice as deep as json.loads reads fails on one line, not with
+# a RecursionError traceback, and the fixture after it is still read: under a
+# Coverage paragraph that names no agent key, the key its list uses is reported
+# as unnamed.
+DEEP_READ='[fixture] cannot be read as JSON: it nests arrays or objects deeper than the json module of this Python can read'
+if [ "$LOADS_DEPTH" -lt 2000000 ]; then
+    Q="$(new_dir quiet-beside-deep)"
+    write_core "$Q" "$QUIET_PARA"
+    S6="$(new_dir deep-array-suite)"
+    fixture_deep "$S6" deep "$((2 * LOADS_DEPTH))" array
+    write_fixture "$S6" revoked agentId
+    expect_fail "a fixture nested in arrays deeper than json.loads reads fails as not JSON" \
+        "$Q" "$S6" "fixtures/deep.json" fixture "fixtures/deep.json $DEEP_READ" \
+        "core.md:11 [unnamed] the revocation list of fixtures/revoked.json names the revoked agent by \`agentId\`" \
+        '!Traceback'
+    one_line_naming "a fixture nested in arrays deeper than json.loads reads is reported on one line" \
+        "fixtures/deep.json"
+
+    # A suite whose one fixture is nested that deep gives the verifier no
+    # revocation list, so the missing line is reported beside it.
+    S7="$(new_dir deep-object-suite)"
+    fixture_deep "$S7" deep "$((2 * LOADS_DEPTH))" object
+    expect_fail "a suite whose one fixture nests objects deeper than json.loads reads fails as not JSON" \
+        "$T" "$S7" "fixtures/deep.json" fixture "fixtures/deep.json $DEEP_READ" \
+        "fixtures [missing] no fixture under" '!Traceback'
+    one_line_naming "a fixture nested in objects deeper than json.loads reads is reported on one line" \
+        "fixtures/deep.json"
+else
+    for leaf in "a fixture nested in arrays deeper than json.loads reads fails as not JSON" \
+        "a fixture nested in arrays deeper than json.loads reads is reported on one line" \
+        "a suite whose one fixture nests objects deeper than json.loads reads fails as not JSON" \
+        "a fixture nested in objects deeper than json.loads reads is reported on one line"; do
+        skip "$leaf" "json.loads reads 2,000,000 levels here"
+    done
+fi
 
 # --- summary ----------------------------------------------------------------
 
