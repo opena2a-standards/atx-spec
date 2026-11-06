@@ -15,9 +15,16 @@ identifier registered in `core.md` §14.
   U+017F, each with the letter it folds to (`k`, `s`) in backticks within 80 characters after
   the code point, or the check fails as `[ascii]` or `[unnamed]`; a `core.md` paragraph that
   names `declaredPurpose` and says "differ only in ASCII letter case" fails as `[ascii-only]`.
-  With `--suite <atx-conformance checkout>` the code points are read from the `foldKey` function
-  of `verifiers/go/verifier/verify.go`, so a fold that verifier adds and `core.md` does not name
-  fails as `[unnamed]`, and a `foldKey` the check cannot read fails as `[suite]`. Against the
+  With `--suite <atx-conformance checkout>` the code points and their letters are read from the
+  rows of the `foldKey` function of `verifiers/go/verifier/verify.go` written as
+  `case r == '<rune>':`, the rune as one character or a `\u` or `\U` escape, whose next line that
+  is not blank starts with `b.WriteRune('<ASCII letter>')`; a row of that form that `core.md` does
+  not name fails as `[unnamed]`. A fold written in another form is not read, and `core.md` is not
+  checked against it, for example two runes in one `case`, a `\x` or octal escape,
+  `b.WriteString`, a `b.WriteRune` of a letter outside ASCII, a `default` branch that calls
+  `unicode.ToLower`, or `strings.ToLower` of the whole name before the loop. A `foldKey` with no
+  row of that form for a character outside ASCII fails as `[suite]`, and so does a `verify.go`
+  that cannot be read or has no `func foldKey`. Against the
   tree at 39aae1b the check reports `[unnamed]` twice at `core.md:211` and `[ascii-only]` at
   `core.md:684`, and exits 1; it passes on this tree, with and without `--suite` pointed at
   atx-conformance 88615df. It exits 2 on a usage error, needs only python3 and is not yet run by

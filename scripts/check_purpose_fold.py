@@ -24,9 +24,17 @@ holds, so the two reach different verdicts on one credential.
               leaves out the folds outside ASCII.
 
 The fold table is FOLDS below. With --suite <atx-conformance checkout>, the
-table is read from the foldKey function of verifiers/go/verifier/verify.go
-instead, so a fold the reference verifier adds and core.md does not name fails
-as [unnamed]; a foldKey the check cannot read fails as [suite].
+table is read instead from the rows of the foldKey function of
+verifiers/go/verifier/verify.go written as case r == '<rune>': whose next line
+that is not blank starts with b.WriteRune('<ASCII letter>'); GO_CASE_RE gives
+the rune forms it reads (one character, or a backslash-u or backslash-U
+escape). A row of that form that core.md does not name fails as [unnamed]. A
+fold written in another form is not read, and core.md is not checked against
+it: for example two runes in one case, a backslash-x or octal escape,
+b.WriteString, a b.WriteRune of a letter outside ASCII, a default branch that
+calls unicode.ToLower, or strings.ToLower of the whole name before the loop. A
+foldKey with no row of that form for a character outside ASCII fails as
+[suite], and so does a verify.go that cannot be read or has no func foldKey.
 
 The check reads words, not meaning: it finds the paragraph and the names it
 must hold, and review decides what the paragraph says.
