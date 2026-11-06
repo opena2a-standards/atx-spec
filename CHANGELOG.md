@@ -373,6 +373,24 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_purpose_fold.py --suite` reads `foldKey` up to the `}` that closes its body. It
+  took the function to end at the first line after `func foldKey(` that starts with `}`, so a raw
+  string or a block comment inside `foldKey` that holds such a line ended it there, and the
+  `case r == '<rune>':` rows below that line were not read. For a `verify.go` whose `foldKey` holds
+  the U+212A and U+017F rows, then a `const` set to a raw string whose second line is `}`, then a
+  second loop whose switch holds a `case r == '<rune>':` row for U+00B5, its rune written as a `\u`
+  escape, followed by `b.WriteRune('m')`, a file that `gofmt -l` does not list, the check printed
+  its pass line and exited 0 with the `core.md` of this tree; it now reports `[unnamed]` for U+00B5
+  at `core.md:211` and exits 1. The function now starts at the first line that starts with
+  `func foldKey(` outside comments and string literals, and a brace in a comment, a string literal
+  or a rune literal, or of an `interface` or `struct` type in the signature, does not open or close
+  its body. A `foldKey` written on one line no longer takes in the rows of the function after it,
+  and fails as `[suite]` when it holds no row of the form the check reads; a `func foldKey` with no
+  `{` that opens its body on the line its signature ends on, or with no `}` that closes its body,
+  fails as `[suite]`, naming the line of `func foldKey` in `verify.go`.
+  `scripts/test_purpose_fold.sh` adds 14 cases and runs 41. On Python 3.9.6, 3.13.12 and 3.14.3,
+  each under bash 3.2.57 and 5.3.9, every case passes. With the check of 0a43641, 9 of the added
+  cases fail on Python 3.14.3. (#172)
 - `scripts/check_purpose_fold.py` looks for the letter a code point outside ASCII folds to within
   80 characters after the code point and before the next U+ that four hex digits follow, the U
   and the digits in either case, so a letter in backticks after the next code point counts only
