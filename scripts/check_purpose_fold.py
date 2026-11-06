@@ -28,13 +28,16 @@ table is read instead from the rows of the foldKey function of
 verifiers/go/verifier/verify.go written as case r == '<rune>': whose next line
 that is not blank starts with b.WriteRune('<ASCII letter>'); GO_CASE_RE gives
 the rune forms it reads (one character, or a backslash-u or backslash-U
-escape). A row of that form that core.md does not name fails as [unnamed]. A
-fold written in another form is not read, and core.md is not checked against
-it: for example two runes in one case, a backslash-x or octal escape,
-b.WriteString, a b.WriteRune of a letter outside ASCII, a default branch that
-calls unicode.ToLower, or strings.ToLower of the whole name before the loop. A
-foldKey with no row of that form for a character outside ASCII fails as
-[suite], and so does a verify.go that cannot be read or has no func foldKey.
+escape). A row of that form for a character outside ASCII that core.md does
+not name fails as [unnamed] when it is the last row of that form for its
+character; an earlier row for the same character, and a row for an ASCII
+character, are not checked. A fold written in another form is not read, and
+core.md is not checked against it: for example two runes in one case, a
+backslash-x or octal escape, b.WriteString, a b.WriteRune of a letter outside
+ASCII, a default branch that calls unicode.ToLower, or strings.ToLower of the
+whole name before the loop. A foldKey with no row of that form for a character
+outside ASCII fails as [suite], and so does a verify.go that cannot be read or
+has no func foldKey.
 
 The check reads words, not meaning: it finds the paragraph and the names it
 must hold, and review decides what the paragraph says.

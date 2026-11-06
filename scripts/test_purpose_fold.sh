@@ -159,7 +159,7 @@ S="$(new_tree suite-more)"
 go_suite "$S" "$KELVIN_CASE$LONGS_CASE$MICRO_CASE"
 T="$(new_tree suite-more-core)"
 good_core "$T"
-expect_fail "--suite: a case r == '<rune>': row with b.WriteRune('<letter>') that core.md does not name fails" \
+expect_fail "--suite: a case r == '<rune outside ASCII>': row with b.WriteRune('<ASCII letter>'), the last row for its character, that core.md does not name fails" \
     "$T" "core.md:3" "unnamed" --suite "$S"
 if grep -qF "U+00B5" "$OUT"; then
     ok "--suite: the [unnamed] failure names the added code point"
