@@ -340,6 +340,31 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **43** fixtures: atx-conformance added
+  two v1.0 fixtures at f5f488a. `fixtures/foreign-did-method-valid.json` is
+  `fixtures/baseline-valid-hybrid.json` re-signed with its `agentDid` and `publisherDid` named
+  under `did:web` while its `issuerDid` stays `did:opena2a:authority:opena2a.org`, and pins
+  ACCEPT; `fixtures/foreign-did-method-altered-after-signing.json` is that credential with its
+  `agentDid` changed after signing, and pins REJECT as `SIGNATURE_INVALID`. `README.md` carried
+  the verifier's summary line for 41, `docs/conformance.md` "41 fixtures" and "41 of 41 PASS", and
+  §12 "41 fixtures"; each now states 43, and the two fixtures join both fixture enumerations as
+  the last entries of the v1.0 set. Each of the two carries an Ed25519 and an ML-DSA-65 signature
+  from one authority, asserts `trustLevel` 4 and pins `2026-05-24T00:00:00Z` as the verifier's
+  clock, so the Issuer paragraph of §12 now says that seven fixtures, not five, carry an ML-DSA-65
+  signature; the rest of that paragraph and the verifier-clock and Coverage paragraphs hold as
+  written. Against atx-conformance at f5f488a both reference verifiers report
+  `summary: 43 pass, 0 fail (43 fixtures)`, accept the first fixture and reject the second as
+  `SIGNATURE_INVALID`. No normative text changes.
+- `core.md` section 2 no longer says ATP is pushed into the A2A specification with A2A pull
+  request 1496 already in flight. The sentence read "We push ATP into A2A spec as the trust binding
+  A2A is missing today (PR 1496 already in flight)." It now says that ATP is intended to be
+  proposed to A2A as that trust binding and that no A2A pull request proposes it yet; that
+  a2aproject/A2A#1496 is a separate identity and trust framework proposal that names neither ATP
+  nor ATX; that a2aproject/A2A#1850, a roadmap document, links ATP and ATX only as a spec set
+  tracked separately; and that a2aproject/A2A#1876, the coordination issue opened for that set,
+  was closed as not planned on 2026-06-15. Neither version of the paragraph uses a BCP 14 key
+  word, and section 2 constrains implementations only where it uses one (`core.md`, Conventions
+  and terminology), so no normative text changes. (#164)
 - `scripts/check_tbs_numbers.py --suite` and `scripts/check_tbs_timestamps.py --suite` name the
   vector file, not `expected.canonicalHex`, when the file is what could not be read. With Python
   3.14.3, a vector file that holds the text `not json` printed
