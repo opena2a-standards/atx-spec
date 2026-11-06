@@ -361,6 +361,24 @@ identifier registered in `core.md` §14.
   #164 below repeats the earlier description of #1876. The paragraph uses no BCP 14 key word, and
   section 2 constrains implementations only where it uses one (`core.md`, Conventions and
   terminology), so no normative text changes. (#166)
+- The stated conformance-suite count follows the suite to **44** fixtures: atx-conformance added
+  one v1.0 fixture at 3b08dca. `fixtures/expired-beyond-skew.json` is
+  `fixtures/baseline-valid.json` with its `expiresAt` moved to `2026-05-23T23:58:59Z`, 61 seconds
+  before the verifier clock the fixture pins, `2026-05-24T00:00:00Z`, and its one Ed25519
+  signature made over that `expiresAt`. It pins REJECT as `EXPIRED`: 61 seconds is one second past
+  the 60-second family clock-skew bound of ATP §10.2 within which §1.3 step 2 evaluates expiry, so
+  the credential is expired at every tolerance the bound allows. `README.md` carried the
+  verifier's summary line for 43, `docs/conformance.md` "43 fixtures" and "43 of 43 PASS", and §12
+  "43 fixtures"; each now states 44. The fixture joins both fixture enumerations beside the
+  `expired` fixture, whose `expiresAt` is 508 days before that clock: §12 lists expiry at 508 days
+  and at 61 seconds past `expiresAt`, and `docs/conformance.md` names `expired-beyond-skew` after
+  `expired`. It carries one Ed25519 signature from one authority, asserts `trustLevel` 4 and pins
+  `2026-05-24T00:00:00Z` as the verifier's clock, so the Issuer, verifier-clock and Coverage
+  paragraphs of §12 hold as written. Against atx-conformance at 3b08dca both reference verifiers
+  report `summary: 44 pass, 0 fail (44 fixtures)` and reject the fixture as `EXPIRED`; with the
+  fixture's clock moved to `2026-05-23T12:00:00Z` the Python reference verifier accepts it, and
+  with its `expiresAt` also moved one second later that verifier rejects it as
+  `SIGNATURE_INVALID`. No normative text changes. (#167)
 - The stated conformance-suite count follows the suite to **43** fixtures: atx-conformance added
   two v1.0 fixtures at f5f488a. `fixtures/foreign-did-method-valid.json` is
   `fixtures/baseline-valid-hybrid.json` re-signed with its `agentDid` and `publisherDid` named
