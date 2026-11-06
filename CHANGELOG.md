@@ -340,6 +340,16 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` section 2 no longer says ATP is pushed into the A2A specification with A2A pull
+  request 1496 already in flight. The sentence read "We push ATP into A2A spec as the trust binding
+  A2A is missing today (PR 1496 already in flight)." It now says that ATP is intended to be
+  proposed to A2A as that trust binding and that no A2A pull request proposes it yet; that
+  a2aproject/A2A#1496 is a separate identity and trust framework proposal that names neither ATP
+  nor ATX; that a2aproject/A2A#1850, a roadmap document, links ATP and ATX only as a spec set
+  tracked separately; and that a2aproject/A2A#1876, the coordination issue opened for that set,
+  was closed as not planned on 2026-06-15. Neither version of the paragraph uses a BCP 14 key
+  word, and section 2 constrains implementations only where it uses one (`core.md`, Conventions
+  and terminology), so no normative text changes. (#164)
 - `scripts/check_tbs_numbers.py --suite` and `scripts/check_tbs_timestamps.py --suite` name the
   vector file, not `expected.canonicalHex`, when the file is what could not be read. With Python
   3.14.3, a vector file that holds the text `not json` printed
