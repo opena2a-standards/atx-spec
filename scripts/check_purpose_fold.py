@@ -32,16 +32,22 @@ table is read instead from the rows of the foldKey function of
 verifiers/go/verifier/verify.go written as case r == '<rune>': whose next line
 that is not blank starts with b.WriteRune('<ASCII letter>'); GO_CASE_RE gives
 the rune forms it reads (one character, or a backslash-u or backslash-U
-escape). A row of that form for a character outside ASCII that core.md does
-not name fails as [unnamed] when it is the last row of that form for its
-character; an earlier row for the same character, and a row for an ASCII
-character, are not checked. A fold written in another form is not read, and
+escape). The function runs from the first line that starts with func foldKey(
+outside comments and string literals to the } that closes its body. A brace in
+a comment, a string literal or a rune literal does not open or close the body,
+and neither does a brace of an interface or struct type in the signature; the
+{ that opens the body is on the line the signature ends on, as Go requires. A
+row of that form for a character outside ASCII that core.md does not name
+fails as [unnamed] when it is the last row of that form for its character; an
+earlier row for the same character, and a row for an ASCII character, are not
+checked. A fold written in another form is not read, and
 core.md is not checked against it: for example two runes in one case, a
 backslash-x or octal escape, b.WriteString, a b.WriteRune of a letter outside
 ASCII, a default branch that calls unicode.ToLower, or strings.ToLower of the
 whole name before the loop. A foldKey with no row of that form for a character
-outside ASCII fails as [suite], and so does a verify.go that cannot be read or
-has no func foldKey.
+outside ASCII fails as [suite], and so does a verify.go that cannot be read,
+that has no func foldKey, or whose func foldKey has no { that opens its body
+on the line its signature ends on or no } that closes it.
 
 The check reads words, not meaning: it finds the paragraph and the names it
 must hold, and review decides what the paragraph says.
@@ -68,7 +74,22 @@ ASCII_ONLY_RE = re.compile(r"differ\s+only\s+in\s+ASCII\s+letter\s+case", re.IGN
 # which the [unnamed] rule looks for the letter a code point folds to ends where
 # the next code point starts, so a letter after that one counts for it alone.
 CODE_POINT_RE = re.compile(r"U\+[0-9A-Fa-f]{4}", re.IGNORECASE)
-GO_FUNC_RE = re.compile(r"^func foldKey\(.*?^}", re.MULTILINE | re.DOTALL)
+GO_FUNC_RE = re.compile(r"^func foldKey\(", re.MULTILINE)
+# A Go comment, interpreted or raw string literal, or rune literal, matched from
+# its first character. An interpreted string or rune literal that is not closed
+# stops before the newline that ends its line; a block comment or raw string
+# that is not closed runs to the end of the source.
+GO_LITERAL_RE = re.compile(
+    r"//[^\n]*"
+    r"|/\*.*?(?:\*/|\Z)"
+    r"|`[^`]*`?"
+    r"|\"(?:\\[^\n]|[^\\\"\n])*\"?"
+    r"|'(?:\\[^\n]|[^\\'\n])*'?",
+    re.DOTALL,
+)
+GO_BRACKET_RE = re.compile(r"[()\[\]{}\n]")
+# The end of a signature whose next { opens an interface or struct type, not a body.
+GO_TYPE_KEYWORD_RE = re.compile(r"(?<!\w)(?:interface|struct)\s*\Z")
 GO_CASE_RE = re.compile(
     r"case\s+r\s*==\s*'(\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}|[^'\\])'\s*:"
     r"[^\n]*\n\s*b\.WriteRune\('([A-Za-z])'\)"
@@ -88,6 +109,43 @@ def paragraphs(text):
     yield start, len(text)
 
 
+def go_code(source):
+    """`source` with each character of its comments, string literals and rune
+    literals replaced by a space, newlines kept, so offsets stay the same."""
+    return GO_LITERAL_RE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), source)
+
+
+def go_body_end(code, pos):
+    """The offset just past the } that closes the body of the func declaration
+    whose parameter list opens just before `pos` in `code` (the output of
+    go_code), or None and the brace this check did not find.
+
+    The body opens at the first { outside parentheses, brackets and braces that
+    does not follow interface or struct; a newline outside them before it ends
+    the signature, as it does in Go, so that declaration has no body."""
+    depth = 1
+    body = 0
+    for m in GO_BRACKET_RE.finditer(code, pos):
+        c = m.group(0)
+        if body:
+            if c == "{":
+                body += 1
+            elif c == "}":
+                body -= 1
+                if body == 0:
+                    return m.end(), None
+        elif c == "\n":
+            if depth == 0:
+                return None, "{"
+        elif c == "{" and depth == 0 and not GO_TYPE_KEYWORD_RE.search(code, pos, m.start()):
+            body = 1
+        elif c in "([{":
+            depth += 1
+        else:
+            depth -= 1
+    return None, "}" if body else "{"
+
+
 def suite_folds(suite):
     """The non-ASCII rows of the Go reference verifier's foldKey, or an error string."""
     path = pathlib.Path(suite) / "verifiers" / "go" / "verifier" / "verify.go"
@@ -95,11 +153,21 @@ def suite_folds(suite):
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         return None, f"cannot read {path} ({exc})"
-    func = GO_FUNC_RE.search(source)
+    code = go_code(source)
+    func = GO_FUNC_RE.search(code)
     if not func:
         return None, f"{path} has no func foldKey"
+    end, missing = go_body_end(code, func.end())
+    if end is None:
+        where = f"{path}:{line_of(source, func.start())}"
+        if missing == "{":
+            return None, (
+                f"func foldKey at {where} has no {{ that opens its body "
+                "on the line its signature ends on"
+            )
+        return None, f"func foldKey at {where} has no }} that closes its body"
     folds = {}
-    for m in GO_CASE_RE.finditer(func.group(0)):
+    for m in GO_CASE_RE.finditer(source, func.start(), end):
         rune = m.group(1)
         cp = int(rune[2:], 16) if rune.startswith("\\") else ord(rune)
         folds[cp] = m.group(2)

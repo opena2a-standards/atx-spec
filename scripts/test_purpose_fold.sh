@@ -77,6 +77,14 @@ expect_fail() {  # expect_fail <leaf name> <root> <where> <rule> [extra args...]
     ok "$name"
 }
 
+expect_said() {  # expect_said <leaf name> <text the last run printed>
+    if grep -qF -- "$2" "$OUT"; then
+        ok "$1"
+    else
+        not_ok "$1" "expected '$2' in: $(head -c 600 "$OUT" | tr '\n' ' ')"
+    fi
+}
+
 # A core.md whose fold paragraph starts on line 3 and names the ASCII fold and
 # the two folds outside ASCII, and whose restatement names them too.
 GOOD_RULE='Inside `declaredPurpose` the strict parse also treats as a duplicate member
@@ -101,6 +109,23 @@ LONGS_CASE="\t\tcase r == '\305\277': // long s -> s\n\t\t\tb.WriteRune('s')\n"
 # A made-up third fold, written as a Go \u escape, that core.md does not name.
 MICRO_CASE="\t\tcase r == '\\\\u00b5': // made-up fold -> m\n\t\t\tb.WriteRune('m')\n"
 
+# Pieces of the Go sources that place the end of foldKey: its signature, a loop
+# whose switch folds A to Z, the Kelvin sign and the long s, and a loop whose
+# switch holds the made-up fold.
+SIG="func foldKey(s string) string {\n"
+FOLD_LOOP="\tfor _, r := range s {\n\t\tswitch {\n\t\tcase 'A' <= r && r <= 'Z':\n\t\t\tb.WriteRune(r + ('a' - 'A'))\n$KELVIN_CASE$LONGS_CASE\t\t}\n\t}\n"
+MICRO_LOOP="\tfor _, r := range s {\n\t\tswitch {\n$MICRO_CASE\t\t}\n\t}\n"
+# CLOSE_FORMS holds a } in a rune literal, in an interpreted string (twice, the
+# second after an escaped quote), in a raw string, in a line comment and in a
+# block comment, one per line; OPEN_FORMS holds a { in the same places.
+CLOSE_FORMS="\t_ = '}'\n\t_ = \"}\"\n\t_ = \"\\\\\"}\"\n\t_ = \`}\`\n\t// }\n\t/* } */\n"
+OPEN_FORMS="\t_ = '{'\n\t_ = \"{\"\n\t_ = \"\\\\\"{\"\n\t_ = \`{\`\n\t// {\n\t/* { */\n"
+
+go_file() {  # go_file <tree> <source after the package clause (printf format)>
+    mkdir -p "$1/verifiers/go/verifier"
+    printf "package verifier\n\n$2" > "$1/verifiers/go/verifier/verify.go"
+}
+
 # --- the delivered tree -----------------------------------------------------
 
 expect_pass "the delivered core.md passes" "$REPO"
@@ -120,6 +145,30 @@ go_suite "$S" "$KELVIN_CASE$LONGS_CASE"
 T="$(new_tree suite-same-core)"
 good_core "$T"
 expect_pass "--suite: a foldKey with the Kelvin sign and the long s passes" "$T" --suite "$S"
+
+# The cases that place the end of foldKey share this core.md, which names the
+# Kelvin sign and the long s and not the made-up fold.
+C="$(new_tree suite-end-core)"
+good_core "$C"
+
+S="$(new_tree suite-open-forms)"
+go_file "$S" "$SIG$FOLD_LOOP$OPEN_FORMS\treturn s\n}\n\nfunc other(s string) string {\n$MICRO_LOOP\treturn s\n}\n"
+expect_pass "--suite: a { in a literal or a comment of foldKey does not take in the function after it" \
+    "$C" --suite "$S"
+
+S="$(new_tree suite-signature-types)"
+go_file "$S" "func foldKey(_ struct{}, s string) map[string]interface{} {\n$FOLD_LOOP\treturn nil\n}\n\nfunc other(s string) string {\n$MICRO_LOOP\treturn s\n}\n"
+expect_pass "--suite: the braces of struct{} and interface{} in the signature do not open the body" \
+    "$C" --suite "$S"
+
+S="$(new_tree suite-struct-result)"
+go_file "$S" "func foldKey(s string) struct{ k string } {\n$FOLD_LOOP\treturn struct{ k string }{s}\n}\n"
+expect_pass "--suite: the braces of a struct result type do not open the body" "$C" --suite "$S"
+
+S="$(new_tree suite-copies)"
+go_file "$S" "/*\n$SIG$MICRO_LOOP\treturn s\n}\n*/\n\nconst doc = \`\n$SIG$MICRO_LOOP\treturn s\n}\n\`\n\n$SIG$FOLD_LOOP\treturn s\n}\n"
+expect_pass "--suite: a func foldKey line in a block comment or a raw string is not read as foldKey" \
+    "$C" --suite "$S"
 
 # --- failing shapes ---------------------------------------------------------
 
@@ -220,6 +269,42 @@ else
     not_ok "--suite: on the delivered core.md, the [unnamed] failure names U+017F with k" \
         "$(head -c 600 "$OUT" | tr '\n' ' ')"
 fi
+
+S="$(new_tree suite-raw-string)"
+go_file "$S" "$SIG$FOLD_LOOP\tconst note = \`a raw string\n}\nwhose second line is a closing brace\`\n\t_ = note\n$MICRO_LOOP\treturn s\n}\n"
+expect_fail "--suite: a row after a raw string of foldKey whose second line is } is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the [unnamed] failure after the raw string names U+00B5" "U+00B5"
+
+S="$(new_tree suite-block-comment)"
+go_file "$S" "$SIG$FOLD_LOOP\t/* a block comment\n}\nwhose second line is a closing brace */\n$MICRO_LOOP\treturn s\n}\n"
+expect_fail "--suite: a row after a block comment of foldKey whose second line is } is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+
+S="$(new_tree suite-close-forms)"
+go_file "$S" "$SIG$FOLD_LOOP$CLOSE_FORMS$MICRO_LOOP\treturn s\n}\n"
+expect_fail "--suite: a } in a literal or a comment of foldKey does not end it" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+
+S="$(new_tree suite-one-line)"
+go_file "$S" "func foldKey(s string) string { return strings.ToLower(s) }\n\nfunc other(s string) string {\n$FOLD_LOOP\treturn s\n}\n"
+expect_fail "--suite: a foldKey on one line does not take in the rows of the function after it" \
+    "$C" "" "suite" --suite "$S"
+expect_said "--suite: the one-line foldKey maps no character outside ASCII" \
+    "maps no character outside ASCII that this check can read"
+
+S="$(new_tree suite-no-body)"
+go_file "$S" "func foldKey(s string) string\n\nfunc other(s string) string {\n$FOLD_LOOP\treturn s\n}\n"
+expect_fail "--suite: a func foldKey with no body does not take the body of the function after it" \
+    "$C" "" "suite" --suite "$S"
+expect_said "--suite: the failure says no { opens the body of foldKey, at its line" \
+    "verify.go:3 has no { that opens its body on the line its signature ends on"
+
+S="$(new_tree suite-unclosed)"
+go_file "$S" "$SIG$FOLD_LOOP"
+expect_fail "--suite: a foldKey whose body no } closes fails" "$C" "" "suite" --suite "$S"
+expect_said "--suite: the failure says no } closes the body of foldKey, at its line" \
+    "verify.go:3 has no } that closes its body"
 
 S="$(new_tree suite-none)"
 mkdir -p "$S/verifiers/go/verifier"
