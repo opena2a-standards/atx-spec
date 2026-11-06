@@ -10,6 +10,16 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_a2a_citations.py` + `scripts/test_a2a_citations.sh`: a paragraph of a Markdown
+  file outside `CHANGELOG.md` and `errata/` that cites a2aproject/A2A#1876 also cites #1885 and
+  says duplicate, duplicates or duplicated, or the check fails as `[duplicate]`, because #1876 was
+  closed as a duplicate of #1885. A paragraph is the text between blank lines; the docstring lists
+  the citation forms the check reads and a rewording it does not catch. A file that is not UTF-8,
+  or that cannot be read, is reported as a failure. Against the tree at a79c4c3 the check reports
+  `[duplicate]` at `core.md:710` and exits 1; it passes on this tree, where 1 paragraph cites
+  #1876. It exits 2 on a usage error, needs only python3 and is not yet run by CI. The test runs
+  41 cases with bash and python3; against the tree at a79c4c3 1 of them fails, the case that reads
+  the delivered tree. (#166)
 - `scripts/check_command_blocks.py` + `scripts/test_command_blocks.sh`: a `cd` to a relative path in
   a fenced `sh`, `bash`, `shell` or `zsh` block of the Markdown documents lands in the directory the
   block starts in, or in or below a directory that an earlier `git clone` or `mkdir` of the same
@@ -340,6 +350,35 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` section 2 says that two coordination issues were opened on a2aproject/A2A for the
+  AIP + ATP + ATX spec set, and how each was closed: #1876 on 2026-06-15 as a duplicate of #1885,
+  and #1885 on 2026-06-23, when it was converted to a discussion after a comment called it
+  open-ended exploration rather than an actionable change to the A2A specification or SDKs. The
+  paragraph said "The coordination issue we opened for that set, #1876, was closed as not planned
+  on 2026-06-15.", which presented #1876 as the only coordination issue for the set and its
+  closure as the outcome of the coordination. GitHub records that closure as not planned, and the
+  comment posted when #1876 was closed says it is closed as a duplicate of #1885. The entry for
+  #164 below repeats the earlier description of #1876. The paragraph uses no BCP 14 key word, and
+  section 2 constrains implementations only where it uses one (`core.md`, Conventions and
+  terminology), so no normative text changes. (#166)
+- The stated conformance-suite count follows the suite to **44** fixtures: atx-conformance added
+  one v1.0 fixture at 3b08dca. `fixtures/expired-beyond-skew.json` is
+  `fixtures/baseline-valid.json` with its `expiresAt` moved to `2026-05-23T23:58:59Z`, 61 seconds
+  before the verifier clock the fixture pins, `2026-05-24T00:00:00Z`, and its one Ed25519
+  signature made over that `expiresAt`. It pins REJECT as `EXPIRED`: 61 seconds is one second past
+  the 60-second family clock-skew bound of ATP §10.2 within which §1.3 step 2 evaluates expiry, so
+  the credential is expired at every tolerance the bound allows. `README.md` carried the
+  verifier's summary line for 43, `docs/conformance.md` "43 fixtures" and "43 of 43 PASS", and §12
+  "43 fixtures"; each now states 44. The fixture joins both fixture enumerations beside the
+  `expired` fixture, whose `expiresAt` is 508 days before that clock: §12 lists expiry at 508 days
+  and at 61 seconds past `expiresAt`, and `docs/conformance.md` names `expired-beyond-skew` after
+  `expired`. It carries one Ed25519 signature from one authority, asserts `trustLevel` 4 and pins
+  `2026-05-24T00:00:00Z` as the verifier's clock, so the Issuer, verifier-clock and Coverage
+  paragraphs of §12 hold as written. Against atx-conformance at 3b08dca both reference verifiers
+  report `summary: 44 pass, 0 fail (44 fixtures)` and reject the fixture as `EXPIRED`; with the
+  fixture's clock moved to `2026-05-23T12:00:00Z` the Python reference verifier accepts it, and
+  with its `expiresAt` also moved one second later that verifier rejects it as
+  `SIGNATURE_INVALID`. No normative text changes. (#167)
 - The stated conformance-suite count follows the suite to **43** fixtures: atx-conformance added
   two v1.0 fixtures at f5f488a. `fixtures/foreign-did-method-valid.json` is
   `fixtures/baseline-valid-hybrid.json` re-signed with its `agentDid` and `publisherDid` named
