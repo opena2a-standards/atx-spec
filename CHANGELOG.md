@@ -373,6 +373,21 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_purpose_fold.py` looks for the letter a code point outside ASCII folds to within
+  80 characters after the code point and before the next U+ that four hex digits follow, the U
+  and the digits in either case, so a letter in backticks after the next code point counts only
+  for that code point. The `s` of the U+017F clause of `core.md` starts 65 characters after the
+  first U+212A (`core.md:228-229`), so with `--suite` pointed at a tree whose `foldKey` maps
+  U+212A to `s` and U+017F to `s`, the check passed and printed `core.md names ASCII A to Z and
+  U+017F to s, U+212A to s`. It now exits 1 with `core.md:211 [unnamed]` for U+212A with `s`, and
+  the `[unnamed]` line ends `within 80 characters after it and before the next code point`. With
+  a `foldKey` that maps U+212A to `k` and U+017F to `s`, and without `--suite`, the check passes on
+  this tree; with one that maps U+212A and U+017F to `k`, it exits 1 with `[unnamed]` for U+017F,
+  before and after this change. `scripts/test_purpose_fold.sh` adds 8 cases and runs 27: a
+  `foldKey` that maps U+212A to `s`, against a scratch `core.md` and against the delivered one,
+  one that maps U+017F to `k`, against the delivered one, and a `core.md` whose fold paragraph
+  gives u+212a the letter `s` and u+017f the letter `k`. The 27 cases pass on Python 3.9.6,
+  3.13.12 and 3.14.3; with the check of 0a43641, 5 of the added cases fail. (#171)
 - `core.md` §1.3a.2, Member names, names the two folds outside ASCII that the duplicate-member
   rule inside `declaredPurpose` applies: two member names of one object are a duplicate, and the
   credential a `PARSE_ERROR`, when they are equal once each ASCII letter `A` to `Z` is replaced

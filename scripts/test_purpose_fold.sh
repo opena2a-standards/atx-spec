@@ -3,8 +3,10 @@
 #
 # Every failing shape the check is supposed to catch is built here in a scratch
 # tree and asserted to exit 1 naming the file, the line and the rule; the
-# delivered tree itself is asserted to exit 0. Shell rather than pytest so it
-# runs with nothing installed: bash and python3 are all this needs.
+# delivered tree itself is asserted to exit 0, and to exit 1 naming the rule
+# under a scratch suite whose foldKey gives U+212A or U+017F the letter of the
+# other. Shell rather than pytest so it runs with nothing installed: bash and
+# python3 are all this needs.
 #
 #   bash scripts/test_purpose_fold.sh
 #
@@ -155,6 +157,19 @@ printf '# Core\n\nInside `declaredPurpose` a duplicate member is two names equal
 expect_fail "a longer code point that starts with 212A does not name U+212A" \
     "$T" "core.md:3" "unnamed"
 
+# The `k` here is within 80 characters after u+212a, but it follows u+017f, so
+# it is the letter of u+017f and names nothing for u+212a.
+T="$(new_tree swapped)"
+printf '# Core\n\nInside `declaredPurpose` a duplicate member is two names equal once `A` to `Z`\nare lower-cased, u+212a is replaced by `s` and u+017f by `k`.\n' > "$T/core.md"
+expect_fail "a letter that follows the next code point does not count for the code point before it" \
+    "$T" "core.md:3" "unnamed"
+if grep -qF "U+212A" "$OUT" && grep -qF "U+017F" "$OUT"; then
+    ok "the [unnamed] failures name U+212A, whose k follows u+017f, and U+017F"
+else
+    not_ok "the [unnamed] failures name U+212A, whose k follows u+017f, and U+017F" \
+        "$(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
+
 S="$(new_tree suite-more)"
 go_suite "$S" "$KELVIN_CASE$LONGS_CASE$MICRO_CASE"
 T="$(new_tree suite-more-core)"
@@ -165,6 +180,45 @@ if grep -qF "U+00B5" "$OUT"; then
     ok "--suite: the [unnamed] failure names the added code point"
 else
     not_ok "--suite: the [unnamed] failure names the added code point" "$(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
+
+# A foldKey that gives U+212A the letter of U+017F, and one that gives U+017F
+# the letter of U+212A. In GOOD_RULE and in the delivered core.md the `s` of the
+# U+017F clause is 65 characters after U+212A, within 80, but it follows U+017F.
+KELVIN_S_CASE="\t\tcase r == '\342\204\252': // Kelvin sign -> s\n\t\t\tb.WriteRune('s')\n"
+LONGS_K_CASE="\t\tcase r == '\305\277': // long s -> k\n\t\t\tb.WriteRune('k')\n"
+
+S="$(new_tree suite-kelvin-s)"
+go_suite "$S" "$KELVIN_S_CASE$LONGS_CASE"
+T="$(new_tree suite-kelvin-s-core)"
+good_core "$T"
+expect_fail "--suite: a foldKey row that maps U+212A to s fails, though the s of the U+017F clause is within 80 characters after U+212A" \
+    "$T" "core.md:3" "unnamed" --suite "$S"
+if grep -qF 'does not name U+212A with the letter it folds to, `s`' "$OUT" && ! grep -qF "U+017F" "$OUT"; then
+    ok "--suite: the [unnamed] failure names U+212A with s, and no line names U+017F"
+else
+    not_ok "--suite: the [unnamed] failure names U+212A with s, and no line names U+017F" \
+        "$(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
+
+expect_fail "--suite: on the delivered core.md, a foldKey row that maps U+212A to s fails" \
+    "$REPO" "" "unnamed" --suite "$S"
+if grep -qF 'does not name U+212A with the letter it folds to, `s`' "$OUT"; then
+    ok "--suite: on the delivered core.md, the [unnamed] failure names U+212A with s"
+else
+    not_ok "--suite: on the delivered core.md, the [unnamed] failure names U+212A with s" \
+        "$(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
+
+S="$(new_tree suite-longs-k)"
+go_suite "$S" "$KELVIN_CASE$LONGS_K_CASE"
+expect_fail "--suite: on the delivered core.md, a foldKey row that maps U+017F to k fails" \
+    "$REPO" "" "unnamed" --suite "$S"
+if grep -qF 'does not name U+017F with the letter it folds to, `k`' "$OUT"; then
+    ok "--suite: on the delivered core.md, the [unnamed] failure names U+017F with k"
+else
+    not_ok "--suite: on the delivered core.md, the [unnamed] failure names U+017F with k" \
+        "$(head -c 600 "$OUT" | tr '\n' ' ')"
 fi
 
 S="$(new_tree suite-none)"

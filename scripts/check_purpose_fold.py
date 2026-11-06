@@ -18,7 +18,11 @@ holds, so the two reach different verdicts on one credential.
   unnamed     For each character outside ASCII in the fold table, that
               paragraph names it as U+XXXX (hex digits in either case) and
               names, in backticks, the letter it folds to, within 80
-              characters after the code point.
+              characters after the code point and before the next U+ that
+              four hex digits follow (the U and the digits in either case).
+              A letter after that next code point counts for it alone: in
+              "each U+212A KELVIN SIGN by `k` and each U+017F LATIN SMALL
+              LETTER LONG S by `s`", the `s` names nothing for U+212A.
   ascii-only  No paragraph of core.md that names `declaredPurpose` says that
               two names "differ only in ASCII letter case": that wording
               leaves out the folds outside ASCII.
@@ -60,6 +64,10 @@ FOLDS = {0x212A: "k", 0x017F: "s"}
 
 BLANK_LINE_RE = re.compile(r"\n[ \t]*\r?\n")
 ASCII_ONLY_RE = re.compile(r"differ\s+only\s+in\s+ASCII\s+letter\s+case", re.IGNORECASE)
+# A code point written as U+ and four hex digits, in either case. The window in
+# which the [unnamed] rule looks for the letter a code point folds to ends where
+# the next code point starts, so a letter after that one counts for it alone.
+CODE_POINT_RE = re.compile(r"U\+[0-9A-Fa-f]{4}", re.IGNORECASE)
 GO_FUNC_RE = re.compile(r"^func foldKey\(.*?^}", re.MULTILINE | re.DOTALL)
 GO_CASE_RE = re.compile(
     r"case\s+r\s*==\s*'(\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}|[^'\\])'\s*:"
@@ -132,13 +140,18 @@ def check(text, folds):
         letter = folds[cp]
         named = False
         for m in re.finditer(rf"U\+{cp:04X}(?![0-9A-Fa-f])", para, re.IGNORECASE):
-            if f"`{letter}`" in para[m.end() : m.end() + 80]:
+            end = m.end() + 80
+            nxt = CODE_POINT_RE.search(para, m.end())
+            if nxt and nxt.start() < end:
+                end = nxt.start()
+            if f"`{letter}`" in para[m.end() : end]:
                 named = True
                 break
         if not named:
             failures.append(
                 f"{where} [unnamed] the declaredPurpose fold paragraph does not name U+{cp:04X} "
-                f"with the letter it folds to, `{letter}`, within 80 characters after it"
+                f"with the letter it folds to, `{letter}`, within 80 characters after it and "
+                "before the next code point"
             )
     return failures
 
