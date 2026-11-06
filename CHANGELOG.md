@@ -10,6 +10,20 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- `scripts/check_purpose_fold.py` + `scripts/test_purpose_fold.sh`: the `core.md` paragraph that
+  says "Inside `declaredPurpose`" and "duplicate member" says `A` to `Z` and names U+212A and
+  U+017F, each with the letter it folds to (`k`, `s`) in backticks within 80 characters after
+  the code point, or the check fails as `[ascii]` or `[unnamed]`; a `core.md` paragraph that
+  names `declaredPurpose` and says "differ only in ASCII letter case" fails as `[ascii-only]`.
+  With `--suite <atx-conformance checkout>` the code points are read from the `foldKey` function
+  of `verifiers/go/verifier/verify.go`, so a fold that verifier adds and `core.md` does not name
+  fails as `[unnamed]`, and a `foldKey` the check cannot read fails as `[suite]`. Against the
+  tree at 39aae1b the check reports `[unnamed]` twice at `core.md:211` and `[ascii-only]` at
+  `core.md:684`, and exits 1; it passes on this tree, with and without `--suite` pointed at
+  atx-conformance 88615df. It exits 2 on a usage error, needs only python3 and is not yet run by
+  CI. The test runs 19 cases with bash and python3; against the tree at 39aae1b 1 of them fails,
+  the case that reads the delivered tree. (#169)
+
 - `scripts/check_a2a_citations.py` + `scripts/test_a2a_citations.sh`: a paragraph of a Markdown
   file outside `CHANGELOG.md` and `errata/` that cites a2aproject/A2A#1876 also cites #1885 and
   says duplicate, duplicates or duplicated, or the check fails as `[duplicate]`, because #1876 was
@@ -350,6 +364,21 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2, Member names, names the two folds outside ASCII that the duplicate-member
+  rule inside `declaredPurpose` applies: two member names of one object are a duplicate, and the
+  credential a `PARSE_ERROR`, when they are equal once each ASCII letter `A` to `Z` is replaced
+  by its lower-case letter, each U+212A KELVIN SIGN by `k` and each U+017F LATIN SMALL LETTER
+  LONG S by `s`. The paragraph says these three replacements are the whole fold, that the fold
+  reads no Unicode case table, and gives `statement` and `ſtatement` as an example pair. §1.5.5,
+  "The declaration never rejects", cites that fold where it said "differ only in ASCII letter
+  case". The rule named the ASCII fold alone, while the atx-conformance reference verifiers fold
+  the two other letters too (`foldKey` at `verifiers/go/verifier/verify.go:979`, and
+  `_fold_key` at `verifiers/python/verify.py:392`, whose docstring states the same table, at
+  88615df). At 88615df the Go verifier rejects as `PARSE_ERROR` (duplicate member)
+  `fixtures/v1_1-declared-purpose-valid.json` with a member `ſtatement`, or `taskScopes` with
+  its `k` written as U+212A, added to `atx.declaredPurpose`, and rejects the control member
+  `xstatement` as `SIGNATURE_INVALID`; a verifier written from `core.md` alone had no rejection
+  ground for such a credential re-signed over its JCS(TBS). (#169)
 - `core.md` section 2 says that two coordination issues were opened on a2aproject/A2A for the
   AIP + ATP + ATX spec set, and how each was closed: #1876 on 2026-06-15 as a duplicate of #1885,
   and #1885 on 2026-06-23, when it was converted to a discussion after a comment called it
