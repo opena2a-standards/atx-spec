@@ -373,6 +373,19 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_purpose_fold.py --suite` reads only the `case r == '<rune>':` rows of `foldKey`
+  that are code. It read rows in comments and string literals too, and the last row for a
+  character replaced the earlier ones, so a row in a comment could replace the row the code runs.
+  For a `verify.go` whose `foldKey` holds a row that maps U+212A to `s` and the U+017F row, then,
+  after the loop, a block comment that holds a row that maps U+212A to `k`, the check printed its
+  pass line naming `U+212A to k` and exited 0 with the `core.md` of this tree; it now reports
+  `[unnamed]` for U+212A with `s` at `core.md:211` and exits 1. A block comment or a raw string
+  that holds a row for U+00B5 no longer fails as `[unnamed]` for U+00B5. A row is now read only
+  when its `case`, `r ==`, colon, `b.WriteRune(` and closing parenthesis are outside comments and
+  string literals, and its two quoted runes are each one rune literal of the source.
+  `scripts/test_purpose_fold.sh` adds 8 cases and runs 49. On Python 3.9.6, 3.13.12 and 3.14.3,
+  each under bash 3.2.57 and 5.3.9, every case passes. With the check of 493b27c, the 8 added
+  cases fail on Python 3.14.3. (#175)
 - `scripts/check_purpose_fold.py --suite` reads `foldKey` up to the `}` that closes its body. It
   took the function to end at the first line after `func foldKey(` that starts with `}`, so a raw
   string or a block comment inside `foldKey` that holds such a line ended it there, and the

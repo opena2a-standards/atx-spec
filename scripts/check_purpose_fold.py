@@ -32,7 +32,11 @@ table is read instead from the rows of the foldKey function of
 verifiers/go/verifier/verify.go written as case r == '<rune>': whose next line
 that is not blank starts with b.WriteRune('<ASCII letter>'); GO_CASE_RE gives
 the rune forms it reads (one character, or a backslash-u or backslash-U
-escape). The function runs from the first line that starts with func foldKey(
+escape). Only a row in code is read: a row whose case, r ==, colon,
+b.WriteRune( or closing parenthesis is inside a comment or a string literal
+(a row in a block comment or a raw string, or a b.WriteRune line in a block
+comment that the case line opens) is not read, and does not replace a row in
+code for its character. The function runs from the first line that starts with func foldKey(
 outside comments and string literals to the } that closes its body. A brace in
 a comment, a string literal or a rune literal does not open or close the body,
 and neither does a brace of an interface or struct type in the signature; the
@@ -90,9 +94,14 @@ GO_LITERAL_RE = re.compile(
 GO_BRACKET_RE = re.compile(r"[()\[\]{}\n]")
 # The end of a signature whose next { opens an interface or struct type, not a body.
 GO_TYPE_KEYWORD_RE = re.compile(r"(?<!\w)(?:interface|struct)\s*\Z")
+# A fold row. The groups named head, colon, call and close must be code, and
+# the groups named rune and letter must each be one rune literal of the
+# source, so a row in a comment or a string literal is not read.
 GO_CASE_RE = re.compile(
-    r"case\s+r\s*==\s*'(\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}|[^'\\])'\s*:"
-    r"[^\n]*\n\s*b\.WriteRune\('([A-Za-z])'\)"
+    r"(?P<head>case\s+r\s*==\s*)"
+    r"(?P<rune>'(?P<rune_value>\\u[0-9A-Fa-f]{4}|\\U[0-9A-Fa-f]{8}|[^'\\])')"
+    r"(?P<colon>\s*:)[^\n]*\n\s*"
+    r"(?P<call>b\.WriteRune\()(?P<letter>'(?P<letter_value>[A-Za-z])')(?P<close>\))"
 )
 
 
@@ -146,6 +155,18 @@ def go_body_end(code, pos):
     return None, "}" if body else "{"
 
 
+def is_code_row(m, source, code, literals):
+    """Whether the GO_CASE_RE match `m` is a row of code: its head, colon, call
+    and close groups are not inside a comment or a string literal (go_code
+    left them as they are in `source`), and its rune and letter groups each
+    span one literal that GO_LITERAL_RE finds in `source` (`literals` maps the
+    start of each to its end)."""
+    for name in ("head", "colon", "call", "close"):
+        if code[m.start(name) : m.end(name)] != source[m.start(name) : m.end(name)]:
+            return False
+    return all(literals.get(m.start(name)) == m.end(name) for name in ("rune", "letter"))
+
+
 def suite_folds(suite):
     """The non-ASCII rows of the Go reference verifier's foldKey, or an error string."""
     path = pathlib.Path(suite) / "verifiers" / "go" / "verifier" / "verify.go"
@@ -166,11 +187,14 @@ def suite_folds(suite):
                 "on the line its signature ends on"
             )
         return None, f"func foldKey at {where} has no }} that closes its body"
+    literals = {m.start(): m.end() for m in GO_LITERAL_RE.finditer(source)}
     folds = {}
     for m in GO_CASE_RE.finditer(source, func.start(), end):
-        rune = m.group(1)
+        if not is_code_row(m, source, code, literals):
+            continue
+        rune = m.group("rune_value")
         cp = int(rune[2:], 16) if rune.startswith("\\") else ord(rune)
-        folds[cp] = m.group(2)
+        folds[cp] = m.group("letter_value")
     folds = {cp: letter for cp, letter in folds.items() if cp > 0x7F}
     if not folds:
         return None, f"foldKey in {path} maps no character outside ASCII that this check can read"
