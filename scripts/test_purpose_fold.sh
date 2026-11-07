@@ -270,6 +270,43 @@ else
         "$(head -c 600 "$OUT" | tr '\n' ' ')"
 fi
 
+# A loop whose switch folds the Kelvin sign to s and the long s to s. A row
+# for the Kelvin sign to k after it, in a block comment, in a raw string or
+# with its b.WriteRune line inside a block comment, is no fold the code runs, so it does
+# not replace the row in code.
+KS_LOOP="\tfor _, r := range s {\n\t\tswitch {\n$KELVIN_S_CASE$LONGS_CASE\t\t}\n\t}\n"
+
+S="$(new_tree suite-comment-row)"
+go_file "$S" "$SIG$KS_LOOP\t/*\n$KELVIN_CASE\t*/\n\treturn s\n}\n"
+expect_fail "--suite: a row in a block comment of foldKey does not replace the row in code" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the block comment names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-raw-row)"
+go_file "$S" "$SIG$KS_LOOP\t_ = \`\n$KELVIN_CASE\t\`\n\treturn s\n}\n"
+expect_fail "--suite: a row in a raw string of foldKey does not replace the row in code" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the raw string names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-commented-call)"
+go_file "$S" "$SIG\tfor _, r := range s {\n\t\tswitch {\n$KELVIN_S_CASE$LONGS_CASE\t\tcase r == '\342\204\252': /*\n\t\t\tb.WriteRune('k') */\n\t\t}\n\t}\n\treturn s\n}\n"
+expect_fail "--suite: a case row whose b.WriteRune line is in a block comment does not replace the row in code" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the b.WriteRune in a block comment names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-comment-micro)"
+go_file "$S" "$SIG$FOLD_LOOP\t/*\n$MICRO_CASE\t*/\n\treturn s\n}\n"
+expect_pass "--suite: a row for U+00B5 in a block comment of foldKey is not read as a fold" \
+    "$C" --suite "$S"
+
+S="$(new_tree suite-raw-micro)"
+go_file "$S" "$SIG$FOLD_LOOP\t_ = \`\n$MICRO_CASE\t\`\n\treturn s\n}\n"
+expect_pass "--suite: a row for U+00B5 in a raw string of foldKey is not read as a fold" \
+    "$C" --suite "$S"
+
 S="$(new_tree suite-raw-string)"
 go_file "$S" "$SIG$FOLD_LOOP\tconst note = \`a raw string\n}\nwhose second line is a closing brace\`\n\t_ = note\n$MICRO_LOOP\treturn s\n}\n"
 expect_fail "--suite: a row after a raw string of foldKey whose second line is } is read" \
