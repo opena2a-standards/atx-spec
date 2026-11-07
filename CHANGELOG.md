@@ -373,6 +373,23 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
+  code when a block comment or a string literal that holds the text of such a row, or another
+  such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of
+  the next line that is not blank, and the check searched again from the end of each match, so it
+  did not read a row that started inside a match that began earlier on its line. For a
+  `verify.go` whose `foldKey` holds `case r == '\u017f':` followed by `b.WriteRune('s')`, then
+  the line `/* case r == '\u212a': */ case r == '\u212a':` followed by `b.WriteRune('s')`, a
+  file that `go vet` accepts, the check printed its pass line naming `U+017F to s` and exited 0
+  with the `core.md` of this tree; it now reports `[unnamed]` for U+212A with `s` at
+  `core.md:211` and exits 1. With `\u00b5` in place of the first `\u212a`, the check also
+  exited 0; it now exits 1 with the same `[unnamed]` line, and no line names U+00B5. Each search
+  after a match now starts just after the start of that match. `scripts/test_purpose_fold.sh`
+  adds 12 cases and runs 61: a row in code after a block comment that holds a row for U+212A,
+  against a scratch `core.md` and against the delivered one, after a block comment that holds a
+  row for U+00B5, after an interpreted or a raw string that holds a row for U+212A, and after
+  another row in code. On Python 3.9.6, 3.13.12 and 3.14.3, each under bash 3.2.57 and 5.3.9,
+  every case passes. With the check of 819efd0, 11 of the added cases fail on Python 3.14.3. (#177)
 - `scripts/check_purpose_fold.py --suite` reads only the `case r == '<rune>':` rows of `foldKey`
   that are code. It read rows in comments and string literals too, and the last row for a
   character replaced the earlier ones, so a row in a comment could replace the row the code runs.

@@ -307,6 +307,58 @@ go_file "$S" "$SIG$FOLD_LOOP\t_ = \`\n$MICRO_CASE\t\`\n\treturn s\n}\n"
 expect_pass "--suite: a row for U+00B5 in a raw string of foldKey is not read as a fold" \
     "$C" --suite "$S"
 
+# A foldKey whose switch holds the long s row and then a line that holds the
+# given text and, after it, a row in code for the Kelvin sign, written as a \u
+# escape, whose next line is b.WriteRune('s'). A match that starts in the text
+# spans the row in code, so the check reads that row only when it searches
+# again from inside the match.
+same_line_suite() {  # same_line_suite <tree> <text before the row (printf format)>
+    go_file "$1" "$SIG\tfor _, r := range s {\n\t\tswitch {\n$LONGS_CASE\t\t${2}case r == '\\\\u212a':\n\t\t\tb.WriteRune('s')\n\t\t}\n\t}\n\treturn s\n}\n"
+}
+
+S="$(new_tree suite-line-comment-row)"
+same_line_suite "$S" "/* case r == '\\\\u212a': */ "
+expect_fail "--suite: a row in code after a block comment that holds a row on its line is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the block comment on the row's line names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+expect_fail "--suite: on the delivered core.md, a row in code after a block comment on its line is read" \
+    "$REPO" "" "unnamed" --suite "$S"
+expect_said "--suite: on the delivered core.md, the failure after the block comment names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-line-comment-micro)"
+same_line_suite "$S" "/* case r == '\\\\u00b5': */ "
+expect_fail "--suite: a row in code after a block comment that holds a row for U+00B5 on its line is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+if grep -qF 'does not name U+212A with the letter it folds to, `s`' "$OUT" && ! grep -qF "U+00B5" "$OUT"; then
+    ok "--suite: the failure names U+212A with s, and no line names the U+00B5 of the block comment"
+else
+    not_ok "--suite: the failure names U+212A with s, and no line names the U+00B5 of the block comment" \
+        "$(head -c 600 "$OUT" | tr '\n' ' ')"
+fi
+
+S="$(new_tree suite-line-string-row)"
+same_line_suite "$S" "_ = \"case r == '\\\\u212a':\"; "
+expect_fail "--suite: a row in code after a string literal that holds a row on its line is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the string literal on the row's line names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-line-raw-row)"
+same_line_suite "$S" "_ = \`case r == '\\\\u212a':\`; "
+expect_fail "--suite: a row in code after a raw string that holds a row on its line is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after the raw string on the row's line names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
+S="$(new_tree suite-line-two-rows)"
+same_line_suite "$S" "case r == '\\\\u00b5': "
+expect_fail "--suite: a row in code after another row in code on its line is read" \
+    "$C" "core.md:3" "unnamed" --suite "$S"
+expect_said "--suite: the failure after another row on the row's line names U+212A with s" \
+    'does not name U+212A with the letter it folds to, `s`'
+
 S="$(new_tree suite-raw-string)"
 go_file "$S" "$SIG$FOLD_LOOP\tconst note = \`a raw string\n}\nwhose second line is a closing brace\`\n\t_ = note\n$MICRO_LOOP\treturn s\n}\n"
 expect_fail "--suite: a row after a raw string of foldKey whose second line is } is read" \
