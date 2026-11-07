@@ -36,7 +36,9 @@ escape). Only a row in code is read: a row whose case, r ==, colon,
 b.WriteRune( or closing parenthesis is inside a comment or a string literal
 (a row in a block comment or a raw string, or a b.WriteRune line in a block
 comment that the case line opens) is not read, and does not replace a row in
-code for its character. The function runs from the first line that starts with func foldKey(
+code for its character. A row in code is read when a block comment or a
+string literal that holds the text of a row, or another row, comes before it
+on its line. The function runs from the first line that starts with func foldKey(
 outside comments and string literals to the } that closes its body. A brace in
 a comment, a string literal or a rune literal does not open or close the body,
 and neither does a brace of an interface or struct type in the signature; the
@@ -167,6 +169,22 @@ def is_code_row(m, source, code, literals):
     return all(literals.get(m.start(name)) == m.end(name) for name in ("rune", "letter"))
 
 
+def go_case_matches(source, pos, end):
+    """Each GO_CASE_RE match in `source` that starts at or after `pos` and ends
+    by `end`, in the order of their starts. A match runs from its case to the
+    b.WriteRune call on the next line that is not blank, so the match of a row
+    in a block comment or a string literal, or of a row in code, spans the
+    start of a row that follows it on its line. Each search after a match
+    starts just after the start of that match, not at its end as re.finditer
+    does, so the match of that following row is still found."""
+    while True:
+        m = GO_CASE_RE.search(source, pos, end)
+        if m is None:
+            return
+        yield m
+        pos = m.start() + 1
+
+
 def suite_folds(suite):
     """The non-ASCII rows of the Go reference verifier's foldKey, or an error string."""
     path = pathlib.Path(suite) / "verifiers" / "go" / "verifier" / "verify.go"
@@ -189,7 +207,7 @@ def suite_folds(suite):
         return None, f"func foldKey at {where} has no }} that closes its body"
     literals = {m.start(): m.end() for m in GO_LITERAL_RE.finditer(source)}
     folds = {}
-    for m in GO_CASE_RE.finditer(source, func.start(), end):
+    for m in go_case_matches(source, func.start(), end):
         if not is_code_row(m, source, code, literals):
             continue
         rune = m.group("rune_value")
