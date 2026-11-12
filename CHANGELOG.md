@@ -373,6 +373,37 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3 step 8, §7 rule 4, §12 (Issuer and Coverage) and §13, `sovereign-federation.md`
+  §4.2 and `scalability.md` §7.1 and §9.2: no trust level requires the root node's cosignature.
+  §7 rule 4 said that at trust level 4 "both issuing nodes AND the root node must have cosigned"
+  and that "No single organization can unilaterally grant the highest trust level"; it now says
+  that trust levels 3 and 4 have one signer requirement, signatures from at least two distinct
+  authorities as §1.3 step 7 counts them, that the two levels differ in what the signing
+  authorities attest (ATP-SPEC v1.0.0-rc1 §4.1) and not in any further signature a verifier
+  checks, that a credential carries the root's cosignature only when its issuing node requests it
+  at issuance, that no single authority grants either level alone, that step 7 counts DIDs and
+  keys and not organizations, so each verifier's federation trust list decides how independent
+  its authorities are, and that an operator SHOULD NOT list two authorities it knows to be under
+  common control as Allowed. §1.3 step 8 has the verifier attach, beside the step 7 count, the set
+  of signer authorities it verified, each with its trust list state, so that a relying party can
+  require a particular authority's signature, the root's included; a verifier that did not perform
+  the count attaches no set. §12 no longer says a conforming issuer "MUST NOT assert `trustLevel`
+  4 without the root cosignature §7 rule 4 requires"; it says that a credential records no
+  document revision, that the withdrawal changes which signatures an issuer gathers at issuance
+  and not what a verifier checks, and that a relying party that relied on the root's signature at
+  trust level 4 expresses that reliance as a required authority. The Coverage paragraph lists the
+  step 8 signer set among the requirements no fixture exercises and no longer lists the root
+  cosignature. §13 adds "Two authorities under one control": collusion of two listed authorities,
+  a second authority under one operator or one key custody, and issuance by a node the root has
+  removed from its trust list, with the trust list, the step 8 signer set, the trust list TTL and
+  the transparency log as the controls. `sovereign-federation.md` §4.2 says no trust level
+  requires the root's own cosignature; `scalability.md` §7.1 bounds the root's load by the
+  credentials that carry its cosignature, and §9.2 says a partition from the root leaves the trust
+  levels a node can issue unchanged. The canonical signing form, `issuerChain` order (§1.3a.2
+  rule 4), the schema and the document version are unchanged. A relying party can no longer read
+  trust level 4 as evidence that the root cosigned. 1.1.0-final (tag `v1.1.0`) keeps the earlier
+  rule; no erratum is filed, because this changes the design rather than correcting an error in
+  published text.
 - `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
   code when a block comment or a string literal that holds the text of such a row, or another
   such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of
