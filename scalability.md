@@ -193,7 +193,7 @@ In a mature federation:
 * Each sovereign node handles its jurisdiction's agents.
 * The root node (OpenA2A) handles community packages and cross node cosignatures.
 
-The root node's load is bounded by the rate at which credentials that need its cosignature are issued, not by the total agent population or the number of interactions. The root cosigns at issuance, once per credential, and is never on the verification path (core.md §9). Every interaction, cross node ones included, is verified fully locally.
+The root node's load is bounded by the rate at which credentials that carry its cosignature are issued, not by the total agent population or the number of interactions. The root cosigns at issuance, once per credential, and is never on the verification path (core.md §9). Every interaction, cross node ones included, is verified fully locally.
 
 ### 7.2 Why federation improves scalability
 
@@ -245,7 +245,7 @@ Scalability includes how the system behaves when components fail. Zero Failures 
 ### 9.2 Federation node partition
 
 * The partitioned node continues operating for its local population. Issuance, verification, and revocation all work.
-* The root cosigns at issuance ([core.md §7](core.md#7-cross-org-cosigning) rule 4), and while the partition lasts it cannot cosign what the partitioned node issues, so the node issues nothing at trust level 4 until the partition heals. A request that requires trust level 4 is not met by a credential issued during the partition. A credential the root cosigned before the partition keeps the trust level it was signed with: a verifier reports the signed level and does not change it ([core.md §1.3](core.md#13-local-verification-algorithm)).
+* No trust level requires the root's cosignature ([core.md §7](core.md#7-cross-org-cosigning) rule 4), so being cut off from the root does not change which trust levels the partitioned node can issue. Trust levels 3 and 4 still need a second authority's signature at issuance ([core.md §1.3](core.md#13-local-verification-algorithm) step 7), so the node issues at those levels only while it can reach an authority that cosigns. A credential issued before the partition keeps the trust level it was signed with: a verifier reports the signed level and does not change it ([core.md §1.3](core.md#13-local-verification-algorithm)).
 * When the partition heals, the partitioned node syncs its transparency log entries to the root node and the global view becomes consistent again.
 
 ### 9.3 Transparency log degraded
