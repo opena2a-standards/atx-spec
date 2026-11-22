@@ -130,6 +130,12 @@ printf 'Line one.\nSee opena2a-org/agent-trust-protocol.\n' > "$T/docs/guide.md"
 expect_fail "a Markdown file in a subdirectory is checked" \
     "$T" owner "docs/guide.md:2"
 
+T="$(new_tree hidden-dir)"
+mkdir -p "$T/.suite"
+printf 'Clean.\n' > "$T/README.md"
+printf 'See opena2a-org/agent-trust-protocol.\n' > "$T/.suite/README.md"
+expect_pass "hidden directories such as a CI checkout of the suite are not checked" "$T"
+
 # --- version ----------------------------------------------------------------
 
 T="$(new_tree version-root)"
@@ -186,6 +192,16 @@ expect_fail "naming atcVersion in an earlier sentence does not cover atxVersion"
 T="$(new_tree wire-table)"
 printf '| Member | Note |\n|---|---|\n| atxVersion | read before atcVersion is known |\n' > "$T/core.md"
 expect_fail "atcVersion in another table cell does not cover atxVersion" \
+    "$T" wire-name "core.md:3"
+
+T="$(new_tree wire-next-paragraph)"
+printf 'The wire member is atcVersion\n\natxVersion is read first\n' > "$T/core.md"
+expect_fail "atcVersion past a blank line does not cover atxVersion" \
+    "$T" wire-name "core.md:3"
+
+T="$(new_tree wire-next-paragraph-spaces)"
+printf 'The wire member is atcVersion\n \t\natxVersion is read first\n' > "$T/core.md"
+expect_fail "a line of spaces and tabs is a blank line" \
     "$T" wire-name "core.md:3"
 
 T="$(new_tree wire-alias)"

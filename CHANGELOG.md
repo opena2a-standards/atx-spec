@@ -373,6 +373,17 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` section 12 and `docs/use-cases.md` state which suite fixtures hold a revocation list
+  and how many fixtures carry an ML-DSA-65 signature as the suite at atx-conformance d07763a
+  ships them. Issuer said "all but the seven fixtures that carry an ML-DSA-65 signature"; twelve
+  carry one, `hybrid-pq-only` and `v1_1-hybrid-pq-only` among them. Coverage said "both revocation
+  fixtures" give a list and "the suite's other revocation fixture" carries `revoked: true`; four
+  of the five `v1_1-crl-*` fixtures also hold a list keyed by `agentId`, so Coverage now says that
+  of every fixture that holds one, and that `revoked-crl-only` pins the `agentId` lookup like the
+  others. Coverage and the two "Where it stops today" paragraphs of `docs/use-cases.md` say that
+  no fixture exercises the five-minute cache bound counted from the verifier's own fetch, and that
+  the `v1_1-crl-*` fixtures read a list's own `issuedAt` and `nextUpdate`, which is not that
+  bound. No BCP 14 statement is added or removed.
 - `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
   code when a block comment or a string literal that holds the text of such a row, or another
   such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of
@@ -701,7 +712,13 @@ identifier registered in `core.md` §14.
   `v1_1-declared-purpose-empty-whitespace`, `v1_1-declared-purpose-valid` and
   `v1_1-no-transparency-log-index`), which §1.3 step 5 and §13 now reject for declaring no
   ML-DSA-65 entry; until the suite regenerates them the requirement text governs for them, and the
-  pinned-verdict requirement of the Conformance suite paragraph excepts them. (#44)
+  pinned-verdict requirement of the Conformance suite paragraph excepts them. The four are not the
+  whole of what the suite has left to do for #44: the schema's two-suite rule refuses every
+  Ed25519-only fixture that declares `atcVersion` 1.1, twelve in atx-conformance at 2ac8f91, and
+  `v1_1-hybrid-pq-only`, which lacks the Ed25519 signature, as a thirteenth. Moving the suite's
+  vendored schema copy to this schema therefore fails 12 fixtures for the one rule, 13 with
+  `v1_1-hybrid-pq-only`, not six; each carries both suites, or the suite's schema check expects its
+  refusal, in an atx-conformance change that is not part of this one. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
