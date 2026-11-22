@@ -88,10 +88,16 @@ sentence that names the lab, in a Markdown file outside CHANGELOG.md and
 errata/, says that what it signs is not an ATX credential, so a reader does not
 take its verdicts for conformance results. The sentence says the lab signs
 something, with "the lab", "the forge lab", a Markdown link to the lab or "it"
-directly before "signs" or "signed", before it says "not an ATX credential".
-Those words describing anything else ("rejects anything that is not an ATX
+directly before "signs" or "signed", and says "not an ATX credential" of what
+the lab signs: after the verb come at most 12 words naming what it signs, then
+", ", ", which is " or " that is ", then the caveat, which ends there. Those
+words describing anything else ("rejects anything that is not an ATX
+credential", "signs real credentials and rejects anything that is not an ATX
 credential") are not the caveat, and neither is a form of "sign" with another
 subject ("checks what you signed") or used as a noun ("a sign of progress").
+What the lab signs holds no conjunction, subordinator, comparison or negative
+word ("and", "when", "than", "nothing"), so it cannot open another clause or
+say that the lab signs nothing.
 
     python3 scripts/check_pointers.py [--root <tree>]
 
@@ -174,6 +180,21 @@ LAB_CAVEAT = "not an ATX credential"
 LAB_SIGNS_RE = re.compile(
     r"\b(?:(?:the\s+)?(?:forge\s+)?lab(?:/forge)?(?:\]\([^)\s]*\))?|it)\s+sign(?:s|ed)\b",
     re.IGNORECASE,
+)
+# What the lab signs, directly after "signs" or "signed": up to 12 words, none of
+# them a conjunction, a subordinator, a comparison or a negative word, so the
+# phrase cannot open another clause ("and rejects anything") or say that the lab
+# signs nothing. Then ", ", ", which is " or " that is " ("which is" too) and the
+# caveat, which ends there: "not an ATX credential issuer" is not the caveat.
+LAB_OBJECT_STOP = (
+    "after|although|and|before|because|but|except|if|instead|neither|never|no|none|nor|"
+    "not|nothing|or|rather|since|so|than|then|though|unless|unlike|until|when|whenever|"
+    "whereas|while|yet"
+)
+LAB_SIGNED_CAVEAT_RE = re.compile(
+    r"(?:\s+(?!(?i:" + LAB_OBJECT_STOP + r")(?![\w-]))(?:[^\s,;:.!?]|\.(?=\S))+){0,12}?"
+    r"(?:,\s+(?:(?i:which)\s+is\s+)?|\s+(?i:that|which)\s+is\s+)"
+    + re.escape(LAB_CAVEAT) + r"(?=\s*(?:[,.;:!?)]|$))"
 )
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
@@ -347,13 +368,16 @@ def sentences(text):
 
 
 def says_lab_signs_no_credential(sentence):
-    """True when the sentence says the lab signs something and, after that, that
-    it is not an ATX credential. The caveat words alone are not the caveat: in
+    """True when the sentence says the lab signs something and that what it signs
+    is not an ATX credential. The caveat words alone are not the caveat: in
     "rejects anything that is not an ATX credential" they describe something
-    else."""
-    caveat = sentence.rfind(LAB_CAVEAT)
-    signs = LAB_SIGNS_RE.search(sentence)
-    return caveat != -1 and signs is not None and signs.start() < caveat
+    else, and so they do in "signs real credentials and rejects anything that is
+    not an ATX credential", where they follow what the lab signs but name
+    something else."""
+    return any(
+        LAB_SIGNED_CAVEAT_RE.match(sentence, signs.end())
+        for signs in LAB_SIGNS_RE.finditer(sentence)
+    )
 
 
 def check_lab(root):
