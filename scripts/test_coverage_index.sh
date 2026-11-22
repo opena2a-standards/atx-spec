@@ -122,8 +122,9 @@ UPSTREAM_ITEMS=(
     "Cosignature requirements (ATX core.md section 7)"
     "Revocation propagation timing (ATX core.md section 3.3)"
     "Transparency-log monitor behavior (ATX core.md section 6.4)"
+    "Resource attestation statements (ATX core.md section 1.6)"
 )
-GOOD_PARA="Gaps: §1.3 step 7, §3.1 step 8, §7, §3.3 and §6.4."
+GOOD_PARA="Gaps: §1.3 step 7, §1.6, §3.1 step 8, §7, §3.3 and §6.4."
 
 # --- the delivered tree -----------------------------------------------------
 
@@ -144,7 +145,7 @@ write_core "$T" "$GOOD_PARA"
 expect_pass "a Coverage paragraph naming exactly the cited sections passes" "$T" "$S"
 
 T="$(new_dir missing-3-1)"
-write_core "$T" "Gaps: §1.3 step 7, §7, §3.3 and §6.4."
+write_core "$T" "Gaps: §1.3 step 7, §1.6, §7, §3.3 and §6.4."
 expect_fail "a section notCovered cites and the Coverage paragraph does not name fails" \
     "$T" "$S" "core.md:5" coverage "notCovered cites section 3.1"
 
@@ -154,7 +155,7 @@ expect_fail "a section the Coverage paragraph names and no notCovered item cites
     "$T" "$S" "core.md:5" coverage "names §9 as uncovered"
 
 T="$(new_dir named-elsewhere)"
-write_core "$T" "Gaps: §1.3 step 7, §7, §3.3 and §6.4." "Threshold issuance is §3.1 step 8."
+write_core "$T" "Gaps: §1.3 step 7, §1.6, §7, §3.3 and §6.4." "Threshold issuance is §3.1 step 8."
 expect_fail "a section named in another paragraph of section 12 does not count" \
     "$T" "$S" "core.md:5" coverage "notCovered cites section 3.1"
 
@@ -171,7 +172,7 @@ write_suite "$S3" "${UPSTREAM_ITEMS[@]}" "Monitor gossip, with no section"
 T="$(new_dir uncited)"
 write_core "$T" "$GOOD_PARA"
 expect_fail "a notCovered item that cites no section fails" \
-    "$T" "$S3" "conformance.json notCovered[5]" uncited
+    "$T" "$S3" "conformance.json notCovered[6]" uncited
 
 # --- vacuous pass -----------------------------------------------------------
 
