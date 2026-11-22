@@ -373,6 +373,38 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The stated conformance-suite count follows the suite to **57** fixtures: atx-conformance added
+  three at fc3f060 (`v1_1-scan-summary-case-variant-member`, `v1_1-scan-summary-extra-member`,
+  `v1_1-scan-summary-extra-member-signed`), five at 1ba85c3 (`v1_1-two-authority-cosignature`
+  and the four that carry its credential with signatures made by the keys of one authority:
+  `v1_1-cosigner-named-not-signed`, `v1_1-one-authority-threshold-keys`,
+  `v1_1-one-key-under-two-dids`, `v1_1-own-key-labelled-as-cosigner`) and five at f7f826e (the
+  `v1_1-crl-*` fixtures, each `v1_1-baseline-valid-hybrid` under a verifier state that holds or
+  requires a revocation list). `README.md` carried the verifier's summary line for 44,
+  `docs/conformance.md` "44 fixtures" and "44 of 44 PASS", and §12 "44 fixtures"; each now
+  states 57, and both fixture enumerations describe the thirteen. `v1_1-two-authority-cosignature`
+  declares `atcVersion` 1.1, carries Ed25519 signatures only and pins ACCEPT, so the required-suites
+  rule of §1.3 step 5 rejects it: the Coverage paragraph names it beside the other five such
+  fixtures, and the pinned-verdict requirement now excepts six. The Issuer paragraph said every
+  fixture carries signatures from a single authority, that all but `wrong-issuer` assert
+  `trustLevel` 4, and that seven fixtures carry an ML-DSA-65 signature; it now names
+  `v1_1-two-authority-cosignature` as the exception, the five `trustLevel` 3 fixtures, and twelve.
+  The Coverage paragraph said no fixture carries signatures from more than one authority and the
+  fixture format has no field for the required trust level; it now says the five step 7 fixtures
+  set `requiredTrustLevel` 3 but are rejected by §1.3 step 5 before step 7 runs, so step 7 stays
+  listed. It says every fixture that gives a revocation list keys its entries by `agentId`, and
+  that three `v1_1-crl-*` fixtures pin `REVOCATION_UNKNOWN` for a list's `issuedAt` or
+  `nextUpdate`, or for a required list that is not held, which step 6 as written does not state.
+  The suite's `notCovered` list gained an item citing a `core.md` §1.6 for resource attestation
+  statements; this document has no §1.6, and the Coverage paragraph now says so, which names §1.6
+  there as the family check `notcovered-index-agrees-with-spec` and
+  `scripts/check_coverage_index.py` require, and the copy of the suite's `notCovered` list in
+  `scripts/test_coverage_index.sh` gains that item. Against atx-conformance at 8e6d653 the Go reference
+  verifier reports `summary: 57 pass, 0 fail (57 fixtures)`, and
+  `scripts/check_conformance_counts.py`, `scripts/check_coverage_index.py`,
+  `scripts/check_schema_refusals.py` and `scripts/check_revocation_fixture_key.py` pass. The one
+  change to normative text is the number of fixtures the pinned-verdict requirement excepts, five
+  to six, which the required-suites rule already decided; no rule changes.
 - `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
   code when a block comment or a string literal that holds the text of such a row, or another
   such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of
