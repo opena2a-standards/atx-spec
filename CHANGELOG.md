@@ -712,7 +712,13 @@ identifier registered in `core.md` §14.
   `v1_1-declared-purpose-empty-whitespace`, `v1_1-declared-purpose-valid` and
   `v1_1-no-transparency-log-index`), which §1.3 step 5 and §13 now reject for declaring no
   ML-DSA-65 entry; until the suite regenerates them the requirement text governs for them, and the
-  pinned-verdict requirement of the Conformance suite paragraph excepts them. (#44)
+  pinned-verdict requirement of the Conformance suite paragraph excepts them. The four are not the
+  whole of what the suite has left to do for #44: the schema's two-suite rule refuses every
+  Ed25519-only fixture that declares `atcVersion` 1.1, twelve in atx-conformance at 2ac8f91, and
+  `v1_1-hybrid-pq-only`, which lacks the Ed25519 signature, as a thirteenth. Moving the suite's
+  vendored schema copy to this schema therefore fails 12 fixtures for the one rule, 13 with
+  `v1_1-hybrid-pq-only`, not six; each carries both suites, or the suite's schema check expects its
+  refusal, in an atx-conformance change that is not part of this one. (#44)
 - The stated conformance-suite count follows the suite to **36** fixtures. atx-conformance added
   `fixtures/v1_1-dotless-i-member.json` and `fixtures/v1_1-dotted-capital-i-member.json` at
   ecb603f, MUST-REJECT v1.1 credentials that each carry a member added after signing whose name is
