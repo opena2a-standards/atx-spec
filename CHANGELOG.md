@@ -373,6 +373,15 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `scripts/check_pointers.py` passes a sentence naming the forge lab only when "not an ATX
+  credential" is said of what the lab signs: after "signs" or "signed" come at most 12 words
+  naming what it signs, none of them a conjunction, a subordinator, a comparison or a negative
+  word, then ", ", ", which is " or " that is ", then the caveat, which ends the phrase. It
+  passed any sentence in which the caveat words came anywhere after the lab signs, so "The forge
+  lab signs real credentials and rejects anything that is not an ATX credential" exited 0; it now
+  exits 1, and so do "signs nothing that is not an ATX credential" and "signs a simplified
+  object, not an ATX credential issuer key". The two sentences of `docs/use-cases.md` that name
+  the lab still pass. `scripts/test_pointers.sh` adds 6 cases. (#66)
 - `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
   code when a block comment or a string literal that holds the text of such a row, or another
   such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of

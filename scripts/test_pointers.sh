@@ -404,6 +404,25 @@ expect_fail "the caveat words after something other than the lab signs fail" \
 T="$(lab_tree lab-caveat-sign-noun "The forge lab, a sign of progress, rejects anything that is not an ATX credential.")"
 expect_fail "the caveat words after 'sign' used as a noun fail" "$T" lab "README.md:17"
 
+T="$(lab_tree lab-caveat-after-signs-other-clause "The forge lab signs real credentials and rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words in another clause after what the lab signs fail" \
+    "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-after-signs-comma-clause "The forge lab signs real credentials, and rejects anything that is not an ATX credential.")"
+expect_fail "the caveat words after a comma and another clause fail" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-signs-nothing "The forge lab signs nothing that is not an ATX credential.")"
+expect_fail "the caveat words after 'signs nothing' fail" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-rather-than "The forge lab signs real credentials rather than anything that is not an ATX credential.")"
+expect_fail "the caveat words after a comparison fail" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-longer-noun "The forge lab signs a simplified object, not an ATX credential issuer key.")"
+expect_fail "the caveat words opening a longer noun phrase fail" "$T" lab "README.md:17"
+
+T="$(lab_tree lab-caveat-that-is "The forge lab signs a simplified object that is not an ATX credential.")"
+expect_pass "a caveat in a 'that is' clause after what the lab signs passes" "$T"
+
 T="$(lab_tree lab-caveat "The $LAB signs a simplified object, not an ATX credential, so its verdicts are not conformance results.")"
 expect_pass "a sentence naming the lab with the caveat passes" "$T"
 
