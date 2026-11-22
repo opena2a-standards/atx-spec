@@ -54,7 +54,7 @@ Each row names a reader, the question that brings them here and the text that an
 
 ## The agent you approved last week is not the one acting now
 
-Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. The `fixtures/revoked.json` credential also carries `revoked: true`, a field outside the signed bytes, so a verifier that rejects on that field and never reads the revocation list still rejects it; `fixtures/revoked-crl-only.json` carries `revoked: false` with its agent on the verifier's list, so that verifier wrongly accepts it. No fixture exercises the five-minute bound or a request served on a stale list.
+Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. The `fixtures/revoked.json` credential also carries `revoked: true`, a field outside the signed bytes, so a verifier that rejects on that field and never reads the revocation list still rejects it; `fixtures/revoked-crl-only.json` carries `revoked: false` with its agent on the verifier's list, so that verifier wrongly accepts it. No fixture exercises the five-minute bound counted from the verifier's own fetch or a request served on a list older than that. The four `v1_1-crl-*` fixtures that hold a list read the list's own `issuedAt` and `nextUpdate`, which is not that bound.
 
 ## Use cases
 
@@ -84,7 +84,7 @@ An ATX lives for 7 days. Renewal runs the build plugin and the scan again, so a 
 
 What you can do today: the `fixtures/expired.json` and `fixtures/revoked.json` cases in the conformance suite are rejections a conforming verifier must reproduce, and the forge lab lets you advance the clock past the expiry of a simplified object it signs, which is not an ATX credential.
 
-Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. No fixture exercises the five-minute bound or a request served on a stale list. The two revoked fixtures are compared in [the section above](#the-agent-you-approved-last-week-is-not-the-one-acting-now).
+Where it stops today: a verifier whose cached revocation list is more than five minutes old refreshes it in the background and still allows the current request on the stale list. No fixture exercises the five-minute bound counted from the verifier's own fetch or a request served on a list older than that. The four `v1_1-crl-*` fixtures that hold a list read the list's own `issuedAt` and `nextUpdate`, which is not that bound. The two revoked fixtures are compared in [the section above](#the-agent-you-approved-last-week-is-not-the-one-acting-now).
 
 Who acts: the security leader who approved the agent, and the engineer whose verifier must stop accepting it.
 

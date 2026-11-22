@@ -373,6 +373,17 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` section 12 and `docs/use-cases.md` state which suite fixtures hold a revocation list
+  and how many fixtures carry an ML-DSA-65 signature as the suite at atx-conformance d07763a
+  ships them. Issuer said "all but the seven fixtures that carry an ML-DSA-65 signature"; twelve
+  carry one, `hybrid-pq-only` and `v1_1-hybrid-pq-only` among them. Coverage said "both revocation
+  fixtures" give a list and "the suite's other revocation fixture" carries `revoked: true`; four
+  of the five `v1_1-crl-*` fixtures also hold a list keyed by `agentId`, so Coverage now says that
+  of every fixture that holds one, and that `revoked-crl-only` pins the `agentId` lookup like the
+  others. Coverage and the two "Where it stops today" paragraphs of `docs/use-cases.md` say that
+  no fixture exercises the five-minute cache bound counted from the verifier's own fetch, and that
+  the `v1_1-crl-*` fixtures read a list's own `issuedAt` and `nextUpdate`, which is not that
+  bound. No BCP 14 statement is added or removed.
 - `scripts/check_purpose_fold.py --suite` reads a `case r == '<rune>':` row of `foldKey` that is
   code when a block comment or a string literal that holds the text of such a row, or another
   such row, comes before it on its line. A match of a row runs on to the `b.WriteRune(` call of
