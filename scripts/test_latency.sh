@@ -51,7 +51,7 @@ PYEOF
 
 new_tree() {  # new_tree <name> -> path to a scratch tree holding a passing README.md
     mkdir -p "$TMP/$1"
-    printf '# atx-spec\n\nLocal verification under 5ms.\n' > "$TMP/$1/README.md"
+    printf '# atx-spec\n\nLocal verification in a native implementation under 5ms.\n' > "$TMP/$1/README.md"
     printf '%s' "$TMP/$1"
 }
 
@@ -90,7 +90,7 @@ write_core() {
 
 | Plane | Owner | What it does |
 |---|---|---|
-| Verification | Any verifier, locally | Signature check. All local. Sub 5ms. |
+| Verification | Any verifier, locally | Signature check. All local. Sub 5ms in a native implementation. |
 
 $2
 
@@ -99,7 +99,7 @@ $step5
 EOF
 }
 
-GOOD='8. Accept. Warm cache total: under 5ms. A cold cache adds one DID document fetch, for a total under 50ms.'
+GOOD='8. Accept. Warm cache total in a native implementation: under 5ms. A cold cache adds one DID document fetch, for a total under 50ms.'
 
 # --- the delivered tree -----------------------------------------------------
 
@@ -141,7 +141,7 @@ expect_fail "a warm range ending above 5 ms fails" "$T" latency "core.md:14"
 
 T="$(new_tree range-ok)"
 write_core "$T" "$GOOD"
-printf '\n| Step | Cost |\n|---|---|\n| Total warm cache | 1 to 4 ms |\n' >> "$T/core.md"
+printf '\n| Step | Cost |\n|---|---|\n| Total warm cache | 1 to 4 ms | native |\n' >> "$T/core.md"
 expect_pass "a warm range ending at or under 5 ms passes" "$T"
 
 T="$(new_tree other-file)"
@@ -165,8 +165,8 @@ T="$(new_tree large)"
 write_core "$T" "$GOOD"
 python3 -B - "$T/large.md" <<'PYEOF'
 import sys
-lines = "Warm cache verification is under 5 ms.\n" * 60000
-sentence = "warm cache under 5 ms, " * 60000
+lines = "Warm cache verification in a native implementation is under 5 ms.\n" * 60000
+sentence = "native warm cache under 5 ms, " * 60000
 with open(sys.argv[1], "w", encoding="utf-8") as f:
     f.write("# Large\n\n" + lines + "\n" + sentence + "\n")
 PYEOF
@@ -178,6 +178,38 @@ else
     not_ok "two paragraphs of about 1.4 MB each, one of many lines and one a single sentence, are checked in time" \
         "expected exit 0 within 20 s, got $rc: $(head -c 400 "$OUT" | tr '\n' ' ')"
 fi
+
+T="$(new_tree within)"
+write_core "$T" "$GOOD"
+printf '\nA native implementation verifies on a warm cache within 5 ms; the pure-Python one measures about 6 ms.\n' >> "$T/core.md"
+expect_pass "a warm bound written as within 5 ms passes, and a measured about 6 ms is not a bound" "$T"
+
+T="$(new_tree within-2)"
+write_core "$T" "$GOOD"
+printf '\nA native implementation verifies on a warm cache at most 2 ms.\n' >> "$T/core.md"
+expect_fail "a warm bound written as at most 2 ms is checked too" "$T" latency "core.md:12"
+
+# --- class ------------------------------------------------------------------
+
+T="$(new_tree class-none)"
+write_core "$T" "$GOOD"
+printf '\nWarm cache verification is under 5 ms.\n' >> "$T/core.md"
+expect_fail "a warm bound that names no implementation class fails" "$T" class "core.md:12"
+
+T="$(new_tree class-row)"
+write_core "$T" "$GOOD"
+sed 's/Sub 5ms in a native implementation/Sub 5ms/' "$T/core.md" > "$T/core.tmp" && mv "$T/core.tmp" "$T/core.md"
+expect_fail "the Verification plane row names the class of its warm bound" "$T" class "core.md:5"
+
+T="$(new_tree class-readme)"
+write_core "$T" "$GOOD"
+printf '# atx-spec\n\nLocal verification within 5 ms.\n' > "$T/README.md"
+expect_fail "README.md names the class of its warm bound" "$T" class "README.md:3"
+
+T="$(new_tree class-cold)"
+write_core "$T" "$GOOD"
+printf '\nCold start is under 50 ms.\n' >> "$T/core.md"
+expect_pass "a cold bound needs no implementation class" "$T"
 
 # --- step -------------------------------------------------------------------
 

@@ -373,6 +373,20 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The warm cache verification bound is stated per implementation class. It was "under 5 ms"
+  for every verifier, but the Python reference verifier measures 5.76 ms per hybrid
+  verification and the Go one 0.20 ms. `README.md`, `core.md` §1.3, the §3 plane table and §3.2
+  step 8, and `docs/use-cases.md` now say a native implementation verifies within 5 ms, that the
+  Go reference verifier measures about 0.2 ms, and that the pure-Python one measures about 6 ms,
+  above the bound. `scalability.md` §2.1 calls its step table the budget of a native
+  implementation and adds a table of the measured figure for each reference verifier. The
+  ML-DSA-65 "about three milliseconds" of `core.md` §1.3 step 5 and §3.2 step 5 is now that
+  native budget. `scripts/check_latency.py` reads "within" and "at most" as bounds, and its new
+  `[class]` rule fails a paragraph, list item or table row that states a warm cache bound
+  without the word "native"; `scripts/test_latency.sh` has 26 cases, up from 20. The benchmarks
+  behind these figures, and a CI job that prints the hardware they ran on, belong in
+  atx-conformance and are not part of this change.
+
 - The stated conformance-suite count follows the suite to **57** fixtures: atx-conformance added
   three at fc3f060 (`v1_1-scan-summary-case-variant-member`, `v1_1-scan-summary-extra-member`,
   `v1_1-scan-summary-extra-member-signed`), five at 1ba85c3 (`v1_1-two-authority-cosignature`
