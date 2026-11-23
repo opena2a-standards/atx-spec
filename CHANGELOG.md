@@ -373,6 +373,13 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3a.2 rule 6 says the entries of `scanSummary.techniques` are unique, as the
+  schema's `uniqueItems` requires, and that a list repeating an ID is invalid and makes the
+  credential non-conforming. It reconciles that with the sentence that a verifier does not
+  deduplicate: removing a repeated ID would sign a list other than the one the credential
+  carries, and uniqueness binds the issuer (§12), so a verifier MUST NOT reject a credential for
+  a repeated ID, as rule 1 already says for the schema's other value constraints. Rule 1 names
+  the technique IDs of rule 6 beside those constraints.
 - `core.md` §1.3 step 2 makes the seven-day lifetime a verifier rule: a verifier MUST reject as
   `EXPIRED` an ATX whose `expiresAt` lies more than the seven-day credential TTL of §1.2 plus the
   family clock-skew bound of ATP §10.2 (604,860 seconds with the 60-second bound) after its
