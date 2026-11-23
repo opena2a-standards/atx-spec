@@ -333,9 +333,12 @@ def main():
         excepted, summary = excepted_failures(texts[EXCEPT_FILE], paths)
 
     if failures or excepted:
-        print("conformance counts are stale:\n", file=sys.stderr)
-        for f in failures + excepted:
-            print(f"  - {f}", file=sys.stderr)
+        # One write for the whole list: stderr is unbuffered, so a print per
+        # failure made a system call per failure, slow on a loaded machine.
+        sys.stderr.write(
+            "conformance counts are stale:\n\n"
+            + "".join(f"  - {f}\n" for f in failures + excepted)
+        )
         if failures:
             print(
                 f"\natx-conformance ships {actual} fixtures. Update the count in "

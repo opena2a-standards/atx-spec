@@ -15,9 +15,14 @@ Two rules, checked over every Markdown file in the tree (hidden directories
 such as .git and a CI checkout of the conformance suite are skipped):
 
   crl-version   "CRL version" and "revocation list version" do not appear, in
-                any case. The phrase may wrap across lines, since Markdown
-                renders a soft line break as a space. Text that needs the
-                revocation cursor names nextSince and cites ATP section 8.1.
+                any case, nor the possessive "the CRL's version" or "version
+                of the CRL" (a determiner such as the, a or its and one of
+                cached, local, published, current, latest or remote may stand
+                before the list). The phrase may wrap across lines, since
+                Markdown renders a soft line break as a space. Other wordings,
+                such as "the version number that the CRL carries", are not
+                caught. Text that needs the revocation cursor names nextSince
+                and cites ATP section 8.1.
 
   crl-key       No sentence names agentId and then the CRL or the revocation
                 list, which is how a lookup of agentId in the list reads
@@ -43,7 +48,17 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-VERSION_RE = re.compile(r"\b(?:CRL|revocation[\s-]+list)\s+version\b", re.IGNORECASE)
+# The crl-version rule: the list then "version", with or without a possessive
+# ("CRL version", "the CRL's version"), or "version of" then the list, with at
+# most a determiner and one of a few adjectives between ("version of the CRL",
+# "version of the cached CRL").
+_LIST = r"(?:CRL|revocation[\s-]+list)"
+VERSION_RE = re.compile(
+    rf"\b{_LIST}(?:['’]s)?\s+version\b"
+    rf"|\bversion\s+of\s+(?:(?:the|a|an|its|this|that|each|every)\s+)?"
+    rf"(?:(?:cached|local|published|current|latest|remote)\s+)?{_LIST}\b",
+    re.IGNORECASE,
+)
 # The crl-key rule: agentId, then the list later in the same sentence, with no
 # sentence end (., ! or ? before whitespace or the end of the text) and no blank
 # line between them. Each part is found once per file and key_offsets pairs
