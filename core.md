@@ -267,10 +267,11 @@ credential that verifies across implementations and one that does not:
    projection signs a value other than the one the credential carries and lets
    unsigned profile content ride a valid signature. This rule tests form, and
    the magnitude of `observationDays` (rule 3), not the schema's other value
-   constraints: the `sha256:` prefix of `checksum` and a non-negative
-   `observationDays` bind the issuer (§12), and a verifier MUST NOT reject a
-   credential on them. An absent `capabilities` or
-   `issuerChain` MUST be the empty array `[]`, never `null`.
+   constraints, which bind the issuer as the unique technique IDs of rule 6 do:
+   the `sha256:` prefix of `checksum` and a non-negative `observationDays` bind
+   the issuer (§12), and a verifier MUST NOT reject a credential on them. An
+   absent `capabilities` or `issuerChain` MUST be the empty array `[]`, never
+   `null`.
    - The date-time form. `generatedAt` matches the `date-time` production of
      RFC 3339 §5.6 written with an upper-case `T` and `Z` and a second from
      `00` to `59` (RFC 3339 also admits a lower-case `t` and `z`, and a leap
@@ -414,8 +415,10 @@ credential that verifies across implementations and one that does not:
    between `contentHash` and `expiresAt` in the canonical output.
 6. **`scanSummary.techniques` is presence-based, as rule 5.** The optional
    `techniques` member of `scanSummary` is an array of Threat Matrix technique
-   IDs, each a `T-NNNN` string (§11 commitment 2), and an issuer MUST NOT list
-   the same ID twice; the schema rejects a repeated ID. An absent `techniques` is
+   IDs, each a `T-NNNN` string (§11 commitment 2). Its entries are unique, as
+   the schema's `uniqueItems` requires: a `techniques` that lists the same ID
+   twice is invalid, the credential that carries it is not conforming (§12),
+   and an issuer MUST NOT emit one. An absent `techniques` is
    **omitted from the TBS `scanSummary`**, not emitted as a canonical empty, so a
    credential that carries none produces the exact bytes it produced before
    this member existed. The JSON literal `null` and the empty array `[]` (any
@@ -423,7 +426,11 @@ credential that verifies across implementations and one that does not:
    omitted. A present value that is anything else, including a non-array value
    or an array that repeats an ID, MUST be included in the TBS `scanSummary` verbatim and in wire order: JCS
    preserves array order, and a verifier MUST NOT sort, deduplicate or drop it,
-   because a value it dropped would ride a valid signature unsigned. As in
+   because a value it dropped would ride a valid signature unsigned. Removing
+   a repeated ID does not make the list valid; it signs a list other than the
+   one the credential carries. Uniqueness, like the value constraints rule 1
+   names, binds the issuer (§12), and a verifier MUST NOT reject a credential
+   because its `techniques` repeats an ID. As in
    `declaredPurpose` (rule 5), a JSON number in such a value, or a number that
    is the value, is carried only in the integer form and range that rule 3
    states. When present it is the last member of the canonical `scanSummary`,
