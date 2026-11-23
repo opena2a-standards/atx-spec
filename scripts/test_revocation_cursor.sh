@@ -104,6 +104,27 @@ printf 'The node bumps its Revocation-List Version on every entry.\n' > "$T/sove
 expect_fail "revocation list version fails in any case and with a hyphen" \
     "$T" "sovereign-federation.md:1"
 
+T="$(new_tree version-of)"
+printf 'Intro.\n\nVerifiers compare the version of the CRL.\n' > "$T/core.md"
+expect_fail "'version of the CRL' fails" "$T" "core.md:3"
+
+T="$(new_tree version-of-wrapped)"
+printf 'Intro.\n\nEach node bumps the Version of its cached\nRevocation List.\n' > "$T/core.md"
+expect_fail "'version of its cached Revocation List' split by a soft line break fails" \
+    "$T" "core.md:3"
+
+T="$(new_tree possessive)"
+printf 'Line one.\nVerifiers read the CRL'"'"'s version first.\n' > "$T/core.md"
+expect_fail "'the CRL's version' fails" "$T" "core.md:2"
+
+T="$(new_tree possessive-curly)"
+printf 'The revocation-list\xe2\x80\x99s version advances.\n' > "$T/core.md"
+expect_fail "'the revocation-list's version' with a curly apostrophe fails" "$T" "core.md:1"
+
+T="$(new_tree version-of-other)"
+printf 'This version of the specification defines the CRL. A version of ATP adds a CRL field.\n' > "$T/core.md"
+expect_pass "'version of' another thing near the CRL is not the phrase" "$T"
+
 T="$(new_tree cursor)"
 printf 'Advances the `nextSince` cursor that the ATP-SPEC v1.0.0-rc1 section 8.1 revocation response returns.\n' > "$T/core.md"
 expect_pass "naming the nextSince cursor passes" "$T"
