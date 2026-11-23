@@ -4,7 +4,7 @@ Text moved out of the [README](../README.md), kept here in full: the summary tha
 
 ## What ATX is
 
-ATX is a signed, self-contained credential carried by every AI agent. It is analogous to a TLS certificate but contains agent identity, scan results, capabilities, and behavioral profile. Local verification under 5ms. Ed25519 + ML-DSA-65 hybrid signatures mandatory at v1.
+ATX is a signed, self-contained credential carried by every AI agent. It is analogous to a TLS certificate but contains agent identity, scan results, capabilities, and behavioral profile. Local verification within 5 ms on a warm cache in a native implementation; the pure-Python reference verifier measures about 6 ms. Ed25519 + ML-DSA-65 hybrid signatures mandatory at v1.
 
 ## Who reads this
 
@@ -64,7 +64,7 @@ The README keeps a shorter form of the first three under What it does, and the r
 
 A partner's agent calls your service. You want to know who issued its credential, what it was attested to do and whether it is still trusted, and you want that on every request, which rules out calling a central server each time: that is slow, and the server becomes the one thing whose outage takes you down.
 
-ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile. A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms on a warm cache, and never queries the issuing node during verification.
+ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile. A verifier checks the signature, the expiry and a locally cached revocation list, and never queries the issuing node during verification. On a warm cache a native implementation verifies within 5 ms: the Go reference verifier measures about 0.2 ms. The pure-Python reference verifier measures about 6 ms, above that bound.
 
 What you can do today: run the reference verifier against the pinned fixtures from a clean clone, with the commands under the [first use case in the README](../README.md#a-strangers-agent-calls-you-and-you-cannot-phone-home-on-every-request).
 

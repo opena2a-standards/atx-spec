@@ -36,7 +36,7 @@ The architecture handles this volume because no single party has to handle it. V
 
 ### 2.1 What verification actually costs
 
-Warm cache verification, broken down:
+Warm cache verification in a native implementation, broken down. The figures are a budget for a compiled implementation on a modest CPU with no hardware acceleration, not a measurement of any one verifier:
 
 | Step | Cost | Notes |
 |---|---|---|
@@ -47,7 +47,16 @@ Warm cache verification, broken down:
 | ML-DSA-65 signature verify | 3 ms | Constant time, required: every credential carries one beside the Ed25519 signature ([core.md §1.1](core.md#11-atx-schema)) |
 | CRL cache lookup | 0.05 ms | In memory hash map |
 | Content hash compare (optional) | 0.1 ms | SHA-256 of presented artifact |
-| Total warm cache | 3.5 to 3.6 ms | The sum of the steps above, without and with the optional content hash compare; dominated by the ML-DSA-65 verification |
+| Total warm cache | 3.5 to 3.6 ms | The sum of the steps above, without and with the optional content hash compare; dominated by the ML-DSA-65 verification. The budget of a native implementation |
+
+The bound a native implementation meets on a warm cache is 5 ms, which this budget fits within. The bound is stated per implementation class, because the measured cost differs about thirtyfold between them:
+
+| Implementation class | Reference verifier | Measured warm cache verification of a hybrid (Ed25519 and ML-DSA-65) credential | Within the 5 ms bound |
+|---|---|---|---|
+| Native | Go, `atx-conformance/verifiers/go` | about 0.2 ms | Yes |
+| Interpreted, pure Python | Python, `atx-conformance/verifiers/python` | about 6 ms | No |
+
+Both figures are measurements, not bounds, and depend on the CPU they ran on. A deployment that needs the 5 ms bound uses a native implementation.
 
 Cold cache adds one DID document fetch and one CRL refresh. Both are one time costs amortized across thousands of subsequent verifications. Cold start is under 50 ms total. After that, every verification reverts to warm cache cost.
 

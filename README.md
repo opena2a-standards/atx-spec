@@ -16,7 +16,7 @@ To check a verifier against the pinned fixtures, run the reference verifier show
 
 ATX is a signed, self-contained credential that carries the agent's identity, scan results, capabilities and behavioral profile.
 
-A verifier checks the signature, the expiry and a locally cached revocation list, in under 5 ms on a warm cache, and never queries the issuing node during verification.
+A verifier checks the signature, the expiry and a locally cached revocation list, and never queries the issuing node during verification. On a warm cache a native implementation verifies within 5 ms: the Go reference verifier measures about 0.2 ms. The pure-Python reference verifier measures about 6 ms, above that bound ([scalability.md §2.1](scalability.md#21-what-verification-actually-costs)).
 
 What you can do today: run the reference verifier against the pinned fixtures from a clean clone.
 

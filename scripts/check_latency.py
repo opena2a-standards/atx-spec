@@ -5,14 +5,19 @@ The cost of local verification is broken down step by step in scalability.md
 section 2.1. Every other place that states a total states the same figure, so a
 reader who meets two of them never has to choose:
 
-  warm   under 5 ms. A warm cache holds the issuer's DID document and the
-         revocation list; the total includes the ML-DSA-65 verification that
-         the family signature gate requires of a hybrid credential.
+  warm   within 5 ms, for a native implementation. A warm cache holds the
+         issuer's DID document and the revocation list; the total includes
+         the ML-DSA-65 verification that the family signature gate requires
+         of a hybrid credential. The bound is stated per implementation
+         class: the Go reference verifier measures about 0.2 ms and the
+         pure-Python one about 6 ms, above it, so a warm bound names the
+         class it holds for.
   cold   under 50 ms. A cold cache adds one DID document fetch.
 
 A statement is a sentence (or a table row) in which a bound appears: "under",
-"sub" or "below" followed by a number and "ms" or "millisecond(s)", or a range
-"N to M ms". A bound belongs to the nearest kind named before it in the same
+"sub", "below", "within" or "at most" followed by a number and "ms" or
+"millisecond(s)", or a range "N to M ms". A measured figure such as "about
+6 ms" is not a bound. A bound belongs to the nearest kind named before it in the same
 sentence, else to the first one named after it: "warm cache" or "local
 verification" is warm, "cold cache" or "cold start" is cold. In a table row
 whose first cell names a kind, or is exactly "Verification", a bound with no
@@ -23,6 +28,9 @@ Rules, each failure reported as file:line with its rule in brackets:
 
   latency   an "under" bound for a kind states that kind's figure, and a range
             for a kind does not end above it.
+  class     a paragraph, list item or table row that states a warm cache
+            bound says the class it holds for, "native", so the bound is not
+            read as holding for every implementation.
   step      in a numbered list that states a warm cache total, a per-step bound
             stays below that total: the steps add up to it, so no one step
             can take all of it.
@@ -47,6 +55,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 FIGURES_MS = {"warm": 5, "cold": 50}
 REQUIRED = [("core.md", "warm"), ("core.md", "cold"), ("README.md", "warm")]
+CLASS_RE = re.compile(r"\bnative\b", re.IGNORECASE)
 HISTORY = {"CHANGELOG.md"}
 HISTORY_DIRS = {"errata"}
 
@@ -56,7 +65,7 @@ KIND_RE = re.compile(
 )
 UNIT = r"\s*(?:ms|milliseconds?)\b"
 BOUND_RE = re.compile(
-    r"\b(?:under|sub|below)\s+(?P<bound>\d+(?:\.\d+)?)" + UNIT
+    r"\b(?:under|sub|below|within|at\s+most)\s+(?P<bound>\d+(?:\.\d+)?)" + UNIT
     + r"|\b(?P<low>\d+(?:\.\d+)?)\s+to\s+(?P<high>\d+(?:\.\d+)?)" + UNIT,
     re.IGNORECASE,
 )
@@ -170,7 +179,7 @@ def step_failures(rel, numbered):
     figure = FIGURES_MS["warm"]
     return [
         f"{rel}:{line} [step] {' '.join(bound.group(0).split())!r} for one step of a list "
-        f"whose warm cache total is under {figure} ms; the steps add up to the total, "
+        f"whose warm cache total is within {figure} ms; the steps add up to the total, "
         f"so each one is below it"
         for line, kind, bound in numbered
         if kind is None and upper_ms(bound) >= figure
@@ -186,6 +195,7 @@ def check_file(rel, text, seen):
             failures.extend(step_failures(rel, numbered))
             numbered = []
         line, counted = first, 0
+        classed = bool(CLASS_RE.search(block))
         for offset, kind, bound in statements(block):
             # Offsets only grow, so each newline is counted once per block.
             line += block.count("\n", counted, offset)
@@ -204,7 +214,13 @@ def check_file(rel, text, seen):
             if wrong:
                 failures.append(
                     f"{rel}:{line} [latency] {stated!r} for the {kind} cache total; "
-                    f"every surface states under {figure} ms (scalability.md section 2.1)"
+                    f"every surface states {figure} ms (scalability.md section 2.1)"
+                )
+            if kind == "warm" and not classed:
+                failures.append(
+                    f"{rel}:{line} [class] {stated!r} for the warm cache total names no "
+                    f"implementation class; the {figure} ms bound holds for a native "
+                    f"implementation, not the pure-Python reference verifier"
                 )
     return failures
 
@@ -229,7 +245,7 @@ def main():
         if (rel, kind) not in seen:
             failures.append(
                 f"{rel} [missing] states no {kind} cache verification total; "
-                f"it should say under {FIGURES_MS[kind]} ms"
+                f"it should state {FIGURES_MS[kind]} ms"
             )
 
     if failures:
