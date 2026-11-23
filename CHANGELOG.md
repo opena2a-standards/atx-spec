@@ -373,6 +373,19 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- The remaining atx-conformance work for #44 is recorded at its size. Earlier entries recorded
+  it as the six fixtures that §12 Coverage excepts: they declare `atcVersion` 1.1, carry Ed25519
+  signatures only and pin ACCEPT, and the suite would regenerate them with an ML-DSA-65 entry.
+  That counts only the fixtures whose pinned verdict the required-suites rule changes. Moving the
+  suite's vendored schema to this repository's schema, which the suite also needs, fails 12 or
+  13 fixtures, not six. Copied over that copy at 2ac8f91, the schema fails 13 of the suite's 25
+  fixtures (`summary: 12 pass, 13 fail (25 fixtures)`): the twelve Ed25519-only fixtures that
+  declare 1.1, four pinned ACCEPT and eight pinned REJECT, and `v1_1-hybrid-pq-only`, which lacks
+  the Ed25519 signature. The move fails 12 if the suite's schema check expects the refusal of
+  `v1_1-hybrid-pq-only`, which pins REJECT, and 13 if it does not. Each of the twelve needs an
+  ML-DSA-65 entry, or the check must expect its refusal. Regenerating the six that pin ACCEPT
+  leaves the schema refusing the rest. The fixtures, the vendored schema and the suite's schema
+  check are in atx-conformance and are not part of this change. No normative text changes. (#44)
 - `core.md` §1.3a.2 rule 6 says the entries of `scanSummary.techniques` are unique, as the
   schema's `uniqueItems` requires, and that a list repeating an ID is invalid and makes the
   credential non-conforming. It reconciles that with the sentence that a verifier does not
