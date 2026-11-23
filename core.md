@@ -768,12 +768,12 @@ This flow has zero issuing node involvement. It runs thousands of times per seco
 
 Revocation speed is the measure of how quickly a compromised agent stops being trusted. Target: under 60 seconds from revocation event to rejection at all subscribed verifiers. Hard upper bound: 5 minutes for any verifier still on its cached CRL.
 
-**Wire format.** The revocation list that verifiers fetch and cache (§3.2 step 6) is specified in ATP-SPEC v1.0.0-rc1 §8.1, and its machine-readable shape is the schema with `$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. This section describes how a revocation propagates; it does not define that format. A signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work (§2 item 5).
+**Wire format.** The revocation list that verifiers fetch and cache (§3.2 step 6) is specified in ATP-SPEC v1.0.0-rc1 §8.1, and its machine-readable shape is the schema with `$id` `https://specs.opena2a.org/schemas/atp/revocation-list-v1.schema.json`. This section describes how a revocation propagates; it does not define that format. A signed revocation list, delta CRLs and a push-notification format are ATP 1.1 work (§2 item 5). The revocation notice that step 3 pushes between federation nodes is a message of the federation protocol (§2 item 4), not a delta CRL served to verifiers, and this section does not define its format either.
 
 1. Revocation trigger fires. Examples: CONTENT_HASH_VIOLATION, manual revocation, security incident, ATX expiry with failed reissuance.
 2. Issuing node marks ATX as revoked. Adds REVOCATION entry to transparency log. Advances the `nextSince` cursor that the ATP-SPEC v1.0.0-rc1 §8.1 revocation response returns.
-3. Issuing node pushes updated CRL delta to all active federation nodes via HTTP POST with HMAC signature. Under 5 seconds.
-4. Federation nodes receive delta, update local CRL, acknowledge. Nodes failing to acknowledge within 30 seconds are flagged offline.
+3. Issuing node pushes a revocation notice, the federation protocol message (§2 item 4) that names the revoked ATX, to all active federation nodes via HTTP POST with HMAC signature. Under 5 seconds. The notice is node-to-node only: it is not a CRL delta, a format that is ATP 1.1 work (§2 item 5).
+4. Federation nodes receive the notice, add the revoked ATX to their local CRL, acknowledge. Nodes failing to acknowledge within 30 seconds are flagged offline.
 5. CDN cached CRL endpoint invalidated. Fresh CRL available immediately.
 6. SSE event published to all subscribers as a trust_changed event for this agentId.
 7. Verifiers detect the revocation on next request from this agent. Reject.
