@@ -373,6 +373,24 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `core.md` §1.3 step 2 makes the seven-day lifetime a verifier rule: a verifier MUST reject as
+  `EXPIRED` an ATX whose `expiresAt` lies more than the seven-day credential TTL of §1.2 plus the
+  family clock-skew bound of ATP §10.2 (604,860 seconds with the 60-second bound) after its
+  `issuedAt`, whatever its clock reads. Step 2 already expired an ATX at the earlier of
+  `expiresAt` and `issuedAt` plus the TTL, so a credential issued to live a year was accepted for
+  its first seven days; it is now rejected outright. The skew allowance admits a lifetime up to
+  that sum and does not extend the validity window. §3.2 step 2, the expiry row of
+  `scalability.md` §2.1 and the `issuedAt` and `expiresAt` descriptions of
+  `schemas/atx-credential-v1.1.schema.json` state the bound; a schema cannot compare two
+  date-times, so the schema adds no constraint. Every atx-conformance fixture other than
+  `expired` and `expired-beyond-skew` carries `expiresAt` `2099-12-31T23:59:59Z` beside an
+  `issuedAt` in 2026, so the §12 Coverage paragraph states that the bound rejects each of them,
+  that the requirement text governs for them until the suite regenerates them within seven days
+  and adds a fixture that pins the rejection, and the Conformance suite paragraph no longer
+  requires a pinned verdict the bound overrides; the Verifier clock paragraph no longer says step 2 rejects no
+  fixture that pins ACCEPT. The fixtures and reference verifiers live in atx-conformance and are
+  not part of this change.
+
 - The warm cache verification bound is stated per implementation class. It was "under 5 ms"
   for every verifier, but the Python reference verifier measures 5.76 ms per hybrid
   verification and the Go one 0.20 ms. `README.md`, `core.md` §1.3, the §3 plane table and §3.2
