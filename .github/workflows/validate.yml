@@ -24,3 +24,21 @@ jobs:
 
       - name: Validate schemas and mapped spec examples
         run: python3 scripts/validate_examples.py
+
+      # Naming, section pointers and the revocation cursor: each check runs
+      # against this tree, then its test runs the failing shapes in scratch
+      # trees. All three need only python3 and bash.
+      - name: Markdown names OpenA2A components as required
+        run: |
+          python3 scripts/check_naming.py
+          bash scripts/test_naming.sh
+
+      - name: Sections name where what they describe is specified
+        run: |
+          python3 scripts/check_pointers.py
+          bash scripts/test_pointers.sh
+
+      - name: Text asks nothing of the revocation list it cannot carry
+        run: |
+          python3 scripts/check_revocation_cursor.py
+          bash scripts/test_revocation_cursor.sh
