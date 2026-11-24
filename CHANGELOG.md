@@ -373,6 +373,12 @@ identifier registered in `core.md` §14.
 
 ### Changed
 
+- `CONTRIBUTING.md` has a section "License of contributions", which holds its statement that
+  contributions are licensed under the Apache License 2.0, formerly a Ground rules item, and a
+  section "Sign your work": every commit of a contribution carries a `Signed-off-by:` line by
+  which the contributor certifies the Developer Certificate of Origin 1.1, quoted there. No
+  contributor license agreement is asked for, and the code license does not license the
+  project's names and logos.
 - The remaining atx-conformance work for #44 is recorded at its size. Earlier entries recorded
   it as the six fixtures that §12 Coverage excepts: they declare `atcVersion` 1.1, carry Ed25519
   signatures only and pin ACCEPT, and the suite would regenerate them with an ML-DSA-65 entry.
