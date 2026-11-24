@@ -10,6 +10,11 @@ identifier registered in `core.md` §14.
 
 ### Added
 
+- The `schemas` workflow (`.github/workflows/validate.yml`) gains three steps in its existing
+  job, which runs on every pull request and push to main. Each step runs one check against the
+  tree and then its test: `scripts/check_naming.py` and `scripts/test_naming.sh`,
+  `scripts/check_pointers.py` and `scripts/test_pointers.sh`, and
+  `scripts/check_revocation_cursor.py` and `scripts/test_revocation_cursor.sh`. (#33)
 - `scripts/check_purpose_fold.py` + `scripts/test_purpose_fold.sh`: the `core.md` paragraph that
   says "Inside `declaredPurpose`" and "duplicate member" says `A` to `Z` and names U+212A and
   U+017F, each with the letter it folds to (`k`, `s`) in backticks within 80 characters after
@@ -296,7 +301,7 @@ identifier registered in `core.md` §14.
   name and is allowed) and one two-word phrase naming an internal trust component, which fails in
   a descriptive use as well. Failures are reported as file and line, at most 20 per file followed
   by a count of the rest, and a file that is not UTF-8 is reported as a failure. The check exits 1
-  on a failure and 2 on a usage error, needs only python3 and is not yet run by CI.
+  on a failure and 2 on a usage error, needs only python3 and is run by CI with its test.
 - `scripts/check_pointers.py` + `scripts/test_pointers.sh`: a section that describes a format or
   a decision specified elsewhere must name where it is specified in the section itself, since a
   reader who follows a link to the section does not read the document header. It covers `core.md`
@@ -313,14 +318,14 @@ identifier registered in `core.md` §14.
   sentence that names the forge lab at specs.opena2a.org/lab/forge, by name or by URL, in any
   Markdown file outside `CHANGELOG.md` and `errata/`, unless that same sentence says that what
   the lab signs is not an ATX credential, since the lab does not verify `JCS(TBS)` of a real
-  credential; a file that is not UTF-8 also fails. The check needs only python3 and is not yet
-  run by CI.
+  credential; a file that is not UTF-8 also fails. The check needs only python3 and is run by CI
+  with its test.
 - `scripts/check_revocation_cursor.py` + `scripts/test_revocation_cursor.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may name a version number for the revocation list, because
   the ATP-SPEC v1.0.0-rc1 §8.1 revocation response has no field to carry one, and no sentence may
   name `agentId` and then the CRL or the revocation list, because each entry in that response
   names the revoked agent by `agentDid` and carries no `agentId`. Failures are reported as file
-  and line. The check needs only python3 and is not yet run by CI.
+  and line. The check needs only python3 and is run by CI with its test.
 - `scripts/check_revocation_list.py` + `scripts/test_revocation_list.sh`: no Markdown file
   outside `CHANGELOG.md` and `errata/` may say that the revocation list, its response body or its
   cache is signed, in a sentence that names a CRL or a revocation, unless that sentence names
